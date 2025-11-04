@@ -13,4 +13,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Subpackage defining a RESTful API."""
+"""Entrypoint of the package."""
+
+import asyncio
+
+from ghga_service_commons.api import run_server
+from hexkit.log import configure_logging
+
+from ets.inject import prepare_rest_app
+
+from .config import CONFIG, Config
+
+
+async def run_rest_app(config: Config):
+    """Run the HTTP REST API.
+    Instantiate config, call prepare_rest_app, await run_server.
+    """
+    configure_logging(config=config)
+    async with prepare_rest_app(config=config) as app:
+        await run_server(app=app, config=config)
+
+
+def run(config: Config = CONFIG):
+    """Run the service."""
+    # Please adapt to package name
+    asyncio.run(run_rest_app(config=config))
+
+
+if __name__ == "__main__":
+    run()

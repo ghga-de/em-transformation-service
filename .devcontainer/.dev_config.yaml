@@ -1,4 +1,5 @@
 # Please only mention the non-default settings here:
 
-language: Greek
 service_instance_id: "1"
+mongo_dsn: mongodb://mongodb:27017
+db_name: workflow_db_test

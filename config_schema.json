@@ -2,6 +2,43 @@
   "additionalProperties": false,
   "description": "Modifies the original Settings class provided by the user",
   "properties": {
+    "mongo_dsn": {
+      "description": "MongoDB connection string. Might include credentials. For more information see: https://naiveskill.com/mongodb-connection-string/",
+      "examples": [
+        "mongodb://localhost:27017"
+      ],
+      "format": "multi-host-uri",
+      "minLength": 1,
+      "title": "Mongo Dsn",
+      "type": "string"
+    },
+    "db_name": {
+      "description": "Name of the database located on the MongoDB server.",
+      "examples": [
+        "my-database"
+      ],
+      "title": "Db Name",
+      "type": "string"
+    },
+    "mongo_timeout": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Timeout in seconds for API calls to MongoDB. The timeout applies to all steps needed to complete the operation, including server selection, connection checkout, serialization, and server-side execution. When the timeout expires, PyMongo raises a timeout exception. If set to None, the operation will not time out (default MongoDB behavior).",
+      "examples": [
+        300,
+        600,
+        null
+      ],
+      "title": "Mongo Timeout"
+    },
     "log_level": {
       "default": "INFO",
       "description": "The minimum log level to capture.",
@@ -17,7 +54,7 @@
       "type": "string"
     },
     "service_name": {
-      "default": "my_microservice",
+      "default": "ets",
       "description": "Short name of this service",
       "title": "Service Name",
       "type": "string"
@@ -204,21 +241,11 @@
       ],
       "title": "Generate Correlation Id",
       "type": "boolean"
-    },
-    "language": {
-      "default": "Croatian",
-      "description": "The language.",
-      "enum": [
-        "Greek",
-        "Croatian",
-        "French",
-        "German"
-      ],
-      "title": "Language",
-      "type": "string"
     }
   },
   "required": [
+    "mongo_dsn",
+    "db_name",
     "service_instance_id"
   ],
   "title": "ModSettings",

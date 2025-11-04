@@ -13,12 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test dummy."""
+"""DAO translators for accessing the database."""
 
-from ets.core.greeting import generate_greeting
+from hexkit.protocols.dao import DaoFactoryProtocol
+
+from ets.core import models
+from ets.ports.outbound.dao import WorkflowDaoPort
 
 
-def test_dummy():
-    """A very simple example test."""
-    greeting = generate_greeting("monde", "French", True)
-    assert greeting.message == "Salut monde!"
+# this functions returns a DAO that is compatible with DTO model WorkflowInfo
+async def get_workflow_dao(*, dao_factory: DaoFactoryProtocol) -> WorkflowDaoPort:
+    """Setup the DAOs using the specified provider of the DaoFactoryProtocol."""
+    return await dao_factory.get_dao(
+        name="workflows", dto_model=models.WorkflowDto, id_field="workflow_id"
+    )
+
+
+# this DAO must call the function get_by_id

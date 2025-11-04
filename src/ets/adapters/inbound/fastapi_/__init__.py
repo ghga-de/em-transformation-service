@@ -13,12 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test dummy."""
-
-from ets.core.greeting import generate_greeting
-
-
-def test_dummy():
-    """A very simple example test."""
-    greeting = generate_greeting("monde", "French", True)
-    assert greeting.message == "Salut monde!"
+"""FastAPI-driven HTTP interface logic"""

@@ -13,12 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test dummy."""
+"""A collection of dependency dummies that are used in view definitions but need to be
+replaced at runtime by actual dependencies.
+"""
 
-from ets.core.greeting import generate_greeting
+from typing import Annotated
 
+from fastapi import Depends
+from ghga_service_commons.api.di import DependencyDummy
 
-def test_dummy():
-    """A very simple example test."""
-    greeting = generate_greeting("monde", "French", True)
-    assert greeting.message == "Salut monde!"
+from ets.ports.inbound.workflow import WorkflowInboundPort
+
+workflow_dummy = DependencyDummy("workflow_dummy")
+
+WorkflowDummy = Annotated[WorkflowInboundPort, Depends(workflow_dummy)]

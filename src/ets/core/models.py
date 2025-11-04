@@ -13,21 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Entrypoint of the package."""
+"""Defines dataclasses for holding business-logic data."""
 
-import asyncio
-
-from ghga_service_commons.api import run_server
-
-from .api.main import app  # noqa: F401 pylint: disable=unused-import
-from .config import CONFIG, Config
+from pydantic import BaseModel, Field
 
 
-def run(config: Config = CONFIG):
-    """Run the service."""
-    # Please adapt to package name
-    asyncio.run(run_server(app="my_microservice.__main__:app", config=config))
+class WorkflowDto(BaseModel):
+    """Information about a workflow."""
 
-
-if __name__ == "__main__":
-    run()
+    workflow_id: str = Field(
+        ...,
+        description="The unique identifier of the workflow.",
+    )
+    workflow: str = Field(
+        ...,
+        description="String representation of the workflow",
+    )

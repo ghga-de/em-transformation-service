@@ -8,7 +8,7 @@ services:
         INSTALL_NODE: "false"
         NODE_VERSION: "lts/*"
         # Please adapt to package name:
-        PACKAGE_NAME: "my_microservice"
+        PACKAGE_NAME: "ets"
         # On Linux, you may need to update USER_UID and USER_GID below if not your local UID is not 1000.
         USER_UID: 1000
         USER_GID: 1000
@@ -31,12 +31,11 @@ services:
     # define environment variables
     environment:
       # Please adapt to package name:
-      MY_MICROSERVICE_CONFIG_YAML: /workspace/.devcontainer/.dev_config.yaml
+      ETS_CONFIG_YAML: /workspace/.devcontainer/.dev_config.yaml
       # Used by db migration:
       DB_URL: postgresql://postgres:postgres@postgresql/postgres
     # Use "forwardPorts" in **devcontainer.json** to forward an app port locally.
     # (Adding the "ports" property to this file will not forward from a Codespace.)
-
 
     # Please remove service dependencies that are not needed:
   mongodb:
@@ -44,6 +43,21 @@ services:
     restart: unless-stopped
     volumes:
       - mongo_fs:/data/db
+
+  mongo-express:
+    image: mongo-express:latest
+    restart: unless-stopped
+    ports:
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_BASICAUTH_USERNAME: dev
+      ME_CONFIG_BASICAUTH_PASSWORD: dev
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: "true"
+
+    depends_on:
+      - mongodb
 
   localstack:
     image: localstack/localstack

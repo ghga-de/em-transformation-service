@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test dummy."""
+"""Port definition of a Workflow class"""
 
-from ets.core.greeting import generate_greeting
+from abc import ABC, abstractmethod
 
 
-def test_dummy():
-    """A very simple example test."""
-    greeting = generate_greeting("monde", "French", True)
-    assert greeting.message == "Salut monde!"
+class WorkflowInboundPort(ABC):
+    """An abstract definition of a Workflow class"""
+
+    @abstractmethod
+    async def get_workflow_id(self, *, workflow_id: str) -> str:
+        """Get workflow information"""

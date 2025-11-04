@@ -18,25 +18,20 @@
 from ghga_service_commons.api import ApiConfigBase
 from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
+from hexkit.providers.mongodb import MongoDbConfig
 from pydantic import Field
 
-from .models import SupportedLanguages
-
-SERVICE_NAME: str = "my_microservice"  # Please adapt
+SERVICE_NAME: str = "ets"
 
 
 # Please adapt config prefix and remove unnecessary config bases:
 @config_from_yaml(prefix=SERVICE_NAME)
-class Config(ApiConfigBase, LoggingConfig):
+class Config(ApiConfigBase, LoggingConfig, MongoDbConfig):
     """Config parameters and their defaults."""
 
     service_name: str = Field(
         default=SERVICE_NAME, description="Short name of this service"
     )
 
-    language: SupportedLanguages = Field(
-        default="Croatian", description="The language."
-    )
 
-
-CONFIG = Config()  # type: ignore
+CONFIG = Config()  # type: ignore[call-arg]

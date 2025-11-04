@@ -1,37 +1,5 @@
 components:
   schemas:
-    Greeting:
-      description: A container storing a greeting for a specific person incl. metadata.
-      properties:
-        created_at:
-          description: The date/time when the message was created
-          format: date-time
-          title: Created At
-          type: string
-        isinformal:
-          description: Is the expression used in informal contexts?
-          title: Isinformal
-          type: boolean
-        language:
-          description: The language.
-          enum:
-          - Greek
-          - Croatian
-          - French
-          - German
-          title: Language
-          type: string
-        message:
-          description: The message content.
-          title: Message
-          type: string
-      required:
-      - message
-      - created_at
-      - language
-      - isinformal
-      title: Greeting
-      type: object
     HTTPValidationError:
       properties:
         detail:
@@ -63,46 +31,40 @@ components:
       title: ValidationError
       type: object
 info:
-  title: FastAPI
+  description: A minimal mock service passing the workflow id to application layer
+  title: EM Transformation Service
   version: 0.1.0
 openapi: 3.1.0
 paths:
-  /:
+  /health:
     get:
-      description: Greet the World.
-      operationId: index__get
+      description: Test endpoint to check if the service is running.
+      operationId: health_check_health_get
       responses:
         '200':
           content:
             application/json:
               schema: {}
           description: Successful Response
-      summary: Greet the world
-  /greet/{name}:
-    get:
-      description: Greet a person by name. You may choose a formal or an informal
-        greeting.The language for the greeting is configured in the backend.
-      operationId: greet_greet__name__get
+      summary: Health check endpoint
+  /workflows:
+    post:
+      description: Submit a workflow for execution.
+      operationId: submit_workflow_workflows_post
       parameters:
-      - in: path
-        name: name
+      - in: query
+        name: workflow_id
         required: true
         schema:
-          title: Name
+          title: Workflow Id
           type: string
-      - in: query
-        name: isinformal
-        required: false
-        schema:
-          default: true
-          title: Isinformal
-          type: boolean
       responses:
-        '200':
+        '201':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Greeting'
+                title: Response Submit Workflow Workflows Post
+                type: string
           description: Successful Response
         '422':
           content:
@@ -110,4 +72,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
-      summary: Greet a person
+      summary: Submit a workflow id for execution
+servers:
+- url: ''

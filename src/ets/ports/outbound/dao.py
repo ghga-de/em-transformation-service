@@ -13,11 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""FastAPI dependencies (used with the `Depends` feature)."""
 
-from ..config import CONFIG
+"""DAO interface for accessing the database."""
 
+from hexkit.protocols.dao import Dao
 
-def get_config():
-    """Get runtime configuration."""
-    return CONFIG
+from ets.core import models
+
+WorkflowDaoPort = Dao[models.WorkflowDto]
+
+# Hexkit DAO has the protocol defined. So the outbound port is an hexkit DAO object, that is WorkflowDaoPort
+# DAO[DTO] is a DAO object compatible with DTO model.

@@ -20,4 +20,8 @@
 # pylint: skip-file
 
 # Please adapt to package structure:
-from my_microservice.api.main import app
+from ets.adapters.inbound.fastapi_.configure import get_configured_app
+from ets.config import Config
+
+config = Config()  # type: ignore
+app = get_configured_app(config=config)
