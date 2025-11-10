@@ -21,6 +21,7 @@ from hexkit.protocols.dao import ResourceNotFoundError
 
 from ets.ports.inbound.workflow import WorkflowInboundPort
 from ets.ports.outbound.dao import DataDaoPort, WorkflowDaoPort
+from ets.ports.outbound.event_pub import EventPubTranslatorPort
 
 from .models import DataDto, WorkflowDto
 
@@ -30,10 +31,17 @@ log = getLogger(__name__)
 class WorkflowCore(WorkflowInboundPort):
     """A concrete implementation of the WorkflowPort abstract class"""
 
-    def __init__(self, *, workflow_dao: WorkflowDaoPort, data_dao: DataDaoPort):
+    def __init__(
+        self,
+        *,
+        workflow_dao: WorkflowDaoPort,
+        data_dao: DataDaoPort,
+        event_pub: EventPubTranslatorPort,
+    ) -> None:
         """Initialize the WorkflowCore with the required outbound ports."""
         self._workflow_dao = workflow_dao
         self._data_dao = data_dao
+        self._event_pub = event_pub
 
     async def get_workflow(self, *, workflow_id: str):
         """Get workflow information"""
@@ -44,6 +52,8 @@ class WorkflowCore(WorkflowInboundPort):
         """Transform data information"""
         # workflow = await self._fetch_workflow(workflow_id=workflow_id)
         data = await self._fetch_data(workflow_id=workflow_id)
+        # data_obj = models.DerivedEM(data=data, _id=workflow_id, dummy_field="dummy")
+        await self._event_pub.publish_derived_em(data=data.data, _id=workflow_id)
         return data
 
     async def _fetch_workflow(self, *, workflow_id: str):
@@ -62,7 +72,7 @@ class WorkflowCore(WorkflowInboundPort):
             log.info("Fetched workflow: %s", data.model_dump())
         except ResourceNotFoundError as err:
             raise ValueError(f"Data with workflow ID {workflow_id} not found.") from err
-        return data.model_dump(mode="json")
+        return data
 
     async def whatever(self):
         """Just a dummy method to illustrate further expansion of the core logic."""

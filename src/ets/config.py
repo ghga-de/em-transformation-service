@@ -18,15 +18,20 @@
 from ghga_service_commons.api import ApiConfigBase
 from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
+from hexkit.providers.akafka import KafkaConfig
 from hexkit.providers.mongodb import MongoDbConfig
 from pydantic import Field
+
+from ets.adapters.outbound.event_pub import EventPubTranslatorConfig
 
 SERVICE_NAME: str = "ets"
 
 
 # Please adapt config prefix and remove unnecessary config bases:
 @config_from_yaml(prefix=SERVICE_NAME)
-class Config(ApiConfigBase, LoggingConfig, MongoDbConfig):
+class Config(
+    ApiConfigBase, LoggingConfig, MongoDbConfig, KafkaConfig, EventPubTranslatorConfig
+):
     """Config parameters and their defaults."""
 
     service_name: str = Field(

@@ -19,11 +19,13 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, nullcontext
 
 from fastapi import FastAPI
+from hexkit.providers.akafka import KafkaEventPublisher
 from hexkit.providers.mongodb import MongoDbDaoFactory
 
 from ets.adapters.inbound.fastapi_ import dummies
 from ets.adapters.inbound.fastapi_.configure import get_configured_app
 from ets.adapters.outbound.dao import get_data_dao, get_workflow_dao
+from ets.adapters.outbound.event_pub import EventPubTranslator
 from ets.config import Config
 from ets.core.workflow import WorkflowCore
 from ets.ports.inbound.workflow import WorkflowInboundPort
@@ -32,10 +34,18 @@ from ets.ports.inbound.workflow import WorkflowInboundPort
 @asynccontextmanager
 async def prepare_core(*, config: Config) -> AsyncGenerator[WorkflowInboundPort]:
     """Constructs and initializes all core components and their outbound dependencies."""
-    async with MongoDbDaoFactory.construct(config=config) as dao_factory:
+    async with (
+        MongoDbDaoFactory.construct(config=config) as dao_factory,
+        KafkaEventPublisher.construct(config=config) as kafka_pub,
+    ):
         workflow_dao = await get_workflow_dao(dao_factory=dao_factory)
         data_dao = await get_data_dao(dao_factory=dao_factory)
-        workflow = WorkflowCore(workflow_dao=workflow_dao, data_dao=data_dao)
+        event_pub = EventPubTranslator(
+            config=config, provider=kafka_pub
+        )  # kafka pub is the event publisher protocol,
+        workflow = WorkflowCore(
+            workflow_dao=workflow_dao, data_dao=data_dao, event_pub=event_pub
+        )
         yield workflow
 
 

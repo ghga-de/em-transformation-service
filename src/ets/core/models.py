@@ -46,3 +46,12 @@ class DataDto(BaseModel):
         ...,
         description="The unique identifier of the workflow associated with the data.",
     )
+
+
+class DerivedEM(BaseModel):  # normally this comes from event schemas pydantic_.py
+    # is this even necessary, because the payload is not different from core.models.DerivedData?
+    """Derived data event model."""
+
+    data: str
+    dummy_field: str
+    my_id: str
