@@ -29,3 +29,20 @@ class WorkflowDto(BaseModel):
         ...,
         description="String representation of the workflow",
     )
+
+
+class DataDto(BaseModel):
+    """Information about data."""
+
+    data: str = Field(
+        ...,
+        description="The unique identifier of the data.",
+    )
+    model: str = Field(
+        ...,
+        description="String representation of the data",
+    )
+    workflow_id: str = Field(
+        ...,
+        description="The unique identifier of the workflow associated with the data.",
+    )

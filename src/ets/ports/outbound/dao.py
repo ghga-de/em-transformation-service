@@ -24,3 +24,5 @@ WorkflowDaoPort = Dao[models.WorkflowDto]
 
 # Hexkit DAO has the protocol defined. So the outbound port is an hexkit DAO object, that is WorkflowDaoPort
 # DAO[DTO] is a DAO object compatible with DTO model.
+
+DataDaoPort = Dao[models.DataDto]

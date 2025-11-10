@@ -22,5 +22,17 @@ class WorkflowInboundPort(ABC):
     """An abstract definition of a Workflow class"""
 
     @abstractmethod
-    async def get_workflow_id(self, *, workflow_id: str) -> str:
+    async def get_workflow(self, *, workflow_id: str) -> str:
         """Get workflow information"""
+
+    @abstractmethod
+    async def whatever(self) -> None:
+        """Just a dummy method to illustrate further expansion of the core logic."""
+
+    @abstractmethod
+    async def whatever_data(self) -> None:
+        """Just a dummy method to illustrate further expansion of the core logic."""
+
+    @abstractmethod
+    async def transform_data(self, *, workflow_id: str) -> str:
+        """Transform data information"""

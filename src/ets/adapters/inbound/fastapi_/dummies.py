@@ -27,3 +27,5 @@ from ets.ports.inbound.workflow import WorkflowInboundPort
 workflow_dummy = DependencyDummy("workflow_dummy")
 
 WorkflowDummy = Annotated[WorkflowInboundPort, Depends(workflow_dummy)]
+
+DataDummy = Annotated[WorkflowInboundPort, Depends(workflow_dummy)]

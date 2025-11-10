@@ -23,7 +23,7 @@ from hexkit.providers.mongodb import MongoDbDaoFactory
 
 from ets.adapters.inbound.fastapi_ import dummies
 from ets.adapters.inbound.fastapi_.configure import get_configured_app
-from ets.adapters.outbound.dao import get_workflow_dao
+from ets.adapters.outbound.dao import get_data_dao, get_workflow_dao
 from ets.config import Config
 from ets.core.workflow import WorkflowCore
 from ets.ports.inbound.workflow import WorkflowInboundPort
@@ -34,7 +34,8 @@ async def prepare_core(*, config: Config) -> AsyncGenerator[WorkflowInboundPort]
     """Constructs and initializes all core components and their outbound dependencies."""
     async with MongoDbDaoFactory.construct(config=config) as dao_factory:
         workflow_dao = await get_workflow_dao(dao_factory=dao_factory)
-        workflow = WorkflowCore(workflow_dao=workflow_dao)
+        data_dao = await get_data_dao(dao_factory=dao_factory)
+        workflow = WorkflowCore(workflow_dao=workflow_dao, data_dao=data_dao)
         yield workflow
 
 

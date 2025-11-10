@@ -18,7 +18,7 @@
 from hexkit.protocols.dao import DaoFactoryProtocol
 
 from ets.core import models
-from ets.ports.outbound.dao import WorkflowDaoPort
+from ets.ports.outbound.dao import DataDaoPort, WorkflowDaoPort
 
 
 # this functions returns a DAO that is compatible with DTO model WorkflowInfo
@@ -29,4 +29,8 @@ async def get_workflow_dao(*, dao_factory: DaoFactoryProtocol) -> WorkflowDaoPor
     )
 
 
-# this DAO must call the function get_by_id
+async def get_data_dao(*, dao_factory: DaoFactoryProtocol) -> DataDaoPort:
+    """Setup the DAOs using the specified provider of the DaoFactoryProtocol."""
+    return await dao_factory.get_dao(
+        name="annotated_em_pack", dto_model=models.DataDto, id_field="workflow_id"
+    )
