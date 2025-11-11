@@ -1,0 +1,7 @@
+service_instance_id: "1"
+mongo_dsn: mongodb://mongodb:27017
+db_name: workflow_db_test
+service_name: ets
+kafka_servers: ["kafka:9092"]
+my_topic: ets_topic
+my_type: ets_type

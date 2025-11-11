@@ -26,7 +26,7 @@ router = APIRouter()
 @router.get("/health", summary="Health check endpoint", status_code=status.HTTP_200_OK)
 async def health_check():
     """Test endpoint to check if the service is running."""
-    return {"status": "healthy"}
+    return {"status": "OK"}
 
 
 @router.get(

@@ -52,7 +52,6 @@ class WorkflowCore(WorkflowInboundPort):
         """Transform data information"""
         # workflow = await self._fetch_workflow(workflow_id=workflow_id)
         data = await self._fetch_data(workflow_id=workflow_id)
-        # data_obj = models.DerivedEM(data=data, _id=workflow_id, dummy_field="dummy")
         await self._event_pub.publish_derived_em(data=data.data, _id=workflow_id)
         return data
 
