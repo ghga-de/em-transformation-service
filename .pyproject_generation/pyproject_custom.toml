@@ -1,8 +1,8 @@
 [project]
 # please adapt to package name
-name = "my_microservice"
+name = "ets"
 version = "0.1.0"
-description = "My-Microservice - a short description"
+description = "EM-Transformation-Service - a service that transforms Experimental Metadata"
 dependencies = [
     "typer >= 0.19.1",
     "ghga-service-commons[api] >= 5.0",
@@ -12,8 +12,8 @@ dependencies = [
 
 [project.urls]
 # please adapt to package name
-Repository = "https://github.com/ghga-de/my-microservice"
+Repository = "https://github.com/ghga-de/em-transformation-service"
 
 [project.scripts]
 # please adapt to package name
-my-microservice = "my_microservice.__main__:run"
+ets = "ets.__main__:run"

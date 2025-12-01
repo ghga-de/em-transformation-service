@@ -1,34 +1,7 @@
-# Microservice Repository Template
+[![tests](https://github.com/ghga-de/em-transformation-service/actions/workflows/tests.yaml/badge.svg)](https://github.com/ghga-de/em-transformation-service/actions/workflows/tests.yaml)
+[![Coverage Status](https://coveralls.io/repos/github/ghga-de/em-transformation-service/badge.svg?branch=main)](https://coveralls.io/github/ghga-de/em-transformation-service?branch=main)
 
-This is a template for GitHub repositories containing one Python-based microservice (optimal for a multirepository setup).
-
-It features:
-
-- *Continuous Templation* - A continuous update delivery mechanism for templated repositories
-- A fully-configured [devcontainer](https://containers.dev/)-based development environment for VS Code
-- Tight linting and formatting using [Ruff](https://docs.astral.sh/ruff/)
-- Static type checking using [mypy](https://www.mypy-lang.org/)
-- Security scanning using [bandit](https://bandit.readthedocs.io/en/latest/)
-- A structure for automated tests using [pytest](https://docs.pytest.org/en/7.4.x/)
-- Dependency locking using [pip-tools](https://github.com/jazzband/pip-tools)
-- Git hooks checking linting and formatting before committing using [pre-commit](https://pre-commit.com/)
-- Automatic container-building and publishing to [Docker Hub](https://hub.docker.com/)
-- GitHub Actions for automating or checking all of the above
-
-It is worth emphasizing the first point, this template is not just a one-time kickstart for your project
-but repositories created using this template will continue receiving updates as the template evolves.
-For further details, please refer to the explanation in [.template/README.md](/.template/README.md).
-
-Please also refer to [.readme_generation/README.md](/.readme_generation/README.md) for details on how
-to adapt this readme.
-
-The introductory section ends here; the microservice README template begins below:
-
----
-[![tests](https://github.com/ghga-de/microservice-repository-template/actions/workflows/tests.yaml/badge.svg)](https://github.com/ghga-de/microservice-repository-template/actions/workflows/tests.yaml)
-[![Coverage Status](https://coveralls.io/repos/github/ghga-de/microservice-repository-template/badge.svg?branch=main)](https://coveralls.io/github/ghga-de/microservice-repository-template?branch=main)
-
-# My Microservice
+# Em Transformation Service
 
 My-Microservice - a short description
 
@@ -43,15 +16,15 @@ Here you should provide a short summary of the purpose of this microservice.
 
 We recommend using the provided Docker container.
 
-A pre-built version is available on [Docker Hub](https://hub.docker.com/repository/docker/ghga/my-microservice):
+A pre-built version is available on [Docker Hub](https://hub.docker.com/repository/docker/ghga/em-transformation-service):
 ```bash
-docker pull ghga/my-microservice:0.1.0
+docker pull ghga/em-transformation-service:0.1.0
 ```
 
 Or you can build the container yourself from the [`./Dockerfile`](./Dockerfile):
 ```bash
 # Execute in the repo's root dir:
-docker build -t ghga/my-microservice:0.1.0 .
+docker build -t ghga/em-transformation-service:0.1.0 .
 ```
 
 For production-ready deployment, we recommend using Kubernetes.
@@ -59,7 +32,7 @@ However for simple use cases, you could execute the service using docker
 on a single server:
 ```bash
 # The entrypoint is pre-configured:
-docker run -p 8080:8080 ghga/my-microservice:0.1.0 --help
+docker run -p 8080:8080 ghga/em-transformation-service:0.1.0 --help
 ```
 
 If you prefer not to use containers, you may install the service from source:
