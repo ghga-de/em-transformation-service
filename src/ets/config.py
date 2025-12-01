@@ -25,7 +25,6 @@ from .models import SupportedLanguages
 SERVICE_NAME: str = "ets"
 
 
-# Please adapt config prefix and remove unnecessary config bases:
 @config_from_yaml(prefix=SERVICE_NAME)
 class Config(ApiConfigBase, LoggingConfig):
     """Config parameters and their defaults."""
