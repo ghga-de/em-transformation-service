@@ -22,7 +22,7 @@ from pydantic import Field
 
 from .models import SupportedLanguages
 
-SERVICE_NAME: str = "my_microservice"  # Please adapt
+SERVICE_NAME: str = "ets"  # Please adapt
 
 
 # Please adapt config prefix and remove unnecessary config bases:
