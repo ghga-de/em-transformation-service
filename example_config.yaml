@@ -15,5 +15,5 @@ log_traceback: true
 openapi_url: /openapi.json
 port: 8080
 service_instance_id: '1'
-service_name: my_microservice
+service_name: ets
 workers: 1

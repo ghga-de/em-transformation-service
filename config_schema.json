@@ -17,7 +17,7 @@
       "type": "string"
     },
     "service_name": {
-      "default": "my_microservice",
+      "default": "ets",
       "description": "Short name of this service",
       "title": "Service Name",
       "type": "string"

@@ -15,7 +15,7 @@
 
 """Test dummy."""
 
-from my_microservice.core.greeting import generate_greeting
+from ets.core.greeting import generate_greeting
 
 
 def test_dummy():
