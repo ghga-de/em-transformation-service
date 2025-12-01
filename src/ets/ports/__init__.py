@@ -13,19 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Entrypoint of the package."""
-
-import asyncio
-
-from ghga_service_commons.api import run_server
-
-from .config import CONFIG, Config
-
-
-def run(config: Config = CONFIG):
-    """Run the service."""
-    asyncio.run(run_server(app="ets.__main__:app", config=config))
-
-
-if __name__ == "__main__":
-    run()
+"""Inbound and outbound port definitions"""

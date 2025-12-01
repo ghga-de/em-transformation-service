@@ -19,5 +19,5 @@
 # flake8: noqa
 # pylint: skip-file
 
-# Please adapt to package structure:
-from ets.api.main import app
+# # Please adapt to package structure:
+# from ets.adapters.inbound.fastapi_.routes import app

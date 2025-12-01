@@ -20,8 +20,6 @@ from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
 from pydantic import Field
 
-from .models import SupportedLanguages
-
 SERVICE_NAME: str = "ets"
 
 
@@ -31,10 +29,6 @@ class Config(ApiConfigBase, LoggingConfig):
 
     service_name: str = Field(
         default=SERVICE_NAME, description="Short name of this service"
-    )
-
-    language: SupportedLanguages = Field(
-        default="Croatian", description="The language."
     )
 
 
