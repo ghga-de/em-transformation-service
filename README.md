@@ -153,8 +153,6 @@ The service requires the following configuration parameters:
   false
   ```
 
-- <a id="properties/language"></a>**`language`** *(string)*: The language. Must be one of: "Greek", "Croatian", "French", or "German". Default: `"Croatian"`.
-
 ### Usage:
 
 A template YAML file for configuring the service can be found at
@@ -179,8 +177,7 @@ To use file secrets, please refer to the
 [corresponding section](https://pydantic-docs.helpmanual.io/usage/settings/#secret-support)
 of the pydantic documentation.
 
-## HTTP API
-An OpenAPI specification for this service can be found [here](./openapi.yaml).
+
 
 ## Architecture and Design:
 <!-- Please provide an overview of the architecture and design of the code base.
