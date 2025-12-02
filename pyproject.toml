@@ -20,9 +20,9 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Intended Audience :: Developers",
 ]
-name = "my_microservice"
+name = "ets"
 version = "0.1.0"
-description = "My-Microservice - a short description"
+description = "EM-Transformation-Service - a service that transforms Experimental Metadata"
 dependencies = [
     "typer >= 0.19.1",
     "ghga-service-commons[api] >= 5.0",
@@ -34,10 +34,10 @@ dependencies = [
 text = "Apache 2.0"
 
 [project.urls]
-Repository = "https://github.com/ghga-de/my-microservice"
+Repository = "https://github.com/ghga-de/em-transformation-service"
 
 [project.scripts]
-my-microservice = "my_microservice.__main__:run"
+ets = "ets.__main__:run"
 
 [tool.setuptools.packages.find]
 where = [

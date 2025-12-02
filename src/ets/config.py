@@ -20,22 +20,15 @@ from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
 from pydantic import Field
 
-from .models import SupportedLanguages
-
-SERVICE_NAME: str = "my_microservice"  # Please adapt
+SERVICE_NAME: str = "ets"
 
 
-# Please adapt config prefix and remove unnecessary config bases:
 @config_from_yaml(prefix=SERVICE_NAME)
 class Config(ApiConfigBase, LoggingConfig):
     """Config parameters and their defaults."""
 
     service_name: str = Field(
         default=SERVICE_NAME, description="Short name of this service"
-    )
-
-    language: SupportedLanguages = Field(
-        default="Croatian", description="The language."
     )
 
 
