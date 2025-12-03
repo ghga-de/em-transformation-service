@@ -132,7 +132,8 @@ class Route(BaseModel):
 
         raise ValueError(
             "Provide either a 'name' value, or all of 'input_model_name',"
-            "'workflow_name', 'output_model_name' or all of them."
+            "At least 'name' or all of 'input_model_name', 'workflow_name', 'output_model_name' need to be provided."
+            "If 'name' and all of the properties are provided, then name has to match 'input_model_name:workflow_name:output_model_name'."
         )
 
 
