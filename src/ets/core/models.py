@@ -100,9 +100,9 @@ class Route(BaseModel):
         """Ensures that the route name is consistent with the rest of the attributes.
 
         - If only 'name' provided, decomposes it.
-        - If only 'input_model_name', 'output_model_name', 'workflow_name' are provided,
+        - If all of 'input_model_name', 'output_model_name', 'workflow_name' are provided,
         composes the 'name'.
-        - If all are provided, ensures they match.
+        - Otherwise, raises a ValueError.
         """
         name_parts = [self.input_model_name, self.workflow_name, self.output_model_name]
 
