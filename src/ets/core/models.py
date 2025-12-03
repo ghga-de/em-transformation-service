@@ -16,10 +16,9 @@
 """Defines dataclasses for holding business-logic data."""
 
 from typing import Self
-from uuid import UUID
 
 from metldata.workflow.base import Workflow as MetldataWorkflow
-from pydantic import BaseModel, Field, model_validator
+from pydantic import UUID4, BaseModel, Field, model_validator
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
@@ -43,7 +42,8 @@ class RawModel(BaseModel):
         ..., description="Schema associated with the model. None if it is not an EMIM"
     )
     publish: bool = Field(
-        ..., description="whether the data conforming to the schema should be published."
+        ...,
+        description="whether the data conforming to the schema should be published.",
     )
 
 
@@ -157,7 +157,7 @@ class RawConfig(BaseModel):
 class AnnotatedEMPack(BaseModel):
     """Represents an annotated EM pack that is to be processed or published."""
 
-    id: UUID = Field(
+    id: UUID4 = Field(
         ...,
         description="Unique identifier of the EMPack.",
     )

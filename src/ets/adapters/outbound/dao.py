@@ -22,21 +22,21 @@ from ets.ports.outbound.dao import AnnotatedEMPackDao, ModelDao, RouteDao, Workf
 
 
 async def get_model_dao(*, dao_factory: DaoFactoryProtocol) -> ModelDao:
-    """Setup the DAOs using the specified provider of the DaoFactoryProtocol."""
+    """Setup the Model DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
         name="models", dto_model=models.Model, id_field="name"
     )
 
 
 async def get_workflow_dao(*, dao_factory: DaoFactoryProtocol) -> WorkflowDao:
-    """Setup the DAOs using the specified provider of the DaoFactoryProtocol."""
+    """Setup the Workflow DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
         name="workflows", dto_model=models.Workflow, id_field="name"
     )
 
 
 async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
-    """Setup the DAOs using the specified provider of the DaoFactoryProtocol."""
+    """Setup the Route DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
         name="routes", dto_model=models.Route, id_field="name"
     )
@@ -45,7 +45,7 @@ async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
 async def get_annotated_empack_dao(
     *, dao_factory: DaoFactoryProtocol
 ) -> AnnotatedEMPackDao:
-    """Setup the DAOs using the specified provider of the DaoFactoryProtocol."""
+    """Setup the AnnotatedEMPack DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
         name="annotated_empacks", dto_model=models.AnnotatedEMPack, id_field="id"
     )
