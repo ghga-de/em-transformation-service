@@ -37,7 +37,7 @@ class RawModel(BaseModel):
     )
     version: str | None = Field(
         ...,
-        description="The version of the model. None if the model is not an EMIM",
+        description="The version of the model. None if the model is not an EMIM.",
     )
     schema_: SchemaPack | None = Field(
         ..., description="Schema associated with the model. None if it is not an EMIM"
