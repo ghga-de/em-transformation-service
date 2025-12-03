@@ -48,9 +48,7 @@ class RawModel(BaseModel):
 
 
 class Model(RawModel):
-    """Describes a model after processing raw models (i.e., resolving the topological
-    ordering and deriving the schemas).
-    """
+    """Describes a model after resolving the topological ordering and deriving the schemas."""
 
     schema_: SchemaPack = Field(..., description="Schema associated with the model.")
     order: int = Field(
