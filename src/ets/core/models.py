@@ -169,7 +169,7 @@ class AnnotatedEMPack(BaseModel):
         None,
         description=(
             "ID of the original incoming EMPack it was derived from."
-            "None if it is an original EMPack"
+            "None if it is an original EMPack."
         ),
     )
     data: DataPack = Field(
