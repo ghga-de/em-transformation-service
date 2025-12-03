@@ -159,7 +159,7 @@ class AnnotatedEMPack(BaseModel):
 
     id: UUID = Field(
         ...,
-        description="Unique identifier of the EMPck.",
+        description="Unique identifier of the EMPack.",
     )
     model_name: str = Field(
         ...,
