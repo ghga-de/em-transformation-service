@@ -82,7 +82,7 @@ class Route(BaseModel):
         None,
         description=(
             "A unique human-readable name of the route. Follows the format of "
-            "'input_model_name:workflow_name:output_model_name'"
+            "'input_model_name:workflow_name:output_model_name'."
         ),
     )
     input_model_name: str | None = Field(
