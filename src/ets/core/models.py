@@ -112,7 +112,7 @@ class Route(BaseModel):
         if self.name and has_no_parts:
             parts = self.name.split(":")
             if len(parts) != 3:
-                raise ValueError("`name` must be 'input:workflow:output'")
+                raise ValueError("'name' should be formatted as 'input_model_name:workflow_name:output_model_name'")
             self.input_model_name, self.workflow_name, self.output_model_name = parts
             return self
 
