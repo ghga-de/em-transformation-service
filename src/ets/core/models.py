@@ -112,7 +112,9 @@ class Route(BaseModel):
         if self.name and has_no_parts:
             parts = self.name.split(":")
             if len(parts) != 3:
-                raise ValueError("'name' should be formatted as 'input_model_name:workflow_name:output_model_name'")
+                raise ValueError(
+                    "'name' should be formatted as 'input_model_name:workflow_name:output_model_name'"
+                )
             self.input_model_name, self.workflow_name, self.output_model_name = parts
             return self
 
@@ -122,18 +124,8 @@ class Route(BaseModel):
             )
             return self
 
-        if self.name and has_all_parts:
-            composite_name = (
-                f"{self.input_model_name}:{self.workflow_name}:{self.output_model_name}"
-            )
-            if self.name != composite_name:
-                raise ValueError(f"Provided name {self.name} does not match {composite_name=} constructed from 'input_model_name', 'workflow_name' and 'output_model_name' properties.")
-            return self
-
         raise ValueError(
-            "Provide either a 'name' value, or all of 'input_model_name',"
-            "At least 'name' or all of 'input_model_name', 'workflow_name', 'output_model_name' need to be provided."
-            "If 'name' and all of the properties are provided, then name has to match 'input_model_name:workflow_name:output_model_name'."
+            "Either 'name' or all of 'input_model_name', 'workflow_name', 'output_model_name' need to be provided."
         )
 
 
