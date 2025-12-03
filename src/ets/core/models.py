@@ -54,7 +54,7 @@ class Model(RawModel):
 
     schema_: SchemaPack = Field(..., description="Schema associated with the model.")
     order: int = Field(
-        ..., description="Topological order of the schema in the transformation graph"
+        ..., description="Topological order of the schema in the transformation graph."
     )
 
 
