@@ -43,7 +43,7 @@ class RawModel(BaseModel):
         ..., description="Schema associated with the model. None if it is not an EMIM"
     )
     publish: bool = Field(
-        ..., description="whether the data conforming to the schema should be published"
+        ..., description="whether the data conforming to the schema should be published."
     )
 
 
