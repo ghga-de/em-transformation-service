@@ -127,7 +127,7 @@ class Route(BaseModel):
                 f"{self.input_model_name}:{self.workflow_name}:{self.output_model_name}"
             )
             if self.name != composite_name:
-                raise ValueError(f"{self.name} does not match the {composite_name}")
+                raise ValueError(f"Provided name {self.name} does not match {composite_name=} constructed from 'input_model_name', 'workflow_name' and 'output_model_name' properties.")
             return self
 
         raise ValueError(
