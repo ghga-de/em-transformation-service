@@ -39,7 +39,7 @@ class RawModel(BaseModel):
         description="The version of the model. None if the model is not an EMIM.",
     )
     schema_: SchemaPack | None = Field(
-        ..., description="Schema associated with the model. None if it is not an EMIM"
+        ..., description="Schema associated with the model. None if it is not an EMIM or not yet computed."
     )
     publish: bool = Field(
         ...,
