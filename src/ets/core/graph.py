@@ -56,7 +56,7 @@ def get_topological_order(edges: list[tuple[N, N]]) -> dict[N, int]:
     Isolated nodes are not covered by this function,
     since they can be ordered arbitrarily anyway.
 
-    The function checks that that any path connecting two nodes
+    The function checks that any path connecting two nodes
     is always unique, which implies that the graph is acyclic,
     but is a stronger property (allowing no diamond shapes).
 
