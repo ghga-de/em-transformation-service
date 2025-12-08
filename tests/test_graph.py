@@ -65,9 +65,10 @@ def assert_is_topological_order(
     edges: list[tuple[str, str]], order: dict[str, int]
 ) -> None:
     """Assert that the specified order is a valid topological order."""
-    # Check that (only) isolated nodes have order zero
+    # test that the order indices are consecutive numbers starting from 0
     for i, node in enumerate(order):
         assert order[node] == i
+    # test that this is actually a topological order
     for edge in edges:
         from_node, to_node = edge
         assert from_node in order
