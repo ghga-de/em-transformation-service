@@ -42,10 +42,10 @@ async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
     )
 
 
-async def get_annotated_empack_dao(
+async def get_annotated_em_pack_dao(
     *, dao_factory: DaoFactoryProtocol
 ) -> AnnotatedEMPackDao:
     """Setup the AnnotatedEMPack DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
-        name="annotated_empacks", dto_model=models.AnnotatedEMPack, id_field="id"
+        name="annotated_em_packs", dto_model=models.AnnotatedEMPack, id_field="id"
     )

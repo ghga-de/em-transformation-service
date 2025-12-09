@@ -13,19 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Entrypoint of the package."""
+from hexkit.log import configure_logging
 
-from .config import CONFIG, Config
-
-"""Entrypoint of the package"""
-
-from ets.cli import cli
+from ets.config import Config
+from ets.inject import prepare_event_subscriber
 
 
-def run():
-    """Run the service"""
-    cli()
+async def consume_events(run_forever: bool = True):
+    """Run the event consumer"""
+    config = Config()  # type: ignore[call-arg]
+    configure_logging(config=config)
 
-
-if __name__ == "__main__":
-    run()
+    async with prepare_event_subscriber(config=config) as event_subscriber:
+        await event_subscriber.run(forever=run_forever)

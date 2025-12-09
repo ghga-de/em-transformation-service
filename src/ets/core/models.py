@@ -15,10 +15,17 @@
 
 """Defines dataclasses for holding business-logic data."""
 
-from typing import Self
+from typing import Any, Self
 
 from metldata.workflow.base import Workflow as MetldataWorkflow
-from pydantic import UUID4, BaseModel, Field, model_validator
+from pydantic import (
+    UUID4,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    model_validator,
+)
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 

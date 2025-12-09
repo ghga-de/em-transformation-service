@@ -15,16 +15,20 @@
 
 """Config Parameter Modeling and Parsing."""
 
-from ghga_service_commons.api import ApiConfigBase
 from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
+from hexkit.providers.akafka import KafkaConfig
+from hexkit.providers.mongodb import MongoDbConfig
+from hexkit.providers.mongokafka import MongoKafkaConfig
 from pydantic import Field
+
+from ets.adapters.inbound.event_sub import EventSubTranslatorConfig
 
 SERVICE_NAME: str = "ets"
 
 
 @config_from_yaml(prefix=SERVICE_NAME)
-class Config(ApiConfigBase, LoggingConfig):
+class Config(KafkaConfig, MongoDbConfig, LoggingConfig, EventSubTranslatorConfig):
     """Config parameters and their defaults."""
 
     service_name: str = Field(
