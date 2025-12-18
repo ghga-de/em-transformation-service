@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Interface for managing annotated em pack operations."""
+
 from abc import ABC, abstractmethod
 
 from pydantic import UUID4
@@ -51,22 +53,12 @@ class DataPackValidationError(RuntimeError):
         super().__init__(message)
 
 
-class UpsertionError(RuntimeError):
-    """Raised when database upsert operation fails for an AnnotatedEMPack."""
-
-    def __init__(self, *, annotated_em_pack_id: UUID4, details: str | None = None):
-        message = f"Failed to upsert AnnotatedEMPack '{annotated_em_pack_id}'"
-        if details:
-            message += f": {details}"
-        super().__init__(message)
-
-
 class AnnotatedEMPackRegistryPort(ABC):
     """Port for managing AnnotatedEMPack lifecycle and transformation operations.
 
     This port defines the interface for:
     - Upserting AnnotatedEMPacks (insert or update)
-    - Deleting AnnotatedEMPacks
+    - Deleting AnnotatedEMPacks TODO
     - Validating AnnotatedEMPack data against schemas TODO
     - Triggering data transformation TODO
     """

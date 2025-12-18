@@ -23,7 +23,7 @@ from ets.core.models import AnnotatedEMPack
 from ets.ports.inbound.annotated_em_pack_registry import (
     AnnotatedEMPackRegistryPort,
 )
-from ets.ports.outbound.dao import AnnotatedEMPackDao
+from ets.ports.outbound.dao import AnnotatedEMPackDao, ResourceNotFoundError
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +38,6 @@ class AnnotatedEMPackTransformer(AnnotatedEMPackRegistryPort):
     ):
         self._annotated_em_pack_dao = annotated_em_pack_dao
 
-    # Placeholder un til the actual logic is implemented
     async def upsert_annotated_em_pack(
         self, annotated_em_pack: AnnotatedEMPack
     ) -> None:
@@ -51,9 +50,23 @@ class AnnotatedEMPackTransformer(AnnotatedEMPackRegistryPort):
             DataPackValidationError: If the data doesn't conform to the model schema.
             UpsertionError: If the database operation fails.
         """
-        ...
+        try:
+            await self._annotated_em_pack_dao.get_by_id(annotated_em_pack.id)
+            log.debug(
+                "Found an AnnotatedEMPack with id '%s', updating entry.",
+                annotated_em_pack.id,
+            )
+        except ResourceNotFoundError:
+            log.debug(
+                "No existing AnnotatedEMPack found with id '%s', creating new entry.",
+                annotated_em_pack.id,
+            )
 
-    # Placeholder un til the actual logic is implemented
+        await self._annotated_em_pack_dao.upsert(annotated_em_pack)
+
+        log.debug("AnnotatedEMPack upserted with id '%s'.", annotated_em_pack.id)
+
+    # Placeholder until the actual logic is implemented
     async def delete_annotated_em_pack(self, annotated_em_pack_id: UUID4) -> None:
         """Delete Annotated EM Pack. Deletes an existing AnnotatedEMPack.
 

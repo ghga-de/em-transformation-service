@@ -15,9 +15,12 @@
 
 """DAO interface for accessing the database."""
 
-from hexkit.protocols.dao import Dao
+from hexkit.protocols.dao import Dao, ResourceNotFoundError
 
 from ets.core import models
+
+__all__ = ["ResourceNotFoundError"]
+
 
 ModelDao = Dao[models.Model]
 

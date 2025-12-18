@@ -15,10 +15,6 @@
 
 """Entrypoint of the package."""
 
-from .config import CONFIG, Config
-
-"""Entrypoint of the package"""
-
 from ets.cli import cli
 
 

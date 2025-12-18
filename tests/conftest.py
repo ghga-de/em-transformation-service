@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Session-scoped fixture setup"""
+
 from uuid import uuid4
 
 from hexkit.providers.akafka.testutils import (  # noqa: F401
@@ -25,7 +27,7 @@ from hexkit.providers.mongodb.testutils import (  # noqa: F401
 )
 from schemapack.spec.datapack import DataPack
 
-from ets.adapters.inbound.event_sub import AnnotatedEMPackReceived
+from ets.adapters.inbound.event_sub import AnnotatedEMPackPayload
 from tests.fixtures.joint import JointFixture, joint_fixture  # noqa: F401
 
 TEST_DATAPACK = DataPack.model_validate(
@@ -34,8 +36,8 @@ TEST_DATAPACK = DataPack.model_validate(
 
 TEST_ANNOTATED_EM_PACK_ID = uuid4()
 
-TEST_ANNOTATED_EM_PACK = AnnotatedEMPackReceived(
-    annotated_em_pack_id=TEST_ANNOTATED_EM_PACK_ID,
+TEST_ANNOTATED_EM_PACK = AnnotatedEMPackPayload(
+    id=TEST_ANNOTATED_EM_PACK_ID,
     model_name="test_model",
     original_id="original_123",
     data=TEST_DATAPACK,

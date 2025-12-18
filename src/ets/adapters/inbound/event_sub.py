@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""KafkaEventSubscriber receiving events."""
+
 from uuid import UUID
 
 from hexkit.protocols.daosub import DaoSubscriberProtocol
@@ -34,13 +36,13 @@ class AnnotatedEMPackEventConfig(BaseSettings):
     )
 
 
-class AnnotatedEMPackReceived(BaseModel):
+class AnnotatedEMPackPayload(BaseModel):
     """This event is triggered when a new annotated em pack is created or an existing one is
     updated.
     This will go to event_schemas.pydantic_
     """
 
-    annotated_em_pack_id: UUID4 = Field(
+    id: UUID4 = Field(
         ...,
         description="Unique identifier of the EMPack.",
     )
@@ -74,7 +76,7 @@ class EventSubTranslator(DaoSubscriberProtocol):
 
     event_topic: str
 
-    dto_model = AnnotatedEMPackReceived
+    dto_model = AnnotatedEMPackPayload
 
     def __init__(
         self,
@@ -87,10 +89,10 @@ class EventSubTranslator(DaoSubscriberProtocol):
         self._annotated_em_pack_registry = annotated_em_pack_registry
         self._config = config
 
-    async def changed(self, resource_id: str, update: AnnotatedEMPackReceived) -> None:
+    async def changed(self, resource_id: str, update: AnnotatedEMPackPayload) -> None:
         """Consume a change event (created or updated) for the AnnotatedEMPack"""
         annotated_em_pack = AnnotatedEMPack(
-            id=update.annotated_em_pack_id,
+            id=update.id,
             model_name=update.model_name,
             original_id=update.original_id,
             data=update.data,
