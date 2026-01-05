@@ -28,4 +28,4 @@ WorkflowDao = Dao[models.Workflow]
 
 RouteDao = Dao[models.Route]
 
-AnnotatedEMPackDao = Dao[models.AnnotatedEMPack]
+AEMPackDao = Dao[models.AEMPack]

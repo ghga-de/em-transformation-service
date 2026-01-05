@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""A fixture that consolidates service components and test fixtures into one class"""
+
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 
@@ -24,8 +26,8 @@ from hexkit.providers.mongodb.testutils import MongoDbFixture
 from ets.adapters.outbound import dao
 from ets.config import Config
 from ets.inject import prepare_core, prepare_event_subscriber
-from ets.ports.inbound.annotated_em_pack_registry import AnnotatedEMPackRegistryPort
-from ets.ports.outbound.dao import AnnotatedEMPackDao
+from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
+from ets.ports.outbound.dao import AEMPackDao
 from tests.fixtures.config import get_config
 
 
@@ -34,11 +36,11 @@ class JointFixture:
     """Returned by the `joint_fixture`."""
 
     mongodb: MongoDbFixture
-    annotated_em_pack_registry: AnnotatedEMPackRegistryPort
+    aem_pack_registry: AEMPackRegistryPort
     config: Config
     event_subscriber: KafkaEventSubscriber
     kafka: KafkaFixture
-    annotated_em_pack_dao: AnnotatedEMPackDao
+    aem_pack_dao: AEMPackDao
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -48,21 +50,21 @@ async def joint_fixture(
     """A fixture that embeds all other fixtures for integration testing."""
     # merge configs from different sources with the default one:
     config = get_config(sources=[mongodb.config, kafka.config], kafka_enable_dlq=True)
-    annotated_em_pack_dao = await dao.get_annotated_em_pack_dao(
+    aem_pack_dao = await dao.aem_pack_dao(
         dao_factory=mongodb.dao_factory,
     )
 
     async with (
-        prepare_core(config=config) as annotated_em_pack_registry,
+        prepare_core(config=config) as aem_pack_registry,
         prepare_event_subscriber(
-            config=config, core_override=annotated_em_pack_registry
+            config=config, core_override=aem_pack_registry
         ) as event_subscriber,
     ):
         yield JointFixture(
             mongodb=mongodb,
-            annotated_em_pack_registry=annotated_em_pack_registry,
+            aem_pack_registry=aem_pack_registry,
             config=config,
             event_subscriber=event_subscriber,
             kafka=kafka,
-            annotated_em_pack_dao=annotated_em_pack_dao,
+            aem_pack_dao=aem_pack_dao,
         )

@@ -27,7 +27,7 @@ from hexkit.providers.mongodb.testutils import (  # noqa: F401
 )
 from schemapack.spec.datapack import DataPack
 
-from ets.adapters.inbound.event_sub import AnnotatedEMPackPayload
+from ets.adapters.inbound.event_sub import AEMPackPayload
 from tests.fixtures.joint import JointFixture, joint_fixture  # noqa: F401
 
 TEST_DATAPACK = DataPack.model_validate(
@@ -36,7 +36,7 @@ TEST_DATAPACK = DataPack.model_validate(
 
 TEST_ANNOTATED_EM_PACK_ID = uuid4()
 
-TEST_ANNOTATED_EM_PACK = AnnotatedEMPackPayload(
+TEST_AEM_PACK = AEMPackPayload(
     id=TEST_ANNOTATED_EM_PACK_ID,
     model_name="test_model",
     original_id="original_123",

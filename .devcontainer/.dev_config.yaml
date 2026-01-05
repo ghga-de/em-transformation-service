@@ -5,4 +5,4 @@ kafka_servers: ["kafka:9092"]
 mongo_dsn: "mongodb://mongodb:27017"
 db_name: "dev"
 kafka_enable_dlq: True
-annotated_em_pack_upsert_topic: annotated_em_pack_upsert
+aem_pack_upsert_topic: aem_pack_upsert

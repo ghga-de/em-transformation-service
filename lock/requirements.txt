@@ -72,23 +72,23 @@ attrs==25.4.0 \
     #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
-boto3==1.42.12 \
-    --hash=sha256:649b134d25b278c24fcc8b3f94519de3884283b7848dc32f42b0ffdd9d19ce99 \
-    --hash=sha256:8112e1beb5978bb455ea4b41a9ef26fc408f6340d8ff69ef93dded4f80fd53e9
+boto3==1.42.21 \
+    --hash=sha256:1885f252d715a5810bb4e0c5bbebfa8e9018b025febf5be3d58540626e7b43d2 \
+    --hash=sha256:9b92943d253bc837323079fe88460e741cb2eb80abaebcb558b2446bdb4049d6
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit
-botocore==1.42.12 \
-    --hash=sha256:1f9f63c3d6bb1f768519da30d6018706443c5d8af5472274d183a4945f3d81f8 \
-    --hash=sha256:4f163880350f6d831857ce5d023875b7c6534be862e5affd9fcf82b8d1ab3537
+botocore==1.42.21 \
+    --hash=sha256:6b59973a3ba8c3cfd5123f2656fef2339beee9f6483b8bc12bb00c5453ea2c6d \
+    --hash=sha256:db8f99d186156da42feb4fd2098017383d9b155097290cc53da7258f6e652c39
     # via
     #   -c lock/requirements-dev.txt
     #   boto3
     #   hexkit
     #   s3transfer
-certifi==2025.11.12 \
-    --hash=sha256:97de8790030bbd5c2d96b7ec782fc2f7820ef8dba6db909ccf95449f2d062d4b \
-    --hash=sha256:d8ab5478f2ecd78af242878415affce761ca6bc54a22a27e026d7c25357c3316
+certifi==2026.1.4 \
+    --hash=sha256:9943707519e4add1115f44c2bc244f782c0249876bf51b6599fee1ffbedd685c \
+    --hash=sha256:ac726dd470482006e014ad384921ed6438c457018f4b3d204aea4281258b2120
     # via
     #   -c lock/requirements-dev.txt
     #   httpcore
@@ -356,9 +356,9 @@ immutabledict==4.2.2 \
     # via
     #   -c lock/requirements-dev.txt
     #   arcticfreeze
-importlib-metadata==8.7.0 \
-    --hash=sha256:d13b81ad223b890aa16c5471f2ac3056cf76c5f10f82d6f9292f0b415f389000 \
-    --hash=sha256:e5dd1551894c77868a30651cef00984d50e1002d06942a7101d34870c5f02afd
+importlib-metadata==8.7.1 \
+    --hash=sha256:49fef1ae6440c182052f407c8d34a68f72efc36db9ca90dc0113398f2fdde8bb \
+    --hash=sha256:5a1f80bf1daa489495071efbb095d75a634cf28a8bc299581244063b53176151
     # via
     #   -c lock/requirements-dev.txt
     #   opentelemetry-api
@@ -1063,9 +1063,9 @@ starlette==0.49.3 \
     # via
     #   -c lock/requirements-dev.txt
     #   fastapi
-typer==0.20.0 \
-    --hash=sha256:1aaf6494031793e4876fb0bacfa6a912b551cf43c1e63c800df8b1a866720c37 \
-    --hash=sha256:5b463df6793ec1dca6213a3cf4c0f03bc6e322ac5e16e13ddd622a889489784a
+typer==0.21.0 \
+    --hash=sha256:c79c01ca6b30af9fd48284058a7056ba0d3bf5cf10d0ff3d0c5b11b68c258ac6 \
+    --hash=sha256:c87c0d2b6eee3b49c5c64649ec92425492c14488096dfbc8a0c2799b2f6f9c53
     # via
     #   -c lock/requirements-dev.txt
     #   ets (pyproject.toml)

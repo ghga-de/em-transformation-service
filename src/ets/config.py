@@ -19,7 +19,6 @@ from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
 from hexkit.providers.akafka import KafkaConfig
 from hexkit.providers.mongodb import MongoDbConfig
-from hexkit.providers.mongokafka import MongoKafkaConfig
 from pydantic import Field
 
 from ets.adapters.inbound.event_sub import EventSubTranslatorConfig

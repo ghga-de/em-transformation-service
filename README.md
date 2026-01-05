@@ -49,7 +49,7 @@ ets --help
 ### Parameters
 
 The service requires the following configuration parameters:
-- <a id="properties/annotated_em_pack_upsert_topic"></a>**`annotated_em_pack_upsert_topic`** *(string, required)*: Name of the topic used for events indicating that an original AnnotatedEMPack is registered for transformation.
+- <a id="properties/aem_pack_upsert_topic"></a>**`aem_pack_upsert_topic`** *(string, required)*: Name of the topic used for events indicating that an original AEMPack is registered for transformation.
 - <a id="properties/log_level"></a>**`log_level`** *(string)*: The minimum log level to capture. Must be one of: "CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", or "TRACE". Default: `"INFO"`.
 - <a id="properties/service_name"></a>**`service_name`** *(string)*: Short name of this service. Default: `"ets"`.
 - <a id="properties/service_instance_id"></a>**`service_instance_id`** *(string, required)*: A string that uniquely identifies this instance across all instances of this service. A globally unique Kafka client ID will be created by concatenating the service_name and the service_instance_id.

@@ -151,7 +151,7 @@ class RawConfig(BaseModel):
     )
 
 
-class AnnotatedEMPack(BaseModel):
+class AEMPack(BaseModel):
     """Represents an annotated EM pack that is to be processed or published."""
 
     id: UUID4 = Field(

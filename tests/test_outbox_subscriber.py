@@ -24,9 +24,9 @@ import json
 
 import pytest
 
-from ets.adapters.inbound.event_sub import AnnotatedEMPackPayload
-from ets.core.models import AnnotatedEMPack
-from tests.conftest import TEST_ANNOTATED_EM_PACK
+from ets.adapters.inbound.event_sub import AEMPackPayload
+from ets.core.models import AEMPack
+from tests.conftest import TEST_AEM_PACK
 from tests.fixtures.joint import JointFixture
 
 CHANGE_EVENT_TYPE = "upserted"
@@ -34,39 +34,37 @@ CHANGE_EVENT_TYPE = "upserted"
 pytestmark = pytest.mark.asyncio()
 
 
-@pytest.mark.parametrize("annotated_em_pack_payload", [TEST_ANNOTATED_EM_PACK])
-async def test_annotated_em_pack_upsert(
-    joint_fixture: JointFixture, annotated_em_pack_payload: AnnotatedEMPackPayload
+@pytest.mark.parametrize("aem_pack_payload", [TEST_AEM_PACK])
+async def test_aem_pack_upsert(
+    joint_fixture: JointFixture, aem_pack_payload: AEMPackPayload
 ) -> None:
-    """Ensure that the annotated EM pack upsert event is processed correctly.
-    Please note that the validation of the data from AnnotatedEMPack and the validation
+    """Ensure that the AEMPack upsert event is processed correctly.
+    Please note that the validation of the data from AEMPack and the validation
     of the model that it refers to are not implemented in the core yet.
 
-    This test aims to verify that when an AnnotatedEMPackPayload event is published to the
+    This test aims to verify that when an AEMPackPayload event is published to the
     Kafka topic, the outbox subscriber receives the correct payload and inserts it to the db
     correctly.
     """
     # Publish the change event.
-    payload = json.loads(annotated_em_pack_payload.model_dump_json())
+    payload = json.loads(aem_pack_payload.model_dump_json())
     await joint_fixture.kafka.publish_event(
         payload=payload,
         type_=CHANGE_EVENT_TYPE,
-        topic=joint_fixture.config.annotated_em_pack_upsert_topic,
-        key=str(annotated_em_pack_payload.id),
+        topic=joint_fixture.config.aem_pack_upsert_topic,
+        key=str(aem_pack_payload.id),
     )
 
     # Run the outbox subscriber.
     await joint_fixture.event_subscriber.run(forever=False)
 
-    # Check that the annotated em pack data is found in the database.
-    result = await joint_fixture.annotated_em_pack_dao.get_by_id(
-        annotated_em_pack_payload.id
-    )
-    expected = AnnotatedEMPack(
-        id=annotated_em_pack_payload.id,
-        model_name=annotated_em_pack_payload.model_name,
-        original_id=annotated_em_pack_payload.original_id,
-        data=annotated_em_pack_payload.data,
-        annotation=annotated_em_pack_payload.annotation,
+    # Check that the AEMPack data is found in the database.
+    result = await joint_fixture.aem_pack_dao.get_by_id(aem_pack_payload.id)
+    expected = AEMPack(
+        id=aem_pack_payload.id,
+        model_name=aem_pack_payload.model_name,
+        original_id=aem_pack_payload.original_id,
+        data=aem_pack_payload.data,
+        annotation=aem_pack_payload.annotation,
     )
     assert result == expected

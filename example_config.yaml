@@ -1,4 +1,4 @@
-annotated_em_pack_upsert_topic: annotated_em_pack_upsert
+aem_pack_upsert_topic: aem_pack_upsert
 db_name: dev
 generate_correlation_id: true
 kafka_compression_type: null
