@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Top-level functions for the service"""
+
 from hexkit.log import configure_logging
 
 from ets.config import Config
