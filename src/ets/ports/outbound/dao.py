@@ -17,6 +17,7 @@
 
 from hexkit.protocols.dao import Dao, ResourceNotFoundError
 
+from ets.adapters.inbound.event_schemas import AEMPack
 from ets.core import models
 
 __all__ = ["ResourceNotFoundError"]
@@ -28,4 +29,4 @@ WorkflowDao = Dao[models.Workflow]
 
 RouteDao = Dao[models.Route]
 
-AEMPackDao = Dao[models.AEMPack]
+AEMPackDao = Dao[AEMPack]

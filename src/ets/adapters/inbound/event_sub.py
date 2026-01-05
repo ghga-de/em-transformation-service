@@ -19,8 +19,7 @@ from uuid import UUID
 
 from hexkit.protocols.daosub import DaoSubscriberProtocol
 
-from ets.adapters.inbound.event_schemas import AEMPackEventConfig, AEMPackPayload
-from ets.core.models import AEMPack
+from ets.adapters.inbound.event_schemas import AEMPack, AEMPackEventConfig
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 
 
@@ -33,7 +32,7 @@ class EventSubTranslator(DaoSubscriberProtocol):
 
     event_topic: str
 
-    dto_model = AEMPackPayload
+    dto_model = AEMPack
 
     def __init__(
         self,
@@ -46,7 +45,7 @@ class EventSubTranslator(DaoSubscriberProtocol):
         self._aem_pack_registry = aem_pack_registry
         self._config = config
 
-    async def changed(self, resource_id: str, update: AEMPackPayload) -> None:
+    async def changed(self, resource_id: str, update: AEMPack) -> None:
         """Consume a change event (created or updated) for the AEMPack"""
         aem_pack = AEMPack(
             id=update.id,

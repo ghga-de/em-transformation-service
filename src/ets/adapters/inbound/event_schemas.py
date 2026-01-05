@@ -30,7 +30,7 @@ class AEMPackEventConfig(BaseSettings):
     )
 
 
-class AEMPackPayload(BaseModel):
+class AEMPack(BaseModel):
     """This event is triggered when a new AEMPack is created or an existing one is
     updated.
     This will go to event_schemas.pydantic_

@@ -24,8 +24,7 @@ import json
 
 import pytest
 
-from ets.adapters.inbound.event_sub import AEMPackPayload
-from ets.core.models import AEMPack
+from ets.adapters.inbound.event_sub import AEMPack
 from tests.conftest import TEST_AEM_PACK
 from tests.fixtures.joint import JointFixture
 
@@ -36,7 +35,7 @@ pytestmark = pytest.mark.asyncio()
 
 @pytest.mark.parametrize("aem_pack_payload", [TEST_AEM_PACK])
 async def test_aem_pack_upsert(
-    joint_fixture: JointFixture, aem_pack_payload: AEMPackPayload
+    joint_fixture: JointFixture, aem_pack_payload: AEMPack
 ) -> None:
     """Ensure that the AEMPack upsert event is processed correctly.
     Please note that the validation of the data from AEMPack and the validation

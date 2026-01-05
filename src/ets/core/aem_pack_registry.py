@@ -19,7 +19,7 @@ import logging
 
 from pydantic import UUID4
 
-from ets.core.models import AEMPack
+from ets.adapters.inbound.event_schemas import AEMPack
 from ets.ports.inbound.aem_pack_registry import (
     AEMPackRegistryPort,
 )

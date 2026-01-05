@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import UUID4
 
-from ets.core.models import AEMPack
+from ets.adapters.inbound.event_schemas import AEMPack
 
 
 class AEMPackRegistryPort(ABC):
