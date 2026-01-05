@@ -15,11 +15,12 @@
 
 """Entrypoint of the package."""
 
-from .config import CONFIG, Config
+from ets.cli import cli
 
 
-def run(config: Config = CONFIG):
-    """Run the service."""
+def run():
+    """Run the service"""
+    cli()
 
 
 if __name__ == "__main__":

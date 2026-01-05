@@ -13,4 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""This module contains functionalities for transforming models and data."""
+"""Entrypoint of the package"""
+
+import asyncio
+
+import typer
+
+from ets.main import consume_events
+
+cli = typer.Typer()
+
+
+@cli.command(name="consume-events")
+def sync_consume_events(run_forever: bool = True):
+    """Run an event consumer listening to the specified topic."""
+    asyncio.run(consume_events(run_forever=run_forever))

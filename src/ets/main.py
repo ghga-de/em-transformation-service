@@ -13,20 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""DAO interface for accessing the database."""
+"""Top-level functions for the service"""
 
-from hexkit.protocols.dao import Dao, ResourceNotFoundError
+from hexkit.log import configure_logging
 
-from ets.adapters.inbound.event_schemas import AEMPack
-from ets.core import models
-
-__all__ = ["ResourceNotFoundError"]
+from ets.config import Config
+from ets.inject import prepare_event_subscriber
 
 
-ModelDao = Dao[models.Model]
+async def consume_events(run_forever: bool = True):
+    """Run the event consumer"""
+    config = Config()  # type: ignore[call-arg]
+    configure_logging(config=config)
 
-WorkflowDao = Dao[models.Workflow]
-
-RouteDao = Dao[models.Route]
-
-AEMPackDao = Dao[AEMPack]
+    async with prepare_event_subscriber(config=config) as event_subscriber:
+        await event_subscriber.run(forever=run_forever)

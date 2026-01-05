@@ -17,8 +17,9 @@
 
 from hexkit.protocols.dao import DaoFactoryProtocol
 
+from ets.adapters.inbound.event_schemas import AEMPack
 from ets.core import models
-from ets.ports.outbound.dao import AnnotatedEMPackDao, ModelDao, RouteDao, WorkflowDao
+from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
 
 
 async def get_model_dao(*, dao_factory: DaoFactoryProtocol) -> ModelDao:
@@ -42,10 +43,6 @@ async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
     )
 
 
-async def get_annotated_empack_dao(
-    *, dao_factory: DaoFactoryProtocol
-) -> AnnotatedEMPackDao:
-    """Setup the AnnotatedEMPack DAO using the specified provider of the DaoFactoryProtocol."""
-    return await dao_factory.get_dao(
-        name="annotated_empacks", dto_model=models.AnnotatedEMPack, id_field="id"
-    )
+async def aem_pack_dao(*, dao_factory: DaoFactoryProtocol) -> AEMPackDao:
+    """Setup the AEMPack DAO using the specified provider of the DaoFactoryProtocol."""
+    return await dao_factory.get_dao(name="aem_packs", dto_model=AEMPack, id_field="id")

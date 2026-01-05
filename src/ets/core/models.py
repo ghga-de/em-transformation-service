@@ -18,8 +18,11 @@
 from typing import Self
 
 from metldata.workflow.base import Workflow as MetldataWorkflow
-from pydantic import UUID4, BaseModel, Field, model_validator
-from schemapack.spec.datapack import DataPack
+from pydantic import (
+    BaseModel,
+    Field,
+    model_validator,
+)
 from schemapack.spec.schemapack import SchemaPack
 
 
@@ -143,32 +146,4 @@ class RawConfig(BaseModel):
     routes: list[Route] = Field(
         ...,
         description="List of routes composing the transformation graph.",
-    )
-
-
-class AnnotatedEMPack(BaseModel):
-    """Represents an annotated EM pack that is to be processed or published."""
-
-    id: UUID4 = Field(
-        ...,
-        description="Unique identifier of the EMPack.",
-    )
-    model_name: str = Field(
-        ...,
-        description="Unique name of the model the EMPack conforms to.",
-    )
-    original_id: str | None = Field(
-        None,
-        description=(
-            "ID of the original incoming EMPack it was derived from."
-            "None if it is an original EMPack."
-        ),
-    )
-    data: DataPack = Field(
-        ...,
-        description="The data conforming to the model.",
-    )
-    annotation: dict = Field(
-        ...,
-        description="Additional information from other models held by the service",
     )
