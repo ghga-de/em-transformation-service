@@ -41,7 +41,7 @@ async def prepare_core(
     async with (
         MongoDbDaoFactory.construct(config=config) as dao_factory,
     ):
-        aem_pack_dao = await dao.aem_pack_dao(
+        aem_pack_dao = await dao.get_aem_pack_dao(
             dao_factory=dao_factory,
         )
         yield AEMPackRegistry(aem_pack_dao=aem_pack_dao)

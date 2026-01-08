@@ -23,7 +23,7 @@ from hexkit.providers.akafka import KafkaEventSubscriber
 from hexkit.providers.akafka.testutils import KafkaFixture
 from hexkit.providers.mongodb.testutils import MongoDbFixture
 
-from ets.adapters.outbound import dao
+from ets.adapters.outbound.dao import get_aem_pack_dao
 from ets.config import Config
 from ets.inject import prepare_core, prepare_event_subscriber
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
@@ -50,7 +50,7 @@ async def joint_fixture(
     """A fixture that embeds all other fixtures for integration testing."""
     # merge configs from different sources with the default one:
     config = get_config(sources=[mongodb.config, kafka.config], kafka_enable_dlq=True)
-    aem_pack_dao = await dao.aem_pack_dao(
+    aem_pack_dao = await get_aem_pack_dao(
         dao_factory=mongodb.dao_factory,
     )
 
