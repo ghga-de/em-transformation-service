@@ -12,13 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""TODO"""
+"""Contains functionality to load and compare service config."""
 
-import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypeVar
-from xmlrpc.client import boolean
 
 from pydantic import BaseModel
 from yaml import safe_load
@@ -30,17 +28,39 @@ ConfigField = TypeVar("ConfigField", bound=BaseModel)
 
 
 @dataclass
-class ComparisonResult:
-    """TODO"""
+class ConfigFields:
+    """Container for config fields that might be needed after comparison."""
 
-    changed: boolean
-    models: list[RawModel]
+    new_models: list[RawModel] = field(default_factory=list)
+    old_models: list[Model] = field(default_factory=list)
+    routes: list[Route] = field(default_factory=list)
+    workflows: list[Workflow] = field(default_factory=list)
+
+
+@dataclass
+class ComparisonResultBase:
+    """Common config fields for either outcome of the comparison."""
+
     routes: list[Route]
     workflows: list[Workflow]
 
 
+@dataclass
+class ComparisonResultUnchanged(ComparisonResultBase):
+    """For unchanged configs, the persisted models are returned."""
+
+    models: list[Model]
+
+
+@dataclass
+class ComparisonResultChanged(ComparisonResultBase):
+    """For changed configs, the new, raw models are returned."""
+
+    models: list[RawModel]
+
+
 class ConfigManager:
-    """TODO"""
+    """Manages loading old and new config and comparing them."""
 
     def __init__(
         self,
@@ -49,37 +69,52 @@ class ConfigManager:
         route_dao: RouteDao,
         workflow_dao: WorkflowDao,
     ):
-        """TODO"""
         self.config_path = config_path
         self.model_dao = model_dao
         self.route_dao = route_dao
         self.workflow_dao = workflow_dao
-        self.comparison_result: ComparisonResult | None = None
+        self.config_fields = ConfigFields()
 
-    async def is_new_config_different(self):
-        """TODO"""
-        with contextlib.suppress(ValueError):
-            await self.compare_configs()
+    async def check_config_is_different(
+        self,
+    ) -> ComparisonResultChanged | ComparisonResultUnchanged:
+        """Check if both configs are equal.
 
-        return self.comparison_result
+        Returns new config fields
+        """
+        try:
+            await self._compare_configs()
+        except ValueError:
+            return ComparisonResultChanged(
+                models=self.config_fields.new_models,
+                routes=self.config_fields.routes,
+                workflows=self.config_fields.workflows,
+            )
 
-    async def compare_configs(self):
-        """TODO"""
-        new_models, new_routes, new_workflows = self.parse_config_from_file()
-        old_models, old_routes, old_workflows = await self.get_persisted_config()
-
-        self.comparison_result = ComparisonResult(
-            changed=True, models=new_models, routes=new_routes, workflows=new_workflows
+        return ComparisonResultUnchanged(
+            models=self.config_fields.old_models,
+            routes=self.config_fields.routes,
+            workflows=self.config_fields.workflows,
         )
 
-        compare_models(new_models, old_models)
-        compare_entities(new_routes, old_routes)
-        compare_entities(new_workflows, old_workflows)
+    async def _compare_configs(self):
+        """Fetch and compare config fields."""
+        new_models, new_routes, new_workflows = self._parse_config_from_file()
+        old_models, old_routes, old_workflows = await self._get_persisted_config()
 
-        self.comparison_result.changed = False
+        self.config_fields = ConfigFields(
+            new_models=new_models,
+            old_models=old_models,
+            routes=new_routes,
+            workflows=new_workflows,
+        )
 
-    def parse_config_from_file(self):
-        """TODO"""
+        _compare_models(new_models, old_models)
+        _compare_entities(new_routes, old_routes)
+        _compare_entities(new_workflows, old_workflows)
+
+    def _parse_config_from_file(self):
+        """Parse config fields from yaml file and sort them by name."""
         with self.config_path.open("r") as config_file:
             new_config = safe_load(config_file)
 
@@ -92,8 +127,8 @@ class ConfigManager:
 
         return models, routes, workflows
 
-    async def get_persisted_config(self):
-        """TODO"""
+    async def _get_persisted_config(self):
+        """Fetch config fields from persistence layer and sort them by name."""
         models = [model async for model in self.model_dao.find_all(mapping={})]
         routes = [route async for route in self.route_dao.find_all(mapping={})]
         workflows = [
@@ -108,30 +143,38 @@ class ConfigManager:
         return models, routes, workflows
 
 
-def compare_entities(new: list[ConfigField], old: list[ConfigField]):
-    """TODO"""
+def _compare_entities(new: list[ConfigField], old: list[ConfigField]):
+    """Comparison logic for routes and workflows.
+
+    Assumes both lists are sorted by name.
+    """
     if len(new) != len(old):
-        raise ValueError("")
+        raise ValueError("Different amount of config entities.")
     for n, o in zip(new, old, strict=True):
         if n != o:
-            raise ValueError("")
+            raise ValueError("Mismatching config entity.")
 
 
-def compare_models(new: list[RawModel], old: list[Model]):
-    """TODO"""
+def _compare_models(new: list[RawModel], old: list[Model]):
+    """Custom comparison logic for both model types.
+
+    Assumes both lists are sorted by name.
+    """
     if len(new) != len(old):
-        raise ValueError("")
+        raise ValueError("Different amount of models configs.")
     for new_model, old_model in zip(new, old, strict=True):
         if (
-            new_model.schema_ != None
-            or new_model.name != old_model.name
+            new_model.name != old_model.name
             or new_model.description != old_model.description
             or new_model.publish != old_model.publish
         ):
-            raise ValueError()
+            raise ValueError("Mismatching fields on a model.")
 
-        if True == new_model.is_ingress == old_model.is_ingress and (
-            new_model.version != old_model.version
-            or new_model.schema_ != old_model.schema_
-        ):
-            raise ValueError()
+        if True == new_model.is_ingress == old_model.is_ingress:
+            if (
+                new_model.version != old_model.version
+                or new_model.schema_ != old_model.schema_
+            ):
+                raise ValueError("Mismatching fields on an EMIM model.")
+        elif new_model.schema_:
+            raise ValueError("Schemapack provided for a non EMIM model.")
