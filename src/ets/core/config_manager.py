@@ -12,17 +12,31 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""TODO"""
 
+import contextlib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
+from xmlrpc.client import boolean
 
 from pydantic import BaseModel
 from yaml import safe_load
 
-from ets.core.models import Model, RawConfig, RawModel
+from ets.core.models import Model, RawConfig, RawModel, Route, Workflow
 from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 
 ConfigField = TypeVar("ConfigField", bound=BaseModel)
+
+
+@dataclass
+class ComparisonResult:
+    """TODO"""
+
+    changed: boolean
+    models: list[RawModel]
+    routes: list[Route]
+    workflows: list[Workflow]
 
 
 class ConfigManager:
@@ -40,19 +54,29 @@ class ConfigManager:
         self.model_dao = model_dao
         self.route_dao = route_dao
         self.workflow_dao = workflow_dao
+        self.comparison_result: ComparisonResult | None = None
 
     async def is_new_config_different(self):
         """TODO"""
+        with contextlib.suppress(ValueError):
+            await self.compare_configs()
+
+        return self.comparison_result
 
     async def compare_configs(self):
         """TODO"""
         new_models, new_routes, new_workflows = self.parse_config_from_file()
         old_models, old_routes, old_workflows = await self.get_persisted_config()
 
-        compare_models(new_models, old_models)
+        self.comparison_result = ComparisonResult(
+            changed=True, models=new_models, routes=new_routes, workflows=new_workflows
+        )
 
+        compare_models(new_models, old_models)
         compare_entities(new_routes, old_routes)
         compare_entities(new_workflows, old_workflows)
+
+        self.comparison_result.changed = False
 
     def parse_config_from_file(self):
         """TODO"""
@@ -106,9 +130,8 @@ def compare_models(new: list[RawModel], old: list[Model]):
         ):
             raise ValueError()
 
-        if True == new_model.is_ingress == old_model.is_ingress:
-            if (
-                new_model.version != old_model.version
-                or new_model.schema_ != old_model.schema_
-            ):
-                raise ValueError()
+        if True == new_model.is_ingress == old_model.is_ingress and (
+            new_model.version != old_model.version
+            or new_model.schema_ != old_model.schema_
+        ):
+            raise ValueError()
