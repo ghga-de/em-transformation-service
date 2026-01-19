@@ -147,3 +147,53 @@ class RawConfig(BaseModel):
         ...,
         description="List of routes composing the transformation graph.",
     )
+
+
+class ConfigFields(BaseModel):
+    """Container for config fields that might be needed after comparison.
+
+    routes and workflows should be populated from the config file in either case.
+    If nothing changed, they correspond to what's already persisted, else they contain
+    the up to date information.
+    """
+
+    new_models: list[RawModel] = Field(
+        default_factory=list, description="Raw models from the config file."
+    )
+    old_models: list[Model] = Field(
+        default_factory=list, description="Existing, persisted models."
+    )
+    routes: list[Route] = Field(default=..., description="Routes from the config file.")
+    workflows: list[Workflow] = Field(
+        default_factory=list, description="Workflows from the config file."
+    )
+
+
+class ComparisonResultBase(BaseModel):
+    """Common config fields for either outcome of the comparison.
+
+    Used as base class for either variant for the result.
+    """
+
+    routes: list[Route] = Field(
+        default=..., description="Up to date routes for downstream processing."
+    )
+    workflows: list[Workflow] = Field(
+        default=..., description="Up to date workflows for downstream processing."
+    )
+
+
+class ComparisonResultChanged(ComparisonResultBase):
+    """For changed configs, the new, raw models are returned."""
+
+    models: list[RawModel] = Field(
+        default=..., description="Raw, new models to run downstream processing on."
+    )
+
+
+class ComparisonResultUnchanged(ComparisonResultBase):
+    """For unchanged configs, the persisted models are returned."""
+
+    models: list[Model] = Field(
+        default=..., description="Existing models populated from the persistence layer."
+    )

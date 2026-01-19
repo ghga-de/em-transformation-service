@@ -14,49 +14,27 @@
 # limitations under the License.
 """Contains functionality to load and compare service config."""
 
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypeVar
 
 from pydantic import BaseModel
 from yaml import safe_load
 
-from ets.core.models import Model, RawConfig, RawModel, Route, Workflow
+from ets.core.models import (
+    ComparisonResultChanged,
+    ComparisonResultUnchanged,
+    ConfigFields,
+    Model,
+    RawConfig,
+    RawModel,
+)
 from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 
 ConfigField = TypeVar("ConfigField", bound=BaseModel)
 
 
-@dataclass
-class ConfigFields:
-    """Container for config fields that might be needed after comparison."""
-
-    new_models: list[RawModel] = field(default_factory=list)
-    old_models: list[Model] = field(default_factory=list)
-    routes: list[Route] = field(default_factory=list)
-    workflows: list[Workflow] = field(default_factory=list)
-
-
-@dataclass
-class ComparisonResultBase:
-    """Common config fields for either outcome of the comparison."""
-
-    routes: list[Route]
-    workflows: list[Workflow]
-
-
-@dataclass
-class ComparisonResultUnchanged(ComparisonResultBase):
-    """For unchanged configs, the persisted models are returned."""
-
-    models: list[Model]
-
-
-@dataclass
-class ComparisonResultChanged(ComparisonResultBase):
-    """For changed configs, the new, raw models are returned."""
-
-    models: list[RawModel]
+class ComparisonMismatchError(RuntimeError):
+    """Custom error type raised on any mismatch between the existing and new config."""
 
 
 class ConfigManager:
@@ -80,11 +58,11 @@ class ConfigManager:
     ) -> ComparisonResultChanged | ComparisonResultUnchanged:
         """Check if both configs are equal.
 
-        Returns new config fields
+        Returns new config fields.
         """
         try:
             await self._compare_configs()
-        except ValueError:
+        except ComparisonMismatchError:
             return ComparisonResultChanged(
                 models=self.config_fields.new_models,
                 routes=self.config_fields.routes,
@@ -99,6 +77,7 @@ class ConfigManager:
 
     async def _compare_configs(self):
         """Fetch and compare config fields."""
+        # runs on startup, so should be ok to just let it crash if fetching information fails.
         new_models, new_routes, new_workflows = self._parse_config_from_file()
         old_models, old_routes, old_workflows = await self._get_persisted_config()
 
@@ -136,7 +115,7 @@ class ConfigManager:
         ]
 
         models = sorted(models, key=lambda model: model.name)
-        # Validator should take care of None names, so all should be populated
+        # Validator should take care of None names in routes, so all should be populated
         routes = sorted(routes, key=lambda route: route.name)  # type: ignore
         workflows = sorted(workflows, key=lambda workflow: workflow.name)
 
@@ -149,10 +128,10 @@ def _compare_entities(new: list[ConfigField], old: list[ConfigField]):
     Assumes both lists are sorted by name.
     """
     if len(new) != len(old):
-        raise ValueError("Different amount of config entities.")
+        raise ComparisonMismatchError("Different amount of config entities.")
     for n, o in zip(new, old, strict=True):
         if n != o:
-            raise ValueError("Mismatching config entity.")
+            raise ComparisonMismatchError("Mismatching config entity.")
 
 
 def _compare_models(new: list[RawModel], old: list[Model]):
@@ -161,20 +140,20 @@ def _compare_models(new: list[RawModel], old: list[Model]):
     Assumes both lists are sorted by name.
     """
     if len(new) != len(old):
-        raise ValueError("Different amount of models configs.")
+        raise ComparisonMismatchError("Different amount of models configs.")
     for new_model, old_model in zip(new, old, strict=True):
-        if (
-            new_model.name != old_model.name
-            or new_model.description != old_model.description
-            or new_model.publish != old_model.publish
+        if not (
+            new_model.name == old_model.name
+            and new_model.description == old_model.description
+            and new_model.publish == old_model.publish
         ):
-            raise ValueError("Mismatching fields on a model.")
+            raise ComparisonMismatchError("Mismatching fields on a model.")
 
         if True == new_model.is_ingress == old_model.is_ingress:
             if (
                 new_model.version != old_model.version
                 or new_model.schema_ != old_model.schema_
             ):
-                raise ValueError("Mismatching fields on an EMIM model.")
+                raise ComparisonMismatchError("Mismatching fields on an EMIM model.")
         elif new_model.schema_:
-            raise ValueError("Schemapack provided for a non EMIM model.")
+            raise ComparisonMismatchError("Schemapack provided for a non EMIM model.")
