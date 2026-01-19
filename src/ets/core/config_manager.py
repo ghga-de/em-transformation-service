@@ -17,7 +17,6 @@
 from pathlib import Path
 from typing import TypeVar
 
-from pydantic import BaseModel
 from yaml import safe_load
 
 from ets.core.models import (
@@ -27,10 +26,12 @@ from ets.core.models import (
     Model,
     RawConfig,
     RawModel,
+    Route,
+    Workflow,
 )
 from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 
-ConfigField = TypeVar("ConfigField", bound=BaseModel)
+ConfigField = TypeVar("ConfigField", bound=Route | Workflow)
 
 
 class ComparisonMismatchError(RuntimeError):

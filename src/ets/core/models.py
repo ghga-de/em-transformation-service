@@ -29,24 +29,26 @@ from schemapack.spec.schemapack import SchemaPack
 class RawModel(BaseModel):
     """Describes a raw model before any processing."""
 
-    name: str = Field(..., description="A Unique human-readable name of the model.")
+    name: str = Field(
+        default=..., description="A Unique human-readable name of the model."
+    )
     description: str | None = Field(
-        None, description="A human-readable description of the model."
+        default=None, description="A human-readable description of the model."
     )
     is_ingress: bool = Field(
-        ...,
+        default=...,
         description="Whether this model is an experimental metadata ingress model (EMIM).",
     )
     version: str | None = Field(
-        ...,
+        default=...,
         description="The version of the model. None if the model is not an EMIM.",
     )
     schema_: SchemaPack | None = Field(
-        ...,
+        default=...,
         description="Schema associated with the model. None if it is not an EMIM or not yet computed.",
     )
     publish: bool = Field(
-        ...,
+        default=...,
         description="whether the data conforming to the schema should be published.",
     )
 
@@ -54,9 +56,12 @@ class RawModel(BaseModel):
 class Model(RawModel):
     """Describes a model after resolving the topological ordering and deriving the schemas."""
 
-    schema_: SchemaPack = Field(..., description="Schema associated with the model.")
+    schema_: SchemaPack = Field(
+        default=..., description="Schema associated with the model."
+    )
     order: int = Field(
-        ..., description="Topological order of the schema in the transformation graph."
+        default=...,
+        description="Topological order of the schema in the transformation graph.",
     )
 
 
@@ -64,14 +69,14 @@ class Workflow(BaseModel):
     """Describes a metldata compatible workflow definition."""
 
     name: str = Field(
-        ...,
+        default=...,
         description="A unique human-readable name of the workflow indicating the purpose of the workflow.",
     )
     description: str | None = Field(
-        None, description="A human-readable description of the workflow."
+        default=None, description="A human-readable description of the workflow."
     )
     workflow: MetldataWorkflow = Field(
-        ..., description="Workflow definition in metldata Workflow format."
+        default=..., description="Workflow definition in metldata Workflow format."
     )
 
 
@@ -81,20 +86,20 @@ class Route(BaseModel):
     """
 
     name: str | None = Field(
-        None,
+        default=None,
         description=(
             "A unique human-readable name of the route. Follows the format of "
             "'input_model_name:workflow_name:output_model_name'."
         ),
     )
     input_model_name: str | None = Field(
-        None, description=" Name of the input model accepted by the route."
+        default=None, description=" Name of the input model accepted by the route."
     )
     output_model_name: str | None = Field(
-        None, description="Name of the output model produced by the route."
+        default=None, description="Name of the output model produced by the route."
     )
     workflow_name: str | None = Field(
-        None,
+        default=None,
         description="Name of the workflow used to transform the input model to the output model.",
     )
 
@@ -136,15 +141,15 @@ class RawConfig(BaseModel):
     """Describes a raw transformation configuration before any processing/validation."""
 
     models: list[RawModel] = Field(
-        ...,
+        default=...,
         description="List of raw models defining the transformation graph.",
     )
     workflows: list[Workflow] = Field(
-        ...,
+        default=...,
         description="List of available workflows.",
     )
     routes: list[Route] = Field(
-        ...,
+        default=...,
         description="List of routes composing the transformation graph.",
     )
 
