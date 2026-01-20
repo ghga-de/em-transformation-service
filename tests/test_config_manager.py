@@ -15,6 +15,8 @@
 
 """Test cases for the config manager module."""
 
+from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -44,7 +46,7 @@ from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 # Make Route.validator tolerant to already-populated instances when tests
 # cause pydantic to re-validate Route instances (avoid false-positive
 # validation errors when both `name` and parts are present).
-def _route_ensure_name_consistency(self):
+def _route_ensure_name_consistency(self: "Route") -> "Route":
     name_parts = [self.input_model_name, self.workflow_name, self.output_model_name]
     has_all_parts = all(part is not None for part in name_parts)
     has_no_parts = all(part is None for part in name_parts)
@@ -73,7 +75,7 @@ Route.ensure_name_consistency = _route_ensure_name_consistency
 
 
 @pytest.fixture
-def raw_models():
+def raw_models() -> list[RawModel]:
     """Sample raw models for testing."""
     return [
         RawModel(
@@ -132,7 +134,7 @@ def raw_models():
 
 
 @pytest.fixture
-def sample_models(raw_models):
+def sample_models(raw_models: list[RawModel]) -> list[Model]:
     """Sample processed models for testing."""
     models = []
     for i, model in enumerate(raw_models):
@@ -173,7 +175,7 @@ def sample_models(raw_models):
 
 
 @pytest.fixture
-def sample_routes():
+def sample_routes() -> list[Route]:
     """Sample routes for testing."""
     return [
         Route(name="input:workflow:output"),
@@ -182,7 +184,7 @@ def sample_routes():
 
 
 @pytest.fixture
-def sample_workflows():
+def sample_workflows() -> list[Workflow]:
     """Sample workflows for testing."""
     return [
         Workflow(
@@ -199,11 +201,11 @@ def sample_workflows():
 
 
 @pytest.fixture
-def mock_model_dao(sample_models):
+def mock_model_dao(sample_models: list[Model]) -> AsyncMock:
     """Mock ModelDao."""
     dao = AsyncMock(spec=ModelDao)
 
-    async def _aiter_models():
+    async def _aiter_models() -> Any:
         for model in sample_models:
             yield model
 
@@ -212,11 +214,11 @@ def mock_model_dao(sample_models):
 
 
 @pytest.fixture
-def mock_route_dao(sample_routes):
+def mock_route_dao(sample_routes: list[Route]) -> AsyncMock:
     """Mock RouteDao."""
     dao = AsyncMock(spec=RouteDao)
 
-    async def _aiter_routes():
+    async def _aiter_routes() -> Any:
         for route in sample_routes:
             yield route
 
@@ -225,11 +227,11 @@ def mock_route_dao(sample_routes):
 
 
 @pytest.fixture
-def mock_workflow_dao(sample_workflows):
+def mock_workflow_dao(sample_workflows: list[Workflow]) -> AsyncMock:
     """Mock WorkflowDao."""
     dao = AsyncMock(spec=WorkflowDao)
 
-    async def _aiter_workflows():
+    async def _aiter_workflows() -> Any:
         for workflow in sample_workflows:
             yield workflow
 
@@ -238,8 +240,8 @@ def mock_workflow_dao(sample_workflows):
 
 
 @pytest.fixture
-def config_path(tmp_path, raw_models, sample_routes, sample_workflows):
-    """Create a temporary config file."""
+def config_path(tmp_path: Path) -> Path:
+    """Create a temporary config YAML file."""
     # Build a JSON/YAML-serializable representation of the config
     # directly (avoids serializing complex SchemaPack/Workflow objects).
     config_data = {
@@ -301,7 +303,12 @@ def config_path(tmp_path, raw_models, sample_routes, sample_workflows):
 
 
 @pytest.fixture
-def config_manager(config_path, mock_model_dao, mock_route_dao, mock_workflow_dao):
+def config_manager(
+    config_path: Path,
+    mock_model_dao: AsyncMock,
+    mock_route_dao: AsyncMock,
+    mock_workflow_dao: AsyncMock,
+) -> ConfigManager:
     """Create a ConfigManager instance."""
     # Create instance without calling __init__ to avoid pydantic validation
     # in ConfigFields during construction (tests provide initial fields below).
@@ -318,7 +325,9 @@ def config_manager(config_path, mock_model_dao, mock_route_dao, mock_workflow_da
     # so ConfigFields validation constructs fresh Route/Workflow objects
     # from those dicts (avoids re-validation issues on already-instantiated
     # Route objects).
-    def _parse_config_from_file_override():
+    def _parse_config_from_file_override() -> tuple[
+        list[RawModel], list[dict[str, Any]], list[dict[str, Any]]
+    ]:
         with config_path.open("r") as config_file:
             new_config = safe_load(config_file)
 
@@ -341,7 +350,9 @@ def config_manager(config_path, mock_model_dao, mock_route_dao, mock_workflow_da
 
         return models, routes, workflows
 
-    async def _get_persisted_config_override():
+    async def _get_persisted_config_override() -> tuple[
+        list[Model], list[dict[str, Any]], list[dict[str, Any]]
+    ]:
         models = [model async for model in mock_model_dao.find_all(mapping={})]
         routes = [
             {"name": r.name}
@@ -367,7 +378,13 @@ def config_manager(config_path, mock_model_dao, mock_route_dao, mock_workflow_da
 class TestConfigManager:
     """Test the ConfigManager class."""
 
-    def test_init(self, config_path, mock_model_dao, mock_route_dao, mock_workflow_dao):
+    def test_init(
+        self,
+        config_path: Path,
+        mock_model_dao: AsyncMock,
+        mock_route_dao: AsyncMock,
+        mock_workflow_dao: AsyncMock,
+    ) -> None:
         """Test ConfigManager initialization."""
         manager = object.__new__(ConfigManager)
         manager.config_path = config_path
@@ -384,8 +401,12 @@ class TestConfigManager:
         assert isinstance(manager.config_fields, ConfigFields)
 
     def test_parse_config_from_file(
-        self, config_manager, raw_models, sample_routes, sample_workflows
-    ):
+        self,
+        config_manager: ConfigManager,
+        raw_models: list[RawModel],
+        sample_routes: list[Route],
+        sample_workflows: list[Workflow],
+    ) -> None:
         """Test parsing config from YAML file."""
         models, routes, workflows = config_manager._parse_config_from_file()
 
@@ -411,8 +432,12 @@ class TestConfigManager:
 
     @pytest.mark.asyncio
     async def test_get_persisted_config(
-        self, config_manager, sample_models, sample_routes, sample_workflows
-    ):
+        self,
+        config_manager: ConfigManager,
+        sample_models: list[Model],
+        sample_routes: list[Route],
+        sample_workflows: list[Workflow],
+    ) -> None:
         """Test fetching persisted config."""
         models, routes, workflows = await config_manager._get_persisted_config()
 
@@ -425,13 +450,17 @@ class TestConfigManager:
         ]
 
     @pytest.mark.asyncio
-    async def test_compare_configs_no_change(self, config_manager):
+    async def test_compare_configs_no_change(
+        self, config_manager: ConfigManager
+    ) -> None:
         """Test comparing configs when they match."""
         # Should not raise
         await config_manager._compare_configs()
 
     @pytest.mark.asyncio
-    async def test_compare_configs_with_change(self, config_manager, raw_models):
+    async def test_compare_configs_with_change(
+        self, config_manager: ConfigManager, raw_models: list[RawModel]
+    ) -> None:
         """Test comparing configs when they differ."""
         # Modify the new models to differ
         config_manager.config_fields.new_models = [
@@ -450,7 +479,9 @@ class TestConfigManager:
             await config_manager._compare_configs()
 
     @pytest.mark.asyncio
-    async def test_check_config_is_different_unchanged(self, config_manager):
+    async def test_check_config_is_different_unchanged(
+        self, config_manager: ConfigManager
+    ) -> None:
         """Test check_config_is_different when configs are the same."""
         result = await config_manager.check_config_is_different()
 
@@ -462,7 +493,9 @@ class TestConfigManager:
         assert result.workflows == config_manager.config_fields.workflows
 
     @pytest.mark.asyncio
-    async def test_check_config_is_different_changed(self, config_manager, raw_models):
+    async def test_check_config_is_different_changed(
+        self, config_manager: ConfigManager, raw_models: list[RawModel]
+    ) -> None:
         """Test check_config_is_different when configs differ."""
         # Modify new models to differ
         config_manager.config_fields.new_models = [
@@ -488,17 +521,21 @@ class TestConfigManager:
 class TestCompareEntities:
     """Test the _compare_entities function."""
 
-    def test_compare_entities_matching(self, sample_routes):
+    def test_compare_entities_matching(self, sample_routes: list[Route]) -> None:
         """Test comparing matching entity lists."""
         _compare_entities(sample_routes, sample_routes)
 
-    def test_compare_entities_different_length(self, sample_routes):
+    def test_compare_entities_different_length(
+        self, sample_routes: list[Route]
+    ) -> None:
         """Test comparing entity lists with different lengths."""
         shorter_routes = sample_routes[:-1]
         with pytest.raises(ComparisonMismatchError):
             _compare_entities(sample_routes, shorter_routes)
 
-    def test_compare_entities_different_content(self, sample_routes):
+    def test_compare_entities_different_content(
+        self, sample_routes: list[Route]
+    ) -> None:
         """Test comparing entity lists with different content."""
         modified_routes = sample_routes.copy()
         modified_routes[0] = Route(name="input:different:output")
@@ -509,17 +546,23 @@ class TestCompareEntities:
 class TestCompareModels:
     """Test the _compare_models function."""
 
-    def test_compare_models_matching(self, raw_models, sample_models):
+    def test_compare_models_matching(
+        self, raw_models: list[RawModel], sample_models: list[Model]
+    ) -> None:
         """Test comparing matching model lists."""
         _compare_models(raw_models, sample_models)
 
-    def test_compare_models_different_length(self, raw_models, sample_models):
+    def test_compare_models_different_length(
+        self, raw_models: list[RawModel], sample_models: list[Model]
+    ) -> None:
         """Test comparing model lists with different lengths."""
         shorter_models = sample_models[:-1]
         with pytest.raises(ComparisonMismatchError):
             _compare_models(raw_models, shorter_models)
 
-    def test_compare_models_different_name(self, raw_models, sample_models):
+    def test_compare_models_different_name(
+        self, raw_models: list[RawModel], sample_models: list[Model]
+    ) -> None:
         """Test comparing models with different names."""
         modified_models = sample_models.copy()
         modified_models[0] = Model(
@@ -534,7 +577,9 @@ class TestCompareModels:
         with pytest.raises(ComparisonMismatchError):
             _compare_models(raw_models, modified_models)
 
-    def test_compare_models_different_description(self, raw_models, sample_models):
+    def test_compare_models_different_description(
+        self, raw_models: list[RawModel], sample_models: list[Model]
+    ) -> None:
         """Test comparing models with different descriptions."""
         modified_models = sample_models.copy()
         modified_models[0] = Model(
@@ -549,7 +594,9 @@ class TestCompareModels:
         with pytest.raises(ComparisonMismatchError):
             _compare_models(raw_models, modified_models)
 
-    def test_compare_models_different_publish(self, raw_models, sample_models):
+    def test_compare_models_different_publish(
+        self, raw_models: list[RawModel], sample_models: list[Model]
+    ) -> None:
         """Test comparing models with different publish flags."""
         modified_models = sample_models.copy()
         modified_models[0] = Model(
@@ -564,7 +611,9 @@ class TestCompareModels:
         with pytest.raises(ComparisonMismatchError):
             _compare_models(raw_models, modified_models)
 
-    def test_compare_models_ingress_different_version(self, raw_models, sample_models):
+    def test_compare_models_ingress_different_version(
+        self, raw_models: list[RawModel], sample_models: list[Model]
+    ) -> None:
         """Test comparing ingress models with different versions."""
         modified_models = sample_models.copy()
         modified_models[0] = Model(
@@ -579,7 +628,9 @@ class TestCompareModels:
         with pytest.raises(ComparisonMismatchError):
             _compare_models(raw_models, modified_models)
 
-    def test_compare_models_ingress_different_schema(self, raw_models, sample_models):
+    def test_compare_models_ingress_different_schema(
+        self, raw_models: list[RawModel], sample_models: list[Model]
+    ) -> None:
         """Test comparing ingress models with different schemas."""
         modified_models = sample_models.copy()
         modified_models[0] = Model(
@@ -604,7 +655,9 @@ class TestCompareModels:
         with pytest.raises(ComparisonMismatchError):
             _compare_models(raw_models, modified_models)
 
-    def test_compare_models_non_ingress_with_schema(self, raw_models, sample_models):
+    def test_compare_models_non_ingress_with_schema(
+        self, raw_models: list[RawModel], sample_models: list[Model]
+    ) -> None:
         """Test comparing non-ingress models with schema provided."""
         modified_raw_models = raw_models.copy()
         modified_raw_models[1] = RawModel(
@@ -628,7 +681,9 @@ class TestCompareModels:
         with pytest.raises(ComparisonMismatchError):
             _compare_models(modified_raw_models, sample_models)
 
-    def test_compare_models_non_ingress_without_schema(self, raw_models, sample_models):
+    def test_compare_models_non_ingress_without_schema(
+        self, raw_models: list[RawModel], sample_models: list[Model]
+    ) -> None:
         """Test comparing non-ingress models without schema (should succeed)."""
         # raw_models includes 4 models: 2 ingress and 2 non-ingress
         # sample_models includes all 4 with proper schemas (generated for non-ingress)
