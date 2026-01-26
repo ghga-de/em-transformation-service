@@ -12,21 +12,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Contains functionality to load and compare service config."""
 
-"""DAO interface for accessing the database."""
+from abc import ABC, abstractmethod
 
-from hexkit.protocols.dao import Dao, ResourceNotFoundError
-
-from ets.adapters.inbound.event_schemas import AEMPack
-from ets.core import models
-
-__all__ = ["ResourceNotFoundError"]
+from ets.core.models import ComparisonResultChanged, ComparisonResultUnchanged
 
 
-ModelDao = Dao[models.Model]
+class ComparisonMismatchError(RuntimeError):
+    """Custom error type raised on any mismatch between the existing and new config."""
 
-WorkflowDao = Dao[models.Workflow]
 
-RouteDao = Dao[models.RouteDTO]
+class ConfigManagerPort(ABC):
+    """Manages loading old and new config and comparing them."""
 
-AEMPackDao = Dao[AEMPack]
+    @abstractmethod
+    async def check_config_is_different(
+        self,
+    ) -> ComparisonResultChanged | ComparisonResultUnchanged:
+        """Check if both configs are equal.
+
+        Returns new config fields.
+        """

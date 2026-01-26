@@ -31,11 +31,7 @@ log = logging.getLogger(__name__)
 class AEMPackRegistry(AEMPackRegistryPort):
     """Core service for managing AEMPack transformations."""
 
-    def __init__(
-        self,
-        *,
-        aem_pack_dao: AEMPackDao,
-    ):
+    def __init__(self, *, aem_pack_dao: AEMPackDao):
         self._aem_pack_dao = aem_pack_dao
 
     async def upsert_aem_pack(self, aem_pack: AEMPack) -> None:

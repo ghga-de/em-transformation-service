@@ -25,8 +25,9 @@ from hexkit.providers.mongodb.testutils import MongoDbFixture
 
 from ets.adapters.outbound.dao import get_aem_pack_dao
 from ets.config import Config
-from ets.inject import prepare_core, prepare_event_subscriber
+from ets.inject import prepare_config_manager, prepare_core, prepare_event_subscriber
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
+from ets.ports.inbound.config_manager import ConfigManagerPort
 from ets.ports.outbound.dao import AEMPackDao
 from tests.fixtures.config import get_config
 
@@ -35,12 +36,13 @@ from tests.fixtures.config import get_config
 class JointFixture:
     """Returned by the `joint_fixture`."""
 
-    mongodb: MongoDbFixture
+    aem_pack_dao: AEMPackDao
     aem_pack_registry: AEMPackRegistryPort
     config: Config
+    config_manager: ConfigManagerPort
     event_subscriber: KafkaEventSubscriber
     kafka: KafkaFixture
-    aem_pack_dao: AEMPackDao
+    mongodb: MongoDbFixture
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -59,12 +61,14 @@ async def joint_fixture(
         prepare_event_subscriber(
             config=config, core_override=aem_pack_registry
         ) as event_subscriber,
+        prepare_config_manager(config=config) as config_manager,
     ):
         yield JointFixture(
-            mongodb=mongodb,
+            aem_pack_dao=aem_pack_dao,
             aem_pack_registry=aem_pack_registry,
             config=config,
+            config_manager=config_manager,
             event_subscriber=event_subscriber,
             kafka=kafka,
-            aem_pack_dao=aem_pack_dao,
+            mongodb=mongodb,
         )

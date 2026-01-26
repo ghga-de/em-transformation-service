@@ -29,7 +29,27 @@ from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound import dao
 from ets.config import Config
 from ets.core.aem_pack_registry import AEMPackRegistry
+from ets.core.config_manager import ConfigManager
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
+from ets.ports.inbound.config_manager import ConfigManagerPort
+
+
+@asynccontextmanager
+async def prepare_config_manager(*, config: Config) -> AsyncGenerator[ConfigManagerPort]:
+    """Constructs config manager instances that can be used by the central core class.
+
+    Factored out for better testability.
+    """
+    async with MongoDbDaoFactory.construct(config=config) as dao_factory:
+        model_dao = await dao.get_model_dao(dao_factory=dao_factory)
+        route_dao = await dao.get_route_dao(dao_factory=dao_factory)
+        workflow_dao = await dao.get_workflow_dao(dao_factory=dao_factory)
+        yield ConfigManager(
+            config_path=config.input_config_path,
+            model_dao=model_dao,
+            route_dao=route_dao,
+            workflow_dao=workflow_dao,
+        )
 
 
 @asynccontextmanager
@@ -38,9 +58,7 @@ async def prepare_core(
     config: Config,
 ) -> AsyncGenerator[AEMPackRegistryPort]:
     """Constructs and initializes core components and their outbound dependencies."""
-    async with (
-        MongoDbDaoFactory.construct(config=config) as dao_factory,
-    ):
+    async with MongoDbDaoFactory.construct(config=config) as dao_factory:
         aem_pack_dao = await dao.get_aem_pack_dao(
             dao_factory=dao_factory,
         )

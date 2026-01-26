@@ -136,6 +136,27 @@ class Route(BaseModel):
             "Either 'name' or all of 'input_model_name', 'workflow_name', 'output_model_name' need to be provided."
         )
 
+class RouteDTO(BaseModel):
+    """TODO"""
+
+    name: str = Field(
+        default=...,
+        description=(
+            "A unique human-readable name of the route. Follows the format of "
+            "'input_model_name:workflow_name:output_model_name'."
+        ),
+    )
+    input_model_name: str = Field(
+        default=..., description=" Name of the input model accepted by the route."
+    )
+    output_model_name: str = Field(
+        default=..., description="Name of the output model produced by the route."
+    )
+    workflow_name: str = Field(
+        default=...,
+        description="Name of the workflow used to transform the input model to the output model.",
+    )
+
 
 class RawConfig(BaseModel):
     """Describes a raw transformation configuration before any processing/validation."""

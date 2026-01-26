@@ -29,16 +29,13 @@ from ets.core.models import (
     Route,
     Workflow,
 )
+from ets.ports.inbound.config_manager import ComparisonMismatchError, ConfigManagerPort
 from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 
 ConfigField = TypeVar("ConfigField", bound=Route | Workflow)
 
 
-class ComparisonMismatchError(RuntimeError):
-    """Custom error type raised on any mismatch between the existing and new config."""
-
-
-class ConfigManager:
+class ConfigManager(ConfigManagerPort):
     """Manages loading old and new config and comparing them."""
 
     def __init__(

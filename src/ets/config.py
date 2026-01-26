@@ -15,6 +15,8 @@
 
 """Config Parameter Modeling and Parsing."""
 
+from pathlib import Path
+
 from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
 from hexkit.providers.akafka import KafkaConfig
@@ -32,6 +34,10 @@ class Config(KafkaConfig, MongoDbConfig, LoggingConfig, EventSubTranslatorConfig
 
     service_name: str = Field(
         default=SERVICE_NAME, description="Short name of this service"
+    )
+    input_config_path: Path = Field(
+        default=...,
+        description="Path to the config file from which the databases are populated.",
     )
 
 
