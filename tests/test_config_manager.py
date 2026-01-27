@@ -95,7 +95,7 @@ async def test_load_and_compare(
         model_dict = raw_model.model_dump()
         if not schema:
             model_dict["schema"] = MOCK_SCHEMA
-        model_dict["oder"] = order
+        model_dict["order"] = order
 
         model = Model.model_validate(model_dict)
         await joint_fixture.daos.model_dao.insert(model)

@@ -35,7 +35,9 @@ from ets.ports.inbound.config_manager import ConfigManagerPort
 
 
 @asynccontextmanager
-async def prepare_config_manager(*, config: Config) -> AsyncGenerator[ConfigManagerPort]:
+async def prepare_config_manager(
+    *, config: Config
+) -> AsyncGenerator[ConfigManagerPort]:
     """Constructs config manager instances that can be used by the central core class.
 
     Factored out for better testability.

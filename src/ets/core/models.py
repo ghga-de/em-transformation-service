@@ -132,7 +132,7 @@ class Route(BaseModel):
             )
             if not self.name:
                 self.name = name
-            # needed case to pass revalidation, i.e. when construction another 
+            # needed case to pass revalidation, i.e. when construction another
             # BaseModel containing this one as part of its attributes
             if self.name != name:
                 raise ValueError(
