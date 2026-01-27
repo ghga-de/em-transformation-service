@@ -102,8 +102,7 @@ async def test_load_and_compare(
 
     for route in result.routes:
         # Should be equivalent after validation
-        route = cast(RouteDTO, route)
-        await joint_fixture.daos.route_dao.insert(route)
+        await joint_fixture.daos.route_dao.insert(cast(RouteDTO, route))
 
     for workflow in result.workflows:
         await joint_fixture.daos.workflow_dao.insert(workflow)

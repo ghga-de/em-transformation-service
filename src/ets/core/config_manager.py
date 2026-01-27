@@ -115,7 +115,7 @@ class ConfigManager(ConfigManagerPort):
 
         models = sorted(models, key=lambda model: model.name)
         # Validator should take care of None names in routes, so all should be populated
-        routes = sorted(routes, key=lambda route: route.name)  # type: ignore
+        routes = sorted(routes, key=lambda route: route.name)
         workflows = sorted(workflows, key=lambda workflow: workflow.name)
 
         return models, routes, workflows
