@@ -14,9 +14,11 @@
 # limitations under the License.
 """Contains functionality to load and compare service config."""
 
+import logging
 from pathlib import Path
 from typing import TypeVar
 
+from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
 
 from ets.core.models import (
@@ -24,16 +26,19 @@ from ets.core.models import (
     ComparisonResultUnchanged,
     ConfigFields,
     Model,
+    PersistedModel,
+    PersistedRoute,
     RawConfig,
     RawModel,
     Route,
-    RouteDTO,
     Workflow,
 )
 from ets.ports.inbound.config_manager import ComparisonMismatchError, ConfigManagerPort
 from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 
-ConfigField = TypeVar("ConfigField", bound=Route | RouteDTO | Workflow)
+ConfigField = TypeVar("ConfigField", bound=Route | PersistedRoute | Workflow)
+
+log = logging.getLogger(__name__)
 
 
 class ConfigManager(ConfigManagerPort):
@@ -61,7 +66,8 @@ class ConfigManager(ConfigManagerPort):
         """
         try:
             await self._compare_configs()
-        except ComparisonMismatchError:
+        except ComparisonMismatchError as error:
+            log.critical(error)
             return ComparisonResultChanged(
                 models=self.config_fields.new_models,
                 routes=self.config_fields.routes,
@@ -107,11 +113,31 @@ class ConfigManager(ConfigManagerPort):
 
     async def _get_persisted_config(self):
         """Fetch config fields from persistence layer and sort them by name."""
-        models = [model async for model in self.model_dao.find_all(mapping={})]
-        routes = [route async for route in self.route_dao.find_all(mapping={})]
+        persisted_models = [
+            model async for model in self.model_dao.find_all(mapping={})
+        ]
+        persisted_routes = [
+            route async for route in self.route_dao.find_all(mapping={})
+        ]
         workflows = [
             workflow async for workflow in self.workflow_dao.find_all(mapping={})
         ]
+
+        routes = []
+        for persisted_route in persisted_routes:
+            route_dict = persisted_route.model_dump()
+            routes.append(Route.model_validate(route_dict))
+
+        # Convert DTO model with serialized schema to internal representation using
+        # an actual schemapack object
+        models = []
+        for persisted_model in persisted_models:
+            model_dict = persisted_model.model_dump()
+            try:
+                model_dict["schema_"] = SchemaPack.model_validate(model_dict["schema_"])
+            except Exception as error:
+                raise ValueError(model_dict["schema_"]) from error
+            models.append(Model.model_validate(model_dict))
 
         models = sorted(models, key=lambda model: model.name)
         # Validator should take care of None names in routes, so all should be populated
@@ -133,7 +159,7 @@ def _compare_entities(new: list[ConfigField], old: list[ConfigField]):
             raise ComparisonMismatchError("Mismatching config entity.")
 
 
-def _compare_models(new: list[RawModel], old: list[Model]):
+def _compare_models(new: list[RawModel], old: list[PersistedModel]):
     """Custom comparison logic for both model types.
 
     Assumes both lists are sorted by name.

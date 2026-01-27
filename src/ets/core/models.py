@@ -15,7 +15,8 @@
 
 """Defines dataclasses for holding business-logic data."""
 
-from typing import Self
+from collections.abc import Mapping
+from typing import Any, Self
 
 from metldata.workflow.base import Workflow as MetldataWorkflow
 from pydantic import (
@@ -62,6 +63,15 @@ class Model(RawModel):
     order: int = Field(
         default=...,
         description="Topological order of the schema in the transformation graph.",
+    )
+
+
+class PersistedModel(Model):
+    """DB specific model representation."""
+
+    schema_: Mapping[str, Any] = Field(
+        default=...,
+        description="Serialized representation of a schema associated with the model.",
     )
 
 
@@ -145,8 +155,8 @@ class Route(BaseModel):
         )
 
 
-class RouteDTO(BaseModel):
-    """TODO"""
+class PersistedRoute(BaseModel):
+    """DB specific route representation."""
 
     name: str = Field(
         default=...,

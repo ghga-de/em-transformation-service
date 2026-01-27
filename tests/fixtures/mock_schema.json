@@ -27,8 +27,9 @@
         ],
         "type": "object"
       },
-      "id": null,
-      "propertyName": "alias"
+      "id": {
+        "propertyName": "alias"
+      }
     }
   },
   "schemapack": "4.0.0"

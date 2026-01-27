@@ -23,10 +23,10 @@ from ets.core import models
 __all__ = ["ResourceNotFoundError"]
 
 
-ModelDao = Dao[models.Model]
+ModelDao = Dao[models.PersistedModel]
 
 WorkflowDao = Dao[models.Workflow]
 
-RouteDao = Dao[models.RouteDTO]
+RouteDao = Dao[models.PersistedRoute]
 
 AEMPackDao = Dao[AEMPack]

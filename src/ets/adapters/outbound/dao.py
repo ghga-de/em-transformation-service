@@ -25,7 +25,7 @@ from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
 async def get_model_dao(*, dao_factory: DaoFactoryProtocol) -> ModelDao:
     """Setup the Model DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
-        name="models", dto_model=models.Model, id_field="name"
+        name="models", dto_model=models.PersistedModel, id_field="name"
     )
 
 
@@ -39,7 +39,7 @@ async def get_workflow_dao(*, dao_factory: DaoFactoryProtocol) -> WorkflowDao:
 async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
     """Setup the Route DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
-        name="routes", dto_model=models.RouteDTO, id_field="name"
+        name="routes", dto_model=models.PersistedRoute, id_field="name"
     )
 
 

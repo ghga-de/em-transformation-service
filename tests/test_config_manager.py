@@ -21,13 +21,14 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from metldata.builtin_transformations.common.utils import model_to_dict
 from pydantic import ValidationError
 
 from ets.core.models import (
     ComparisonResultChanged,
     ComparisonResultUnchanged,
-    Model,
-    RouteDTO,
+    PersistedModel,
+    PersistedRoute,
 )
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import BASE_DIR
@@ -94,15 +95,17 @@ async def test_load_and_compare(
         schema = raw_model.schema_
         model_dict = raw_model.model_dump()
         if not schema:
-            model_dict["schema"] = MOCK_SCHEMA
+            model_dict["schema_"] = MOCK_SCHEMA
+        else:
+            model_dict["schema_"] = model_to_dict(schema)
         model_dict["order"] = order
 
-        model = Model.model_validate(model_dict)
+        model = PersistedModel.model_validate(model_dict)
         await joint_fixture.daos.model_dao.insert(model)
 
     for route in result.routes:
         # Should be equivalent after validation
-        await joint_fixture.daos.route_dao.insert(cast(RouteDTO, route))
+        await joint_fixture.daos.route_dao.insert(cast(PersistedRoute, route))
 
     for workflow in result.workflows:
         await joint_fixture.daos.workflow_dao.insert(workflow)
