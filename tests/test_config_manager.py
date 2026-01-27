@@ -17,11 +17,12 @@
 
 from contextlib import nullcontext
 from pathlib import Path
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
 
-from ets.core.models import ComparisonResultChanged
+from ets.core.models import ComparisonResultChanged, Model, RouteDTO
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import BASE_DIR
 
@@ -30,6 +31,8 @@ CONFIG_DIR = BASE_DIR / "input_configs"
 BASIC_TEST_CONFIG_PATH = CONFIG_DIR / "basic_test_config.yaml"
 EXTENDED_TEST_CONFIG_PATH = CONFIG_DIR / "test_config.yaml"
 INVALID_TEST_CONFIG_PATH = CONFIG_DIR / "invalid_config.yaml"
+
+pytestmark = pytest.mark.asyncio()
 
 
 @pytest.mark.parametrize(
@@ -43,10 +46,58 @@ INVALID_TEST_CONFIG_PATH = CONFIG_DIR / "invalid_config.yaml"
 async def test_loading_configs(
     config_path: Path, should_pass: bool, joint_fixture: JointFixture
 ) -> None:
-    """TODO"""
+    """Test loading the config from a yaml file and comparing with no previous data persisted."""
     config_manager = joint_fixture.config_manager
-    
+    # directly patch instance attribute for now, find a better way once everything is
+    # wired correctly
+    config_manager.config_path = config_path  # type: ignore
     with nullcontext() if should_pass else pytest.raises(ValidationError):
         result = await config_manager.check_config_is_different()
     if should_pass:
         assert isinstance(result, ComparisonResultChanged)
+
+
+@pytest.mark.parametrize(
+    "new_config_path,old_config_path,changed",
+    [
+        (BASIC_TEST_CONFIG_PATH, BASIC_TEST_CONFIG_PATH, False),
+        (BASIC_TEST_CONFIG_PATH, EXTENDED_TEST_CONFIG_PATH, True),
+    ],
+)
+async def test_load_and_compare(
+    changed: bool,
+    new_config_path: Path,
+    old_config_path: Path,
+    joint_fixture: JointFixture,
+):
+    """Test loading the config from a yaml file and comparing with previous data populated from old_config_path."""
+    config_manager = joint_fixture.config_manager
+    # directly patch instance attribute for now, find a better way once everything is
+    # wired correctly
+    config_manager.config_path = old_config_path  # type: ignore
+    result = await config_manager.check_config_is_different()
+
+    # Populate DB from config, mocking some fields to conform to DTO
+    for order, model in enumerate(result.models):
+        # mock order for now, replace once the validation and derivation code is implemented
+        schema = model.schema_
+        tmp = model.model_dump()
+        if not schema:
+            tmp["schema"] = {}
+
+        Model(
+            name=model.name,
+            description=model.description,
+            is_ingress=model.is_ingress,
+            version=model.version,
+            schema_=schema,
+            publish=model.publish
+        )
+
+    for route in result.routes:
+        # Should be equivalent after validation
+        route = cast(RouteDTO, route)
+        await joint_fixture.daos.route_dao.insert(route)
+
+    for workflow in result.workflows:
+        await joint_fixture.daos.workflow_dao.insert(workflow)

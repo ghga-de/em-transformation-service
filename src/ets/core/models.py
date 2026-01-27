@@ -126,15 +126,24 @@ class Route(BaseModel):
             self.input_model_name, self.workflow_name, self.output_model_name = parts
             return self
 
-        if not self.name and has_all_parts:
-            self.name = (
+        if has_all_parts:
+            name = (
                 f"{self.input_model_name}:{self.workflow_name}:{self.output_model_name}"
             )
+            if not self.name:
+                self.name = name
+            # needed case to pass revalidation, i.e. when construction another 
+            # BaseModel containing this one as part of its attributes
+            if self.name != name:
+                raise ValueError(
+                    f"Provided name '{self.name}' and name assembled from parts '{name}' do not match."
+                )
             return self
 
         raise ValueError(
             "Either 'name' or all of 'input_model_name', 'workflow_name', 'output_model_name' need to be provided."
         )
+
 
 class RouteDTO(BaseModel):
     """TODO"""
@@ -189,7 +198,9 @@ class ConfigFields(BaseModel):
     old_models: list[Model] = Field(
         default_factory=list, description="Existing, persisted models."
     )
-    routes: list[Route] = Field(default=..., description="Routes from the config file.")
+    routes: list[Route] = Field(
+        default_factory=list, description="Routes from the config file."
+    )
     workflows: list[Workflow] = Field(
         default_factory=list, description="Workflows from the config file."
     )

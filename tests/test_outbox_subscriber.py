@@ -58,7 +58,7 @@ async def test_aem_pack_upsert(
     await joint_fixture.event_subscriber.run(forever=False)
 
     # Check that the AEMPack data is found in the database.
-    result = await joint_fixture.aem_pack_dao.get_by_id(aem_pack_payload.id)
+    result = await joint_fixture.daos.aem_pack_dao.get_by_id(aem_pack_payload.id)
     expected = AEMPack(
         id=aem_pack_payload.id,
         model_name=aem_pack_payload.model_name,

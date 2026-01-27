@@ -27,12 +27,13 @@ from ets.core.models import (
     RawConfig,
     RawModel,
     Route,
+    RouteDTO,
     Workflow,
 )
 from ets.ports.inbound.config_manager import ComparisonMismatchError, ConfigManagerPort
 from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 
-ConfigField = TypeVar("ConfigField", bound=Route | Workflow)
+ConfigField = TypeVar("ConfigField", bound=Route | RouteDTO | Workflow)
 
 
 class ConfigManager(ConfigManagerPort):
