@@ -15,6 +15,7 @@
 
 """Tests for config manager and comparison functions."""
 
+import json
 from contextlib import nullcontext
 from pathlib import Path
 from typing import cast
@@ -22,7 +23,12 @@ from typing import cast
 import pytest
 from pydantic import ValidationError
 
-from ets.core.models import ComparisonResultChanged, Model, RouteDTO
+from ets.core.models import (
+    ComparisonResultChanged,
+    ComparisonResultUnchanged,
+    Model,
+    RouteDTO,
+)
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import BASE_DIR
 
@@ -31,6 +37,11 @@ CONFIG_DIR = BASE_DIR / "input_configs"
 BASIC_TEST_CONFIG_PATH = CONFIG_DIR / "basic_test_config.yaml"
 EXTENDED_TEST_CONFIG_PATH = CONFIG_DIR / "test_config.yaml"
 INVALID_TEST_CONFIG_PATH = CONFIG_DIR / "invalid_config.yaml"
+
+MOCK_JSON_PATH = BASE_DIR / "mock_schema.json"
+
+with MOCK_JSON_PATH.open("r") as file:
+    MOCK_SCHEMA = json.load(file)
 
 pytestmark = pytest.mark.asyncio()
 
@@ -78,21 +89,16 @@ async def test_load_and_compare(
     result = await config_manager.check_config_is_different()
 
     # Populate DB from config, mocking some fields to conform to DTO
-    for order, model in enumerate(result.models):
+    for order, raw_model in enumerate(result.models):
         # mock order for now, replace once the validation and derivation code is implemented
-        schema = model.schema_
-        tmp = model.model_dump()
+        schema = raw_model.schema_
+        model_dict = raw_model.model_dump()
         if not schema:
-            tmp["schema"] = {}
+            model_dict["schema"] = MOCK_SCHEMA
+        model_dict["oder"] = order
 
-        Model(
-            name=model.name,
-            description=model.description,
-            is_ingress=model.is_ingress,
-            version=model.version,
-            schema_=schema,
-            publish=model.publish
-        )
+        model = Model.model_validate(model_dict)
+        await joint_fixture.daos.model_dao.insert(model)
 
     for route in result.routes:
         # Should be equivalent after validation
@@ -101,3 +107,11 @@ async def test_load_and_compare(
 
     for workflow in result.workflows:
         await joint_fixture.daos.workflow_dao.insert(workflow)
+
+    config_manager.config_path = new_config_path  # type: ignore
+    result = await config_manager.check_config_is_different()
+    assert (
+        isinstance(result, ComparisonResultChanged)
+        if changed
+        else isinstance(result, ComparisonResultUnchanged)
+    )
