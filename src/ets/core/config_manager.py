@@ -18,25 +18,23 @@ import logging
 from pathlib import Path
 from typing import TypeVar
 
-from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
 
 from ets.core.models import (
     ComparisonResultChanged,
     ComparisonResultUnchanged,
     ConfigFields,
-    Model,
     PersistedModel,
-    PersistedRoute,
     RawConfig,
     RawModel,
+    RawRoute,
     Route,
     Workflow,
 )
 from ets.ports.inbound.config_manager import ComparisonMismatchError, ConfigManagerPort
 from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 
-ConfigField = TypeVar("ConfigField", bound=Route | PersistedRoute | Workflow)
+ConfigField = TypeVar("ConfigField", bound=Route | RawRoute | Workflow)
 
 log = logging.getLogger(__name__)
 
@@ -126,20 +124,12 @@ class ConfigManager(ConfigManagerPort):
         routes = []
         for persisted_route in persisted_routes:
             route_dict = persisted_route.model_dump()
-            routes.append(Route.model_validate(route_dict))
+            routes.append(RawRoute.model_validate(route_dict))
 
         # Convert DTO model with serialized schema to internal representation using
         # an actual schemapack object
-        models = []
-        for persisted_model in persisted_models:
-            model_dict = persisted_model.model_dump()
-            try:
-                model_dict["schema_"] = SchemaPack.model_validate(model_dict["schema_"])
-            except Exception as error:
-                raise ValueError(model_dict["schema_"]) from error
-            models.append(Model.model_validate(model_dict))
 
-        models = sorted(models, key=lambda model: model.name)
+        models = sorted(persisted_models, key=lambda model: model.name)
         # Validator should take care of None names in routes, so all should be populated
         routes = sorted(routes, key=lambda route: route.name)  # type: ignore
         workflows = sorted(workflows, key=lambda workflow: workflow.name)

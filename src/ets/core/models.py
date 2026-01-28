@@ -27,8 +27,8 @@ from pydantic import (
 from schemapack.spec.schemapack import SchemaPack
 
 
-class RawModel(BaseModel):
-    """Describes a raw model before any processing."""
+class ModelBase(BaseModel):
+    """Base for different model variants (old, new, serialized)"""
 
     name: str = Field(
         default=..., description="A Unique human-readable name of the model."
@@ -44,17 +44,21 @@ class RawModel(BaseModel):
         default=...,
         description="The version of the model. None if the model is not an EMIM.",
     )
-    schema_: SchemaPack | None = Field(
-        default=...,
-        description="Schema associated with the model. None if it is not an EMIM or not yet computed.",
-    )
     publish: bool = Field(
         default=...,
         description="whether the data conforming to the schema should be published.",
     )
 
 
-class Model(RawModel):
+class RawModel(ModelBase):
+    """Describes a raw model before any processing."""
+
+    schema_: Mapping[str, Any] | None = Field(
+        default=..., description="Schema associated with the model."
+    )
+
+
+class Model(ModelBase):
     """Describes a model after resolving the topological ordering and deriving the schemas."""
 
     schema_: SchemaPack = Field(
@@ -66,12 +70,16 @@ class Model(RawModel):
     )
 
 
-class PersistedModel(Model):
-    """DB specific model representation."""
+class PersistedModel(ModelBase):
+    """Variant of model with serialized schema_ for use as DTO in storage and events."""
 
-    schema_: Mapping[str, Any] = Field(  # type: ignore[assignment]
+    schema_: Mapping[str, Any] = Field(
         default=...,
         description="Serialized representation of a schema associated with the model.",
+    )
+    order: int = Field(
+        default=...,
+        description="Topological order of the schema in the transformation graph.",
     )
 
 
@@ -90,7 +98,7 @@ class Workflow(BaseModel):
     )
 
 
-class Route(BaseModel):
+class RawRoute(BaseModel):
     """Describes the routes for transforming models and data by referencing the
     workflow, the input and output models involved in each transformation by name.
     """
@@ -155,8 +163,8 @@ class Route(BaseModel):
         )
 
 
-class PersistedRoute(BaseModel):
-    """DB specific route representation."""
+class Route(BaseModel):
+    """Route model after validation populates None values."""
 
     name: str = Field(
         default=...,
@@ -188,7 +196,7 @@ class RawConfig(BaseModel):
         default=...,
         description="List of available workflows.",
     )
-    routes: list[Route] = Field(
+    routes: list[RawRoute] = Field(
         default=...,
         description="List of routes composing the transformation graph.",
     )
@@ -205,10 +213,10 @@ class ConfigFields(BaseModel):
     new_models: list[RawModel] = Field(
         default_factory=list, description="Raw models from the config file."
     )
-    old_models: list[Model] = Field(
+    old_models: list[PersistedModel] = Field(
         default_factory=list, description="Existing, persisted models."
     )
-    routes: list[Route] = Field(
+    routes: list[RawRoute] = Field(
         default_factory=list, description="Routes from the config file."
     )
     workflows: list[Workflow] = Field(
@@ -222,7 +230,7 @@ class ComparisonResultBase(BaseModel):
     Used as base class for either variant for the result.
     """
 
-    routes: list[Route] = Field(
+    routes: list[RawRoute] = Field(
         default=..., description="Up to date routes for downstream processing."
     )
     workflows: list[Workflow] = Field(
@@ -241,6 +249,6 @@ class ComparisonResultChanged(ComparisonResultBase):
 class ComparisonResultUnchanged(ComparisonResultBase):
     """For unchanged configs, the persisted models are returned."""
 
-    models: list[Model] = Field(
+    models: list[PersistedModel] = Field(
         default=..., description="Existing models populated from the persistence layer."
     )

@@ -27,6 +27,6 @@ ModelDao = Dao[models.PersistedModel]
 
 WorkflowDao = Dao[models.Workflow]
 
-RouteDao = Dao[models.PersistedRoute]
+RouteDao = Dao[models.Route]
 
 AEMPackDao = Dao[AEMPack]

@@ -39,7 +39,7 @@ async def get_workflow_dao(*, dao_factory: DaoFactoryProtocol) -> WorkflowDao:
 async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
     """Setup the Route DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
-        name="routes", dto_model=models.PersistedRoute, id_field="name"
+        name="routes", dto_model=models.Route, id_field="name"
     )
 
 
