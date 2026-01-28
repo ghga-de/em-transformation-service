@@ -69,7 +69,7 @@ class Model(RawModel):
 class PersistedModel(Model):
     """DB specific model representation."""
 
-    schema_: Mapping[str, Any] = Field(
+    schema_: Mapping[str, Any] = Field(  # type: ignore[assignment]
         default=...,
         description="Serialized representation of a schema associated with the model.",
     )
