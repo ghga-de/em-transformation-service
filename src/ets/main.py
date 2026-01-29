@@ -23,7 +23,7 @@ from ets.inject import prepare_event_subscriber
 
 async def consume_events(run_forever: bool = True):
     """Run the event consumer"""
-    config = Config()  # type: ignore[call-arg]
+    config = Config()
     configure_logging(config=config)
 
     async with prepare_event_subscriber(config=config) as event_subscriber:
