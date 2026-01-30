@@ -1,0 +1,30 @@
+# Invalid: Route input model is not an ingress model
+models:
+  - name: non_ingress_model
+    description: Non-ingress model
+    is_ingress: false
+    version: "1.0.0"
+    schema_: null
+    publish: false
+
+  - name: output_model
+    description: Output model
+    is_ingress: false
+    version: "1.0.0"
+    schema_: null
+    publish: false
+
+workflows:
+  - name: test_workflow
+    description: Test workflow
+    workflow:
+      operations:
+        - name: delete_class
+          description: Delete class operation
+          args: {}
+
+routes:
+  - name: "non_ingress_model:test_workflow:output_model"
+    input_model_name: non_ingress_model
+    workflow_name: test_workflow
+    output_model_name: output_model

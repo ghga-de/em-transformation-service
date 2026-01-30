@@ -14,8 +14,6 @@
 # limitations under the License.
 """Contains functionality to validate the loaded config."""
 
-from abc import ABC, abstractmethod
-
 from metldata.builtin_transformations.delete_class.main import (
     DELETE_CLASS_TRANSFORMATION,
 )
@@ -41,6 +39,10 @@ from metldata.transform.base import TransformationDefinition
 from schemapack.spec.schemapack import SchemaPack
 
 from ets.core.models import ComparisonResultChanged, RawModel
+from ets.ports.inbound.config_validator import (
+    ConfigValidationError,
+    ConfigValidatorPort,
+)
 
 # We should expose this at the metldata level for consumption instead
 # Duplicated for now to make the tests work
@@ -53,28 +55,6 @@ TRANSFORMATION_REGISTRY: dict[str, TransformationDefinition] = {
     "rename_id_property": RENAME_ID_PROPERTY_TRANSFORMATION,
     "replace_resource_ids": REPLACE_RESOURCE_IDS_TRANSFORMATION,
 }
-
-
-class ConfigValidationError(RuntimeError):
-    """Raised when configuration validation fails."""
-
-
-class ConfigValidatorPort(ABC):
-    """Abstract base class for configuration validation."""
-
-    @abstractmethod
-    def validate(self, result: ComparisonResultChanged) -> None:
-        """Validate new configuration loaded from yaml file.
-
-        This should only be called when the loaded config does not match what has
-        already been persisted previously.
-
-        Args:
-            result: ComparisonResultChanged containing models, routes, and workflows.
-
-        Raises:
-            ConfigValidationError: If any validation fails.
-        """
 
 
 class ConfigValidator(ConfigValidatorPort):
@@ -92,12 +72,9 @@ class ConfigValidator(ConfigValidatorPort):
         Raises:
             ConfigValidationError: If any validation fails.
         """
-        try:
-            self._validate_routes(result)
-            self._validate_model_schemas(result.models)
-            self._validate_workflows(result)
-        except Exception as err:
-            raise ConfigValidationError(f"Unexpected validation error: {err}") from err
+        self._validate_routes(result)
+        self._validate_model_schemas(result.models)
+        self._validate_workflows(result)
 
     def _validate_routes(self, result: ComparisonResultChanged) -> None:
         """Ensure all routes have valid references and model types.
@@ -195,5 +172,7 @@ class ConfigValidator(ConfigValidatorPort):
                 expected_config_clas = transformation_definition.config_cls
                 if not isinstance(provided_config, expected_config_clas):
                     raise ConfigValidationError(
-                        f"Invalid transformation config for workflow '{workflow.name}': '{operation.name}' got config class of type '{type(provided_config)}', but should be '{expected_config_clas}'."
+                        f"Invalid transformation config for workflow '{workflow.name}': "
+                        f"'{operation.name}' got config class of type '{type(provided_config)}', "
+                        f"but should be '{expected_config_clas}'."
                     )
