@@ -169,10 +169,15 @@ class ConfigValidator(ConfigValidatorPort):
 
                 transformation_definition = TRANSFORMATION_REGISTRY[operation.name]
                 provided_config = operation.args
-                expected_config_clas = transformation_definition.config_cls
-                if not isinstance(provided_config, expected_config_clas):
-                    raise ConfigValidationError(
-                        f"Invalid transformation config for workflow '{workflow.name}': "
-                        f"'{operation.name}' got config class of type '{type(provided_config)}', "
-                        f"but should be '{expected_config_clas}'."
-                    )
+                expected_config_class = transformation_definition.config_cls
+
+                # Validate by trying to create a valid config instance
+                if not isinstance(provided_config, expected_config_class):
+                    try:
+                        expected_config_class(**provided_config)
+                    except Exception as error:
+                        raise ConfigValidationError(
+                            f"Invalid transformation config for workflow '{workflow.name}': "
+                            f"'{operation.name}' the provided config '{provided_config}'is not "
+                            f"compatible with '{expected_config_class}'."
+                        ) from error

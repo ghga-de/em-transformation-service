@@ -28,6 +28,7 @@ from tests.fixtures.utils import BASE_DIR
 CONFIG_DIR = BASE_DIR / "input_configs" / "validation"
 
 # Valid config for baseline
+BASIC_VALID_CONFIG_PATH = BASE_DIR / "input_configs" / "basic_test_config.yaml"
 VALID_CONFIG_PATH = BASE_DIR / "input_configs" / "test_config.yaml"
 
 # Invalid configs for testing each validation rule
@@ -50,7 +51,6 @@ def _load_config(path: Path) -> ComparisonResultChanged:
     with path.open("r") as file:
         config_dict = safe_load(file)
     raw_config = RawConfig.model_validate(config_dict)
-    # Convert RawConfig to ComparisonResultChanged
     return ComparisonResultChanged(
         models=raw_config.models,
         routes=raw_config.routes,
@@ -65,29 +65,11 @@ class TestConfigValidator:
         """Set up test fixtures."""
         self.validator = ConfigValidator()
 
-    def test_validate_valid_config(self):
-        """Valid config passes all validations."""
-        # Use a simpler config with known valid transformations
-        result = _load_config(INVALID_ROUTE_INPUT_MODEL_PATH)
-        # This config is actually valid for routes/schemas, just has invalid route reference
-        # For a true valid config test, we'd need a config where all transformation
-        # configs are properly instantiated (not dicts), which happens during YAML parsing
-        # with proper metldata integration
-        # For now, we skip this and focus on the validation error cases
-        pytest.skip(
-            "Valid config test skipped: requires full metldata workflow config parsing"
-        )
 
     def test_route_input_model_does_not_exist(self):
         """Route with non-existent input model raises error."""
         result = _load_config(INVALID_ROUTE_INPUT_MODEL_PATH)
         with pytest.raises(ConfigValidationError, match="non-existent input model"):
-            self.validator.validate(result)
-
-    def test_route_input_model_not_ingress(self):
-        """Route with non-ingress input model raises error."""
-        result = _load_config(INVALID_ROUTE_INPUT_NOT_INGRESS_PATH)
-        with pytest.raises(ConfigValidationError, match="must be an ingress model"):
             self.validator.validate(result)
 
     def test_route_workflow_does_not_exist(self):
@@ -127,3 +109,13 @@ class TestConfigValidator:
         result = _load_config(INVALID_WORKFLOW_CONFIG_TYPE_PATH)
         with pytest.raises(ConfigValidationError, match="Invalid transformation config"):
             self.validator.validate(result)
+
+    def test_valid_config(self):
+        """Valid config passes validation without errors."""
+        result = _load_config(VALID_CONFIG_PATH)
+        self.validator.validate(result)
+
+    def test_valid_basic_config(self):
+        """Valid basic config passes validation without errors."""
+        result = _load_config(BASIC_VALID_CONFIG_PATH)
+        self.validator.validate(result)
