@@ -26,10 +26,11 @@ from ets.ports.inbound.config_validator import ConfigValidationError
 from tests.fixtures.utils import BASE_DIR
 
 CONFIG_DIR = BASE_DIR / "input_configs" / "validation"
+INPUT_CONFIGS_DIR = BASE_DIR / "input_configs"
 
 # Valid config for baseline
-BASIC_VALID_CONFIG_PATH = BASE_DIR / "input_configs" / "basic_test_config.yaml"
-VALID_CONFIG_PATH = BASE_DIR / "input_configs" / "test_config.yaml"
+BASIC_VALID_CONFIG_PATH = INPUT_CONFIGS_DIR / "basic_test_config.yaml"
+VALID_CONFIG_PATH = INPUT_CONFIGS_DIR / "test_config.yaml"
 
 # Invalid configs for testing each validation rule
 INVALID_ROUTE_INPUT_MODEL_PATH = CONFIG_DIR / "invalid_route_input_model.yaml"
@@ -38,7 +39,9 @@ INVALID_ROUTE_INPUT_NOT_INGRESS_PATH = (
 )
 INVALID_ROUTE_WORKFLOW_PATH = CONFIG_DIR / "invalid_route_workflow.yaml"
 INVALID_ROUTE_OUTPUT_MODEL_PATH = CONFIG_DIR / "invalid_route_output_model.yaml"
-INVALID_ROUTE_OUTPUT_IS_INGRESS_PATH = CONFIG_DIR / "invalid_route_output_is_ingress.yaml"
+INVALID_ROUTE_OUTPUT_IS_INGRESS_PATH = (
+    CONFIG_DIR / "invalid_route_output_is_ingress.yaml"
+)
 INVALID_MODEL_SCHEMA_PATH = CONFIG_DIR / "invalid_model_schema.yaml"
 INVALID_WORKFLOW_UNKNOWN_TRANSFORMATION_PATH = (
     CONFIG_DIR / "invalid_workflow_unknown_transformation.yaml"
@@ -65,57 +68,32 @@ class TestConfigValidator:
         """Set up test fixtures."""
         self.validator = ConfigValidator()
 
-
-    def test_route_input_model_does_not_exist(self):
-        """Route with non-existent input model raises error."""
-        result = _load_config(INVALID_ROUTE_INPUT_MODEL_PATH)
-        with pytest.raises(ConfigValidationError, match="non-existent input model"):
+    @pytest.mark.parametrize(
+        "config_path,error_match",
+        [
+            (INVALID_ROUTE_INPUT_MODEL_PATH, "non-existent input model"),
+            (INVALID_ROUTE_WORKFLOW_PATH, "non-existent workflow"),
+            (INVALID_ROUTE_OUTPUT_MODEL_PATH, "non-existent output model"),
+            (INVALID_ROUTE_OUTPUT_IS_INGRESS_PATH, "must not be an ingress model"),
+            (INVALID_MODEL_SCHEMA_PATH, "Invalid schema"),
+            (INVALID_WORKFLOW_UNKNOWN_TRANSFORMATION_PATH, "Unknown transformation"),
+            (INVALID_WORKFLOW_CONFIG_TYPE_PATH, "Invalid transformation config"),
+        ],
+    )
+    def test_invalid_config(self, config_path, error_match):
+        """Invalid configs raise ConfigValidationError with appropriate message."""
+        result = _load_config(config_path)
+        with pytest.raises(ConfigValidationError, match=error_match):
             self.validator.validate(result)
 
-    def test_route_workflow_does_not_exist(self):
-        """Route with non-existent workflow raises error."""
-        result = _load_config(INVALID_ROUTE_WORKFLOW_PATH)
-        with pytest.raises(ConfigValidationError, match="non-existent workflow"):
-            self.validator.validate(result)
-
-    def test_route_output_model_does_not_exist(self):
-        """Route with non-existent output model raises error."""
-        result = _load_config(INVALID_ROUTE_OUTPUT_MODEL_PATH)
-        with pytest.raises(ConfigValidationError, match="non-existent output model"):
-            self.validator.validate(result)
-
-    def test_route_output_model_is_ingress(self):
-        """Route with ingress output model raises error."""
-        result = _load_config(INVALID_ROUTE_OUTPUT_IS_INGRESS_PATH)
-        with pytest.raises(
-            ConfigValidationError, match="must not be an ingress model"
-        ):
-            self.validator.validate(result)
-
-    def test_model_schema_invalid(self):
-        """Model with invalid schema raises error."""
-        result = _load_config(INVALID_MODEL_SCHEMA_PATH)
-        with pytest.raises(ConfigValidationError, match="Invalid schema"):
-            self.validator.validate(result)
-
-    def test_workflow_unknown_transformation(self):
-        """Workflow with unknown transformation raises error."""
-        result = _load_config(INVALID_WORKFLOW_UNKNOWN_TRANSFORMATION_PATH)
-        with pytest.raises(ConfigValidationError, match="Unknown transformation"):
-            self.validator.validate(result)
-
-    def test_workflow_invalid_config_type(self):
-        """Workflow operation with wrong config type raises error."""
-        result = _load_config(INVALID_WORKFLOW_CONFIG_TYPE_PATH)
-        with pytest.raises(ConfigValidationError, match="Invalid transformation config"):
-            self.validator.validate(result)
-
-    def test_valid_config(self):
+    @pytest.mark.parametrize(
+        "config_path",
+        [
+            VALID_CONFIG_PATH,
+            BASIC_VALID_CONFIG_PATH,
+        ],
+    )
+    def test_valid_config(self, config_path):
         """Valid config passes validation without errors."""
-        result = _load_config(VALID_CONFIG_PATH)
-        self.validator.validate(result)
-
-    def test_valid_basic_config(self):
-        """Valid basic config passes validation without errors."""
-        result = _load_config(BASIC_VALID_CONFIG_PATH)
+        result = _load_config(config_path)
         self.validator.validate(result)
