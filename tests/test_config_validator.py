@@ -82,9 +82,9 @@ class TestConfigValidator:
     )
     def test_invalid_config(self, config_path, error_match):
         """Invalid configs raise ConfigValidationError with appropriate message."""
-        result = _load_config(config_path)
+        changed_config = _load_config(config_path)
         with pytest.raises(ConfigValidationError, match=error_match):
-            self.validator.validate(result)
+            self.validator.validate(changed_config)
 
     @pytest.mark.parametrize(
         "config_path",
@@ -95,5 +95,5 @@ class TestConfigValidator:
     )
     def test_valid_config(self, config_path):
         """Valid config passes validation without errors."""
-        result = _load_config(config_path)
-        self.validator.validate(result)
+        changed_config = _load_config(config_path)
+        self.validator.validate(changed_config)
