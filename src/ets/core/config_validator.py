@@ -108,7 +108,7 @@ class ConfigValidator(ConfigValidatorPort):
                         f"Invalid schema for model '{model.name}': {err}"
                     ) from err
 
-    def _validate_workflows(self, result: ComparisonResultChanged) -> None:
+    def _validate_workflows(self, changed_config: ComparisonResultChanged) -> None:
         """Validate all workflows using the metldata library.
 
         In contrast to schemas, which are still serialized at this point, Workflows
@@ -128,7 +128,7 @@ class ConfigValidator(ConfigValidatorPort):
             ConfigValidationError: If any workflow validation fails.
         """
         transformation_registry = get_transformation_registry()
-        for workflow in result.workflows:
+        for workflow in changed_config.workflows:
             validate_workflow_against_registry(
                 workflow=workflow.workflow,
                 transformation_registry=transformation_registry,

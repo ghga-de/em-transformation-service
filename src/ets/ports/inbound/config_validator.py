@@ -27,7 +27,7 @@ class ConfigValidatorPort(ABC):
     """Inbound port for configuration validation."""
 
     @abstractmethod
-    def validate(self, result: ComparisonResultChanged) -> None:
+    def validate(self, changed_config: ComparisonResultChanged) -> None:
         """Validate new configuration loaded from yaml file.
 
         This should only be called when the loaded config does not match what has
