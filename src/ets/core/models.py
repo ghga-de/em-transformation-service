@@ -71,7 +71,7 @@ class Model(ModelBase):
 
 
 class PersistedModel(ModelBase):
-    """Variant of model with serialized schema_ for use as DTO in storage and events."""
+    """Variant of 'Model' with serialized schema_ for use as DTO in storage and events."""
 
     schema_: Mapping[str, Any] = Field(
         default=...,
