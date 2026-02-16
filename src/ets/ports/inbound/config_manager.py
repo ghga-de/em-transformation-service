@@ -30,7 +30,8 @@ class ConfigManagerPort(ABC):
     async def check_config_is_different(
         self,
     ) -> ComparisonResultChanged | ComparisonResultUnchanged:
-        """Check if both configs are equal.
-
-        Returns new config fields.
+        """Compare new config with the persisted one.
+        Returns:
+                ComparisonResultChanged: when the configs differ, containing the new models, routes, and workflows.
+                ComparisonResultUnchanged: when the configs are equal, containing the persisted models, routes, and workflows.
         """
