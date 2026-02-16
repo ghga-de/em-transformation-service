@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 
 
 class ConfigManager(ConfigManagerPort):
-    """Manages loading old and new config and comparing them."""
+    """Loads the config file, fetches persisted config, and compares them to detect changes."""
 
     def __init__(
         self,
