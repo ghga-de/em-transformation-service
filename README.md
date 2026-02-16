@@ -233,7 +233,7 @@ The service requires the following configuration parameters:
   5
   ```
 
-- <a id="properties/input_config_path"></a>**`input_config_path`** *(string, format: path, required)*: Path to the config file from which the databases are populated.
+- <a id="properties/input_config_path"></a>**`input_config_path`** *(string, format: path, required)*: Path to the transformation config file used to populate the database.
 
 ### Usage:
 

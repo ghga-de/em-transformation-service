@@ -239,7 +239,7 @@
       "type": "integer"
     },
     "input_config_path": {
-      "description": "Path to the config file from which the databases are populated.",
+      "description": "Path to the transformation config file used to populate the database.",
       "format": "path",
       "title": "Input Config Path",
       "type": "string"

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-## creating building container
+# creating building container
 FROM python:3.13-slim-trixie AS builder
 # update and install dependencies
 RUN apt update
@@ -36,13 +36,13 @@ COPY --from=builder /service/lock/requirements.txt /service
 RUN pip install --no-deps -r requirements.txt
 RUN rm requirements.txt
 COPY --from=builder /service/dist/ /service
-RUN pip install --no-deps *.whl
-RUN rm *.whl
+RUN pip install --no-deps *.whl && rm *.whl
 # create new user and execute as that user
 RUN useradd --create-home appuser
 WORKDIR /home/appuser
 USER appuser
 # set environment
 ENV PYTHONUNBUFFERED=1
+
 # Please adapt to package name:
 ENTRYPOINT ["ets"]

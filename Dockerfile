@@ -32,15 +32,18 @@ RUN apk upgrade --available
 WORKDIR /service
 COPY --from=builder /service/lock/requirements.txt /service
 RUN pip install --no-deps -r requirements.txt
+# Binaries that are needed at runtime
+RUN mkdir -p /opt/runtime-bin
+RUN cp /usr/local/bin/opentelemetry-instrument /opt/runtime-bin/ 2>/dev/null || true
 
 # RUNNER: a container to run the service
 FROM base AS runner
 WORKDIR /service
 RUN rm -rf /usr/local/lib/python3.13
 COPY --from=dep-builder /usr/local/lib/python3.13 /usr/local/lib/python3.13
+COPY --from=dep-builder /opt/runtime-bin/ /usr/local/bin/
 COPY --from=builder /service/dist/ /service
-RUN pip install --no-deps *.whl
-RUN rm *.whl
+RUN pip install --no-deps *.whl && rm *.whl
 RUN adduser -D appuser
 WORKDIR /home/appuser
 USER appuser
