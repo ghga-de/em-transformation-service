@@ -8,7 +8,8 @@ dependencies = [
     "ghga-service-commons[api] >= 5.0",
     "ghga-event-schemas >= 10.0",
     "hexkit[akafka,s3,mongodb] >= 7.0",
-    "metldata~=5.1"
+    "metldata ~= 5.1",
+    "schemapack[schema-comparison] ~= 4.1"
 ]
 
 [project.urls]
