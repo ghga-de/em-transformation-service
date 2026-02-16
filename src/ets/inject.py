@@ -55,7 +55,7 @@ async def prepare_config_manager(
 
 
 @asynccontextmanager
-async def prepare_core(
+async def prepare_aem_pack_registry(
     *,
     config: Config,
 ) -> AsyncGenerator[AEMPackRegistryPort]:
@@ -67,13 +67,17 @@ async def prepare_core(
         yield AEMPackRegistry(aem_pack_dao=aem_pack_dao)
 
 
-def prepare_core_with_override(
+def prepare_aem_pack_registry_with_override(
     *,
     config: Config,
     core_override: AEMPackRegistryPort | None = None,
 ):
     """Resolve the prepare_core context manager based on config and override (if any)."""
-    return nullcontext(core_override) if core_override else prepare_core(config=config)
+    return (
+        nullcontext(core_override)
+        if core_override
+        else prepare_aem_pack_registry(config=config)
+    )
 
 
 @asynccontextmanager
@@ -87,7 +91,7 @@ async def prepare_event_subscriber(
     provide them using the core_override parameter.
     """
     async with (
-        prepare_core_with_override(
+        prepare_aem_pack_registry_with_override(
             config=config, core_override=core_override
         ) as aem_pack_registry,
         KafkaEventPublisher.construct(config=config) as dlq_publisher,

@@ -16,7 +16,6 @@
 
 import logging
 from pathlib import Path
-from typing import TypeVar
 
 from yaml import safe_load
 
@@ -32,9 +31,7 @@ from ets.core.models import (
     Workflow,
 )
 from ets.ports.inbound.config_manager import ComparisonMismatchError, ConfigManagerPort
-from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
-
-ConfigField = TypeVar("ConfigField", bound=Route | RawRoute | Workflow)
+from ets.ports.outbound.dao import PersistedModelDao, RouteDao, WorkflowDao
 
 log = logging.getLogger(__name__)
 
@@ -45,7 +42,7 @@ class ConfigManager(ConfigManagerPort):
     def __init__(
         self,
         config_path: Path,
-        model_dao: ModelDao,
+        model_dao: PersistedModelDao,
         route_dao: RouteDao,
         workflow_dao: WorkflowDao,
     ):
@@ -137,7 +134,9 @@ class ConfigManager(ConfigManagerPort):
         return models, routes, workflows
 
 
-def _compare_entities(new: list[ConfigField], old: list[ConfigField]):
+def _compare_entities[ConfigField: Route | RawRoute | Workflow](
+    new: list[ConfigField], old: list[ConfigField]
+):
     """Comparison logic for routes and workflows.
 
     Assumes both lists are sorted by name.

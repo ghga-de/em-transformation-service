@@ -60,8 +60,8 @@ TRANSFORMATION_REGISTRY: dict[str, TransformationDefinition] = {
 class ConfigValidator(ConfigValidatorPort):
     """Concrete implementation of configuration validator."""
 
-    def validate(self, result: ComparisonResultChanged) -> None:
-        """Validate configuration from comparison result.
+    def validate(self, changed_config: ComparisonResultChanged) -> None:
+        """Validate new configuration loaded from yaml file.
 
         This should only be called when the loaded config does not match what has
         already been persisted previously.
@@ -72,11 +72,11 @@ class ConfigValidator(ConfigValidatorPort):
         Raises:
             ConfigValidationError: If any validation fails.
         """
-        self._validate_routes(result)
-        self._validate_model_schemas(result.models)
-        self._validate_workflows(result)
+        self._validate_routes(changed_config)
+        self._validate_model_schemas(changed_config.models)
+        self._validate_workflows(changed_config)
 
-    def _validate_routes(self, result: ComparisonResultChanged) -> None:
+    def _validate_routes(self, changed_config: ComparisonResultChanged) -> None:
         """Ensure all routes have valid references and model types.
 
         The following properties are validated:
@@ -89,10 +89,10 @@ class ConfigValidator(ConfigValidatorPort):
         Raises:
             ConfigValidationError: If any route validation fails.
         """
-        models_by_name = {model.name: model for model in result.models}
-        workflow_names = {workflow.name for workflow in result.workflows}
+        models_by_name = {model.name: model for model in changed_config.models}
+        workflow_names = {workflow.name for workflow in changed_config.workflows}
 
-        for route in result.routes:
+        for route in changed_config.routes:
             # Verify input model exists
             if route.input_model_name not in models_by_name:
                 raise ConfigValidationError(

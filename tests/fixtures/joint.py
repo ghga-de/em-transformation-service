@@ -25,15 +25,19 @@ from hexkit.providers.mongodb.testutils import MongoDbFixture
 
 from ets.adapters.outbound.dao import (
     get_aem_pack_dao,
-    get_model_dao,
+    get_persisted_model_dao,
     get_route_dao,
     get_workflow_dao,
 )
 from ets.config import Config
-from ets.inject import prepare_config_manager, prepare_core, prepare_event_subscriber
+from ets.inject import (
+    prepare_aem_pack_registry,
+    prepare_config_manager,
+    prepare_event_subscriber,
+)
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.inbound.config_manager import ConfigManagerPort
-from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
+from ets.ports.outbound.dao import AEMPackDao, PersistedModelDao, RouteDao, WorkflowDao
 from tests.fixtures.config import get_config
 
 
@@ -42,7 +46,7 @@ class DAOs:
     """Wrapper class to hold all DAOs needed for testing"""
 
     aem_pack_dao: AEMPackDao
-    model_dao: ModelDao
+    model_dao: PersistedModelDao
     route_dao: RouteDao
     workflow_dao: WorkflowDao
 
@@ -70,7 +74,7 @@ async def joint_fixture(
     aem_pack_dao = await get_aem_pack_dao(
         dao_factory=mongodb.dao_factory,
     )
-    model_dao = await get_model_dao(dao_factory=mongodb.dao_factory)
+    model_dao = await get_persisted_model_dao(dao_factory=mongodb.dao_factory)
     route_dao = await get_route_dao(dao_factory=mongodb.dao_factory)
     workflow_dao = await get_workflow_dao(dao_factory=mongodb.dao_factory)
     daos = DAOs(
@@ -81,7 +85,7 @@ async def joint_fixture(
     )
 
     async with (
-        prepare_core(config=config) as aem_pack_registry,
+        prepare_aem_pack_registry(config=config) as aem_pack_registry,
         prepare_event_subscriber(
             config=config, core_override=aem_pack_registry
         ) as event_subscriber,

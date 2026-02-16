@@ -19,11 +19,13 @@ from hexkit.protocols.dao import DaoFactoryProtocol
 
 from ets.adapters.inbound.event_schemas import AEMPack
 from ets.core import models
-from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
+from ets.ports.outbound.dao import AEMPackDao, PersistedModelDao, RouteDao, WorkflowDao
 
 
-async def get_persisted_model_dao(*, dao_factory: DaoFactoryProtocol) -> PersistedModelDao:
-    """Setup the Model DAO using the specified provider of the DaoFactoryProtocol."""
+async def get_persisted_model_dao(
+    *, dao_factory: DaoFactoryProtocol
+) -> PersistedModelDao:
+    """Setup the Persisted Model DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
         name="models", dto_model=models.PersistedModel, id_field="name"
     )
