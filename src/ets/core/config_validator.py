@@ -14,28 +14,7 @@
 # limitations under the License.
 """Contains functionality to validate the loaded config."""
 
-from metldata.builtin_transformations.delete_class.main import (
-    DELETE_CLASS_TRANSFORMATION,
-)
-from metldata.builtin_transformations.duplicate_class.main import (
-    DUPLICATE_CLASS_TRANSFORMATION,
-)
-from metldata.builtin_transformations.infer_relation.main import (
-    INFER_RELATION_TRANSFORMATION,
-)
-from metldata.builtin_transformations.merge_relations.main import (
-    MERGE_RELATIONS_TRANSFORMATION,
-)
-from metldata.builtin_transformations.rename_id_property.main import (
-    RENAME_ID_PROPERTY_TRANSFORMATION,
-)
-from metldata.builtin_transformations.replace_resource_ids.main import (
-    REPLACE_RESOURCE_IDS_TRANSFORMATION,
-)
-from metldata.builtin_transformations.transform_content.main import (
-    TRANSFORM_CONTENT_TRANSFORMATION,
-)
-from metldata.transform.base import TransformationDefinition
+from metldata import get_transformation_registry, validate_workflow_against_registry
 from schemapack.spec.schemapack import SchemaPack
 
 from ets.core.models import ComparisonResultChanged, RawModel
@@ -43,18 +22,6 @@ from ets.ports.inbound.config_validator import (
     ConfigValidationError,
     ConfigValidatorPort,
 )
-
-# We should expose this at the metldata level for consumption instead
-# Duplicated for now to make the tests work
-TRANSFORMATION_REGISTRY: dict[str, TransformationDefinition] = {
-    "delete_class": DELETE_CLASS_TRANSFORMATION,
-    "duplicate_class": DUPLICATE_CLASS_TRANSFORMATION,
-    "infer_relation": INFER_RELATION_TRANSFORMATION,
-    "merge_relations": MERGE_RELATIONS_TRANSFORMATION,
-    "transform_content": TRANSFORM_CONTENT_TRANSFORMATION,
-    "rename_id_property": RENAME_ID_PROPERTY_TRANSFORMATION,
-    "replace_resource_ids": REPLACE_RESOURCE_IDS_TRANSFORMATION,
-}
 
 
 class ConfigValidator(ConfigValidatorPort):
@@ -160,24 +127,9 @@ class ConfigValidator(ConfigValidatorPort):
         Raises:
             ConfigValidationError: If any workflow validation fails.
         """
+        transformation_registry = get_transformation_registry()
         for workflow in result.workflows:
-            for operation in workflow.workflow.operations:
-                if not operation.name in TRANSFORMATION_REGISTRY:
-                    raise ConfigValidationError(
-                        f"Unknown transformation '{operation.name}' in workflow '{workflow.name}'."
-                    )
-
-                transformation_definition = TRANSFORMATION_REGISTRY[operation.name]
-                provided_config = operation.args
-                expected_config_class = transformation_definition.config_cls
-
-                # Validate by trying to create a valid config instance
-                if not isinstance(provided_config, expected_config_class):
-                    try:
-                        expected_config_class(**provided_config)
-                    except Exception as error:
-                        raise ConfigValidationError(
-                            f"Invalid transformation config for workflow '{workflow.name}': "
-                            f"'{operation.name}' the provided config '{provided_config}'is not "
-                            f"compatible with '{expected_config_class}'."
-                        ) from error
+            validate_workflow_against_registry(
+                workflow=workflow.workflow,
+                transformation_registry=transformation_registry,
+            )

@@ -495,9 +495,9 @@ mdurl==0.1.2 \
     # via
     #   -c lock/requirements-dev.txt
     #   markdown-it-py
-metldata==5.0.1 \
-    --hash=sha256:a6c056bf16bc766053cf51b7ef57fe0c8b8fb8572d3bc83d1ff3daecccb2d8ff \
-    --hash=sha256:ada793cf4294ec221ccbf5ccd4dabe53650fdd637ecb83122546d376a88ac809
+metldata==5.1.0 \
+    --hash=sha256:0f7119ec95c446c7c64291b24261bf42c5e687fe108c560f421c7ba05bca9de2 \
+    --hash=sha256:56925154d833b6fbfa65348feaa3e8dab32c33a8f1dbce67d48588bfabddf96d
     # via
     #   -c lock/requirements-dev.txt
     #   ets (pyproject.toml)
