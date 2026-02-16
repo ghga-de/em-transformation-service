@@ -37,7 +37,7 @@ class Config(KafkaConfig, MongoDbConfig, LoggingConfig, EventSubTranslatorConfig
     )
     input_config_path: Path = Field(
         default=...,
-        description="Path to the config file from which the databases are populated.",
+        description="Path to the transformation config file used to populate the database.",
     )
 
 
