@@ -75,7 +75,7 @@ class TestConfigValidator:
             (INVALID_ROUTE_WORKFLOW_PATH, "non-existent workflow"),
             (INVALID_ROUTE_OUTPUT_MODEL_PATH, "non-existent output model"),
             (INVALID_ROUTE_OUTPUT_IS_INGRESS_PATH, "must not be an ingress model"),
-            (INVALID_MODEL_SCHEMA_PATH, "Invalid schema"),
+            (INVALID_MODEL_SCHEMA_PATH, "Invalid configuration for transformation"),
             (INVALID_WORKFLOW_UNKNOWN_TRANSFORMATION_PATH, "Unknown transformation"),
             (
                 INVALID_WORKFLOW_CONFIG_TYPE_PATH,
