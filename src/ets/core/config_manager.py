@@ -17,6 +17,7 @@
 import logging
 from pathlib import Path
 
+from pydantic import ValidationError
 from schemapack import is_equivalent_schemapack
 from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
@@ -64,8 +65,7 @@ class ConfigManager(ConfigManagerPort):
         """
         try:
             await self._compare_configs()
-        except ComparisonMismatchError as error:
-            log.critical(error)
+        except ComparisonMismatchError:
             return ComparisonResultChanged(
                 models=self.config_fields.new_models,
                 routes=self.config_fields.routes,
@@ -81,8 +81,8 @@ class ConfigManager(ConfigManagerPort):
     async def _compare_configs(self):
         """Fetch and compare config fields."""
         # runs on startup, so should be ok to just let it crash if fetching information fails.
-        new_models, new_routes, new_workflows = self._parse_config_from_file()
         old_models, old_routes, old_workflows = await self._get_persisted_config()
+        new_models, new_routes, new_workflows = self._parse_config_from_file()
 
         self.config_fields = ConfigFields(
             new_models=new_models,
@@ -97,26 +97,35 @@ class ConfigManager(ConfigManagerPort):
 
     def _parse_config_from_file(self):
         """Parse config fields from yaml file and sort them by name."""
+        log.info("Loading config from file.")
         with self.config_path.open("r") as config_file:
             new_config = safe_load(config_file)
 
+        # okay to crash here if the configuration is invalid
         raw_config = RawConfig.model_validate(new_config)
 
+        # Validator should take care of None names, so all should be populated
+        routes = sorted(raw_config.routes, key=lambda route: route.name)  # type: ignore
+        workflows = sorted(raw_config.workflows, key=lambda workflow: workflow.name)
+
+        log.debug("Deserializing model SchemaPack information.")
         models = []
         for raw_model in sorted(raw_config.models, key=lambda model: model.name):
             # Convert config model with serialized schema to internal representation using
             # an actual schemapack object, where applicable
             schemapack = None
             if raw_model.schema_:
-                schemapack = SchemaPack.model_validate(raw_model.schema_)
+                try:
+                    schemapack = SchemaPack.model_validate(raw_model.schema_)
+                except ValidationError:
+                    log.error(
+                        "Could not parse SchemaPack information for %s.", raw_model.name
+                    )
+                    break
             model = InternalModel(
                 **raw_model.model_dump(exclude={"schema_"}), schema_=schemapack
             )
             models.append(model)
-
-        # Validator should take care of None names, so all should be populated
-        routes = sorted(raw_config.routes, key=lambda route: route.name)  # type: ignore
-        workflows = sorted(raw_config.workflows, key=lambda workflow: workflow.name)
 
         return models, routes, workflows
 
