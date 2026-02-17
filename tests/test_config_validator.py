@@ -18,10 +18,11 @@
 from pathlib import Path
 
 import pytest
+from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
 
 from ets.core.config_validator import ConfigValidator
-from ets.core.models import ComparisonResultChanged, RawConfig
+from ets.core.models import ComparisonResultChanged, InternalModel, RawConfig
 from ets.ports.inbound.config_validator import ConfigValidationError
 from tests.fixtures.utils import BASE_DIR
 
@@ -54,8 +55,20 @@ def _load_config(path: Path) -> ComparisonResultChanged:
     with path.open("r") as file:
         config_dict = safe_load(file)
     raw_config = RawConfig.model_validate(config_dict)
+    
+    # Convert raw models to internal models with schemapack objects
+    models = []
+    for raw_model in raw_config.models:
+        schemapack = None
+        if raw_model.schema_:
+            schemapack = SchemaPack.model_validate(raw_model.schema_)
+        model = InternalModel(
+            **raw_model.model_dump(exclude={"schema_"}), schema_=schemapack
+        )
+        models.append(model)
+    
     return ComparisonResultChanged(
-        models=raw_config.models,
+        models=models,
         routes=raw_config.routes,
         workflows=raw_config.workflows,
     )
