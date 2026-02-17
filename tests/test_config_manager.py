@@ -91,7 +91,7 @@ async def test_load_and_compare(
     # Populate DB from config, mocking some fields to conform to DTO
     for order, raw_model in enumerate(result.models):
         # mock order for now, replace once the validation and derivation code is implemented
-        schema = raw_model.schema_  # type: ignore[attr-defined] # mypy false positive
+        schema = raw_model.schema_
         model_dict = raw_model.model_dump(exclude={"schema_"})
         if not schema:
             # mock model derivation by simply inserting a dummy schema
