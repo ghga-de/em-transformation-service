@@ -77,7 +77,10 @@ class TestConfigValidator:
             (INVALID_ROUTE_OUTPUT_IS_INGRESS_PATH, "must not be an ingress model"),
             (INVALID_MODEL_SCHEMA_PATH, "Invalid schema"),
             (INVALID_WORKFLOW_UNKNOWN_TRANSFORMATION_PATH, "Unknown transformation"),
-            (INVALID_WORKFLOW_CONFIG_TYPE_PATH, "Invalid transformation config"),
+            (
+                INVALID_WORKFLOW_CONFIG_TYPE_PATH,
+                "Invalid configuration for transformation",
+            ),
         ],
     )
     def test_invalid_config(self, config_path, error_match):

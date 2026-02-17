@@ -129,7 +129,10 @@ class ConfigValidator(ConfigValidatorPort):
         """
         transformation_registry = get_transformation_registry()
         for workflow in changed_config.workflows:
-            validate_workflow_against_registry(
-                workflow=workflow.workflow,
-                transformation_registry=transformation_registry,
-            )
+            try:
+                validate_workflow_against_registry(
+                    workflow=workflow.workflow,
+                    transformation_registry=transformation_registry,
+                )
+            except Exception as error:
+                raise ConfigValidationError(str(error)) from error
