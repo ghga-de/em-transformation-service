@@ -18,7 +18,7 @@ import logging
 from pathlib import Path
 
 from pydantic import ValidationError
-from schemapack import is_equivalent_schemapack
+from schemapack import is_equal_schemapack
 from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
 
@@ -218,7 +218,7 @@ def _compare_models(new: list[RawModel], old: list[PersistedModel]):
                 raise ValueError(f"Missing SchemaPack on EMIM model {new_model.name}.")
             old_schema = SchemaPack.model_validate(old_model.schema_)
             new_schema = SchemaPack.model_validate(new_model.schema_)
-            if new_model.version != old_model.version or not is_equivalent_schemapack(
+            if new_model.version != old_model.version or not is_equal_schemapack(
                 old_schema, new_schema
             ):
                 raise ComparisonMismatchError(
