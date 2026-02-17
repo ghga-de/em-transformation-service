@@ -58,6 +58,14 @@ class RawModel(ModelBase):
     )
 
 
+class InternalModel(ModelBase):
+    """Describes a variant of RawModel with schemas instantiated as SchemaPacks where applicable."""
+
+    schema_: SchemaPack | None = Field(
+        default=..., description="Schema associated with the model."
+    )
+
+
 class Model(ModelBase):
     """Describes a model after resolving the topological ordering and deriving the schemas."""
 
@@ -210,10 +218,10 @@ class ConfigFields(BaseModel):
     the up to date information.
     """
 
-    new_models: list[RawModel] = Field(
+    new_models: list[InternalModel] = Field(
         default_factory=list, description="Raw models from the config file."
     )
-    old_models: list[PersistedModel] = Field(
+    old_models: list[InternalModel] = Field(
         default_factory=list, description="Existing, persisted models."
     )
     routes: list[RawRoute] = Field(
@@ -230,6 +238,10 @@ class ComparisonResultBase(BaseModel):
     Used as base class for either variant for the result.
     """
 
+    models: list[InternalModel] = Field(
+        default=...,
+        description="Contains either the new models to run downstream processing on or the existing, persisted models.",
+    )
     routes: list[RawRoute] = Field(
         default=..., description="Up to date routes for downstream processing."
     )
@@ -241,14 +253,6 @@ class ComparisonResultBase(BaseModel):
 class ComparisonResultChanged(ComparisonResultBase):
     """For changed configs, the new, raw models are returned."""
 
-    models: list[RawModel] = Field(
-        default=..., description="Raw, new models to run downstream processing on."
-    )
-
 
 class ComparisonResultUnchanged(ComparisonResultBase):
     """For unchanged configs, the persisted models are returned."""
-
-    models: list[PersistedModel] = Field(
-        default=..., description="Existing models populated from the persistence layer."
-    )

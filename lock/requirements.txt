@@ -73,15 +73,15 @@ attrs==25.4.0 \
     #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
-boto3==1.42.49 \
-    --hash=sha256:99e1df4361c3f6ff6ade65803c043ea96314826134962dd3b385433b309eb819 \
-    --hash=sha256:9cd252f640567b86e92b0a8ffdd4ade9a3018ee357c724bff6a21b8c8a41be0c
+boto3==1.42.50 \
+    --hash=sha256:2fdf8f5349b130d62576068a6c47b3eec368a70bc28f16d8cce17c5f7e74fc2e \
+    --hash=sha256:38545d7e6e855fefc8a11e899ccbd6d2c9f64671d6648c2acfb1c78c1057a480
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit
-botocore==1.42.49 \
-    --hash=sha256:1c33544f72101eed4ccf903ebb667a803e14e25b2af4e0836e4b871da1c0af37 \
-    --hash=sha256:333115a64a507697b0c450ade7e2d82bc8b4e21c0051542514532b455712bdcc
+botocore==1.42.50 \
+    --hash=sha256:3ec7004009d1557a881b1d076d54b5768230849fa9ccdebfd409f0571490e691 \
+    --hash=sha256:de1e128e4898f4e66877bfabbbb03c61f99366f27520442539339e8a74afe3a5
     # via
     #   -c lock/requirements-dev.txt
     #   boto3
@@ -514,9 +514,9 @@ mdurl==0.1.2 \
     # via
     #   -c lock/requirements-dev.txt
     #   markdown-it-py
-metldata==5.1.0 \
-    --hash=sha256:0f7119ec95c446c7c64291b24261bf42c5e687fe108c560f421c7ba05bca9de2 \
-    --hash=sha256:56925154d833b6fbfa65348feaa3e8dab32c33a8f1dbce67d48588bfabddf96d
+metldata==5.1.1 \
+    --hash=sha256:2b41b72cc76cf034f9edc82e0406a2d01bc41303fc782873728a6a12b720a795 \
+    --hash=sha256:e0baeb59df8be6459ef8a84e9d582b324700d6607fa54dfe01eae3a4b3247649
     # via
     #   -c lock/requirements-dev.txt
     #   ets (pyproject.toml)
@@ -1070,7 +1070,6 @@ schemapack==4.1.0 \
     --hash=sha256:5610d56ab8c888ab42ac725678b2d72604885e28366b982a7f62756dedebd2df
     # via
     #   -c lock/requirements-dev.txt
-    #   ets (pyproject.toml)
     #   metldata
 shellingham==1.5.4 \
     --hash=sha256:7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686 \
@@ -1096,9 +1095,9 @@ starlette==0.52.1 \
     # via
     #   -c lock/requirements-dev.txt
     #   fastapi
-typer==0.23.1 \
-    --hash=sha256:2070374e4d31c83e7b61362fd859aa683576432fd5b026b060ad6b4cd3b86134 \
-    --hash=sha256:3291ad0d3c701cbf522012faccfbb29352ff16ad262db2139e6b01f15781f14e
+typer==0.24.0 \
+    --hash=sha256:5fc435a9c8356f6160ed6e85a6301fdd6e3d8b2851da502050d1f92c5e9eddc8 \
+    --hash=sha256:f9373dc4eff901350694f519f783c29b6d7a110fc0dcc11b1d7e353b85ca6504
     # via
     #   -c lock/requirements-dev.txt
     #   ets (pyproject.toml)
@@ -1128,9 +1127,9 @@ urllib3==2.6.3 \
     # via
     #   -c lock/requirements-dev.txt
     #   botocore
-uvicorn==0.40.0 \
-    --hash=sha256:839676675e87e73694518b5574fd0f24c9d97b46bea16df7b8c05ea1a51071ea \
-    --hash=sha256:c6c8f55bc8bf13eb6fa9ff87ad62308bbbc33d0b67f84293151efe87e0d5f2ee
+uvicorn==0.41.0 \
+    --hash=sha256:09d11cf7008da33113824ee5a1c6422d89fbc2ff476540d69a34c87fab8b571a \
+    --hash=sha256:29e35b1d2c36a04b9e180d4007ede3bcb32a85fbdfd6c6aeb3f26839de088187
     # via
     #   -c lock/requirements-dev.txt
     #   ghga-service-commons

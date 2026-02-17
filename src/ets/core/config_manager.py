@@ -25,6 +25,7 @@ from ets.core.models import (
     ComparisonResultChanged,
     ComparisonResultUnchanged,
     ConfigFields,
+    InternalModel,
     PersistedModel,
     RawConfig,
     RawModel,
@@ -84,8 +85,6 @@ class ConfigManager(ConfigManagerPort):
         old_models, old_routes, old_workflows = await self._get_persisted_config()
 
         self.config_fields = ConfigFields(
-            new_models=new_models,
-            old_models=old_models,
             routes=new_routes,
             workflows=new_workflows,
         )
@@ -101,7 +100,17 @@ class ConfigManager(ConfigManagerPort):
 
         raw_config = RawConfig.model_validate(new_config)
 
-        models = sorted(raw_config.models, key=lambda model: model.name)
+        models = []
+        for raw_model in sorted(raw_config.models, key=lambda model: model.name):
+            # Convert config model with serialized schema to internal representation using
+            # an actual schemapack object, where applicable
+            schemapack = None
+            if raw_model.schema_:
+                schemapack = SchemaPack.model_validate(raw_model.schema_)
+            model = InternalModel(
+                **raw_model.model_dump(exclude={"schema_"}), schema_=schemapack
+            )
+            models.append(model)
         # Validator should take care of None names, so all should be populated
         routes = sorted(raw_config.routes, key=lambda route: route.name)  # type: ignore
         workflows = sorted(raw_config.workflows, key=lambda workflow: workflow.name)
@@ -110,9 +119,15 @@ class ConfigManager(ConfigManagerPort):
 
     async def _get_persisted_config(self):
         """Fetch config fields from persistence layer and sort them by name."""
-        persisted_models = [
-            model async for model in self.model_dao.find_all(mapping={})
-        ]
+        persisted_models = []
+        async for persisted_model in self.model_dao.find_all(mapping={}):
+            # Convert DTO model with serialized schema to internal representation using
+            # an actual schemapack object
+            schemapack = SchemaPack.model_validate(persisted_model.schema_)
+            model = InternalModel(
+                **persisted_model.model_dump(exclude={"schema_"}), schema_=schemapack
+            )
+            persisted_models.append(model)
         persisted_routes = [
             route async for route in self.route_dao.find_all(mapping={})
         ]
@@ -124,9 +139,6 @@ class ConfigManager(ConfigManagerPort):
         for persisted_route in persisted_routes:
             route_dict = persisted_route.model_dump()
             routes.append(RawRoute.model_validate(route_dict))
-
-        # Convert DTO model with serialized schema to internal representation using
-        # an actual schemapack object
 
         models = sorted(persisted_models, key=lambda model: model.name)
         # Validator should take care of None names in routes, so all should be populated
@@ -169,7 +181,7 @@ def _compare_models(new: list[RawModel], old: list[PersistedModel]):
 
         if True == new_model.is_ingress == old_model.is_ingress:
             if not new_model.schema_:
-                raise ValueError(f"Missing schemapack on EMIM model {new_model.name}.")
+                raise ValueError(f"Missing SchemaPack on EMIM model {new_model.name}.")
             old_schema = SchemaPack.model_validate(old_model.schema_)
             new_schema = SchemaPack.model_validate(new_model.schema_)
             if new_model.version != old_model.version or not is_equivalent_schemapack(
@@ -180,5 +192,5 @@ def _compare_models(new: list[RawModel], old: list[PersistedModel]):
                 )
         elif new_model.schema_:
             raise ComparisonMismatchError(
-                f"Schemapack provided for non EMIM model {new_model.name}."
+                f"SchemaPack provided for non EMIM model {new_model.name}."
             )
