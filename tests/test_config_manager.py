@@ -92,10 +92,13 @@ async def test_load_and_compare(
     for order, raw_model in enumerate(result.models):
         # mock order for now, replace once the validation and derivation code is implemented
         schema = raw_model.schema_  # type: ignore[attr-defined] # mypy false positive
-        model_dict = raw_model.model_dump()
+        model_dict = raw_model.model_dump(exclude={"schema_"})
         if not schema:
             # mock model derivation by simply inserting a dummy schema
             model_dict["schema_"] = MOCK_SCHEMA
+        else:
+            # SchemaPack objects need to be serialized with mode='json' to get JSON-compatible types
+            model_dict["schema_"] = json.loads(schema.model_dump_json())
         model_dict["order"] = order
 
         model = PersistedModel.model_validate(model_dict)

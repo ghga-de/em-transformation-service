@@ -18,6 +18,7 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
 
@@ -55,7 +56,7 @@ def _load_config(path: Path) -> ComparisonResultChanged:
     with path.open("r") as file:
         config_dict = safe_load(file)
     raw_config = RawConfig.model_validate(config_dict)
-    
+
     # Convert raw models to internal models with schemapack objects
     models = []
     for raw_model in raw_config.models:
@@ -66,7 +67,7 @@ def _load_config(path: Path) -> ComparisonResultChanged:
             **raw_model.model_dump(exclude={"schema_"}), schema_=schemapack
         )
         models.append(model)
-    
+
     return ComparisonResultChanged(
         models=models,
         routes=raw_config.routes,
@@ -78,8 +79,14 @@ class TestConfigValidator:
     """Test suite for ConfigValidator."""
 
     def setup_method(self):
-        """Set up test fixtures."""
+        """Set up test validator."""
         self.validator = ConfigValidator()
+
+    @pytest.mark.parametrize("config_path", [INVALID_MODEL_SCHEMA_PATH])
+    def test_incomplete_schema(self, config_path):
+        """Check incorrectly specified SchemaPack raises ValidationError."""
+        with pytest.raises(ValidationError):
+            _load_config(config_path)
 
     @pytest.mark.parametrize(
         "config_path,error_match",
@@ -88,7 +95,6 @@ class TestConfigValidator:
             (INVALID_ROUTE_WORKFLOW_PATH, "non-existent workflow"),
             (INVALID_ROUTE_OUTPUT_MODEL_PATH, "non-existent output model"),
             (INVALID_ROUTE_OUTPUT_IS_INGRESS_PATH, "must not be an ingress model"),
-            (INVALID_MODEL_SCHEMA_PATH, "Invalid configuration for transformation"),
             (INVALID_WORKFLOW_UNKNOWN_TRANSFORMATION_PATH, "Unknown transformation"),
             (
                 INVALID_WORKFLOW_CONFIG_TYPE_PATH,
@@ -97,7 +103,7 @@ class TestConfigValidator:
         ],
     )
     def test_invalid_config(self, config_path, error_match):
-        """Invalid configs raise ConfigValidationError with appropriate message."""
+        """Check invalid configs raise ConfigValidationError with appropriate message."""
         changed_config = _load_config(config_path)
         with pytest.raises(ConfigValidationError, match=error_match):
             self.validator.validate(changed_config)
@@ -110,6 +116,6 @@ class TestConfigValidator:
         ],
     )
     def test_valid_config(self, config_path):
-        """Valid config passes validation without errors."""
+        """Check valid config passes validation without errors."""
         changed_config = _load_config(config_path)
         self.validator.validate(changed_config)

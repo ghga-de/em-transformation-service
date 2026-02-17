@@ -85,6 +85,8 @@ class ConfigManager(ConfigManagerPort):
         old_models, old_routes, old_workflows = await self._get_persisted_config()
 
         self.config_fields = ConfigFields(
+            new_models=new_models,
+            old_models=old_models,
             routes=new_routes,
             workflows=new_workflows,
         )
@@ -111,6 +113,7 @@ class ConfigManager(ConfigManagerPort):
                 **raw_model.model_dump(exclude={"schema_"}), schema_=schemapack
             )
             models.append(model)
+
         # Validator should take care of None names, so all should be populated
         routes = sorted(raw_config.routes, key=lambda route: route.name)  # type: ignore
         workflows = sorted(raw_config.workflows, key=lambda workflow: workflow.name)
@@ -128,6 +131,7 @@ class ConfigManager(ConfigManagerPort):
                 **persisted_model.model_dump(exclude={"schema_"}), schema_=schemapack
             )
             persisted_models.append(model)
+
         persisted_routes = [
             route async for route in self.route_dao.find_all(mapping={})
         ]
