@@ -17,6 +17,8 @@
 import logging
 from pathlib import Path
 
+from schemapack import is_equivalent_schemapack
+from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
 
 from ets.core.models import (
@@ -154,20 +156,29 @@ def _compare_models(new: list[RawModel], old: list[PersistedModel]):
     Assumes both lists are sorted by name.
     """
     if len(new) != len(old):
-        raise ComparisonMismatchError("Different amount of models configs.")
+        raise ComparisonMismatchError("Different amount of model configs.")
     for new_model, old_model in zip(new, old, strict=True):
         if not (
             new_model.name == old_model.name
             and new_model.description == old_model.description
             and new_model.publish == old_model.publish
         ):
-            raise ComparisonMismatchError("Mismatching fields on a model.")
+            raise ComparisonMismatchError(
+                f"Mismatching fields on model {new_model.name}."
+            )
 
         if True == new_model.is_ingress == old_model.is_ingress:
-            if (
-                new_model.version != old_model.version
-                or new_model.schema_ != old_model.schema_
+            if not new_model.schema_:
+                raise ValueError(f"Missing schemapack on EMIM model {new_model.name}.")
+            old_schema = SchemaPack.model_validate(old_model.schema_)
+            new_schema = SchemaPack.model_validate(new_model.schema_)
+            if new_model.version != old_model.version or not is_equivalent_schemapack(
+                old_schema, new_schema
             ):
-                raise ComparisonMismatchError("Mismatching fields on an EMIM model.")
+                raise ComparisonMismatchError(
+                    f"Mismatching fields on EMIM model {new_model.name}."
+                )
         elif new_model.schema_:
-            raise ComparisonMismatchError("Schemapack provided for a non EMIM model.")
+            raise ComparisonMismatchError(
+                f"Schemapack provided for non EMIM model {new_model.name}."
+            )

@@ -15,9 +15,8 @@
 """Contains functionality to validate the loaded config."""
 
 from metldata import get_transformation_registry, validate_workflow_against_registry
-from schemapack.spec.schemapack import SchemaPack
 
-from ets.core.models import ComparisonResultChanged, RawModel
+from ets.core.models import ComparisonResultChanged
 from ets.ports.inbound.config_validator import (
     ConfigValidationError,
     ConfigValidatorPort,
@@ -39,8 +38,9 @@ class ConfigValidator(ConfigValidatorPort):
         Raises:
             ConfigValidationError: If any validation fails.
         """
+        # models are already parsed into schemapacks for comparison and validated at that
+        # point in time
         self._validate_routes(changed_config)
-        self._validate_model_schemas(changed_config.models)
         self._validate_workflows(changed_config)
 
     def _validate_routes(self, changed_config: ComparisonResultChanged) -> None:
@@ -87,26 +87,6 @@ class ConfigValidator(ConfigValidatorPort):
                     f"Route '{route.name}' output model '{output_model.name}' "
                     f"must not be an ingress model (is_ingress must be False)."
                 )
-
-    def _validate_model_schemas(self, models: list[RawModel]) -> None:
-        """Validate all model schemas using SchemaPack library.
-
-        Args:
-            models: List of RawModel objects to validate.
-
-        Raises:
-            ConfigValidationError: If any schema validation fails.
-        """
-        for model in models:
-            if model.schema_ is not None:
-                try:
-                    # Could return the validated model here and replace the serialized version,
-                    # but that would need another intermediate BaseModel with nullable schema_
-                    SchemaPack.model_validate(model.schema_)
-                except Exception as err:
-                    raise ConfigValidationError(
-                        f"Invalid schema for model '{model.name}': {err}"
-                    ) from err
 
     def _validate_workflows(self, changed_config: ComparisonResultChanged) -> None:
         """Validate all workflows using the metldata library.
