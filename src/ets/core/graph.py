@@ -48,7 +48,7 @@ class CyclicGraphError(NonUniquePathError):
     """Error indicating that a cycle was detected in the graph."""
 
 
-def get_topological_order[N: Hashable](edges: list[tuple[N, N]]) -> dict[N, int]:
+def get_topological_order(edges: list[tuple[N, N]]) -> dict[N, int]:  # noqa: UP047
     """Validate a directed graph and get its topological order.
 
     The graph must be specified as a list of directed edges
