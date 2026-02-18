@@ -25,9 +25,9 @@ from ets.core.models import (
     ComparisonResultChanged,
     ComparisonResultUnchanged,
     ConfigFields,
+    Model,
     RawConfig,
     RawModel,
-    RawRoute,
     Route,
     Workflow,
 )
@@ -113,30 +113,14 @@ class ConfigManager(ConfigManagerPort):
     async def _get_persisted_config(self):
         """Fetch config fields from persistence layer and sort them by name."""
         log.info("Loading old config from persistence layer.")
-        persisted_models = []
-        async for persisted_model in self.model_dao.find_all(mapping={}):
-            # Don't serialize the existing SchemaPack here
-            model = RawModel(
-                **persisted_model.model_dump(exclude={"order", "schema_"}),
-                schema_=persisted_model.schema_,
-            )
-            persisted_models.append(model)
-
-        persisted_routes = [
-            route async for route in self.route_dao.find_all(mapping={})
-        ]
+        models = [model async for model in self.model_dao.find_all(mapping={})]
+        routes = [route async for route in self.route_dao.find_all(mapping={})]
         workflows = [
             workflow async for workflow in self.workflow_dao.find_all(mapping={})
         ]
 
-        routes = []
-        for persisted_route in persisted_routes:
-            route_dict = persisted_route.model_dump()
-            routes.append(RawRoute.model_validate(route_dict))
-
-        models = sorted(persisted_models, key=lambda model: model.name)
-        # Validator should take care of None names in routes, so all should be populated
-        routes = sorted(routes, key=lambda route: route.name)  # type: ignore
+        models = sorted(models, key=lambda model: model.name)
+        routes = sorted(routes, key=lambda route: route.name)
         workflows = sorted(workflows, key=lambda workflow: workflow.name)
 
         return models, routes, workflows
@@ -149,15 +133,19 @@ class ConfigManager(ConfigManagerPort):
 
         try:
             raw_config = RawConfig.model_validate(new_config)
-        except ValidationError as error:
+        except ValidationError as exc:
+            schema_errors = [
+                err for err in exc.errors() if "schema_" in err.get("loc", ())
+            ]
+            if len(schema_errors) != len(exc.errors()):
+                # Structural config errors should propagate, not be silently swallowed
+                raise
             log.error(
-                "Could not parse new config due to validation errors.:\n%s\nFalling back to old config.",
-                error,
+                "Could not parse SchemaPack information. Falling back to old config.",
             )
             self.use_persisted_config = True
-            return
+            return [], [], []
 
-        # Validator should take care of None names, so all should be populated
         routes = sorted(raw_config.routes, key=lambda route: route.name)
         workflows = sorted(raw_config.workflows, key=lambda workflow: workflow.name)
         models = sorted(raw_config.models, key=lambda m: m.name)
@@ -165,7 +153,7 @@ class ConfigManager(ConfigManagerPort):
         return models, routes, workflows
 
 
-def _compare_entities[ConfigField: Route | RawRoute | Workflow](
+def _compare_entities[ConfigField: Route | Workflow](
     new: list[ConfigField], old: list[ConfigField]
 ):
     """Comparison logic for routes and workflows.
@@ -179,12 +167,10 @@ def _compare_entities[ConfigField: Route | RawRoute | Workflow](
             raise ComparisonMismatchError(f"Mismatching config entity: {n.name}.")
 
 
-def _compare_models(new: list[RawModel], old: list[RawModel]):
-    """Custom comparison logic for both model lists.
+def _compare_models(new: list[RawModel], old: list[Model]):
+    """Custom comparison logic for new (file) models vs persisted models.
 
     Assumes both lists are sorted by name.
-    Both ``schema_`` fields are already :class:`SchemaPack` instances — the
-    field validators on :class:`InternalModel` handle deserialization.
     """
     if len(new) != len(old):
         raise ComparisonMismatchError("Different amount of model configs.")
@@ -201,10 +187,6 @@ def _compare_models(new: list[RawModel], old: list[RawModel]):
         if True == new_model.is_ingress == old_model.is_ingress:
             if not new_model.schema_:
                 raise ValueError(f"Missing SchemaPack on EMIM model {new_model.name}.")
-            if not old_model.schema_:
-                raise ValueError(
-                    f"Missing SchemaPack on persisted EMIM model {old_model.name}."
-                )
             if new_model.version != old_model.version or not is_equal_schemapack(
                 old_model.schema_, new_model.schema_
             ):

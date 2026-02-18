@@ -18,7 +18,6 @@
 import json
 from contextlib import nullcontext
 from pathlib import Path
-from typing import cast
 
 import pytest
 from pydantic import ValidationError
@@ -27,7 +26,6 @@ from ets.core.models import (
     ComparisonResultChanged,
     ComparisonResultUnchanged,
     Model,
-    Route,
 )
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import BASE_DIR
@@ -102,8 +100,7 @@ async def test_load_and_compare(
         await joint_fixture.daos.model_dao.insert(model)
 
     for route in result.routes:
-        # Should be equivalent after validation
-        await joint_fixture.daos.route_dao.insert(cast(Route, route))
+        await joint_fixture.daos.route_dao.insert(route)
 
     for workflow in result.workflows:
         await joint_fixture.daos.workflow_dao.insert(workflow)

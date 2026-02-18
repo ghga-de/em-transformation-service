@@ -17,7 +17,7 @@
 
 import json
 from collections.abc import Mapping, Sequence
-from typing import Any, Self
+from typing import Any
 
 from metldata.workflow.base import Workflow as MetldataWorkflow
 from pydantic import (
@@ -112,73 +112,10 @@ class Workflow(BaseModel):
     )
 
 
-class RawRoute(BaseModel):
-    """Describes the routes for transforming models and data by referencing the
+class Route(BaseModel):
+    """Describes a route for transforming models and data by referencing the
     workflow, the input and output models involved in each transformation by name.
     """
-
-    name: str | None = Field(
-        default=None,
-        description=(
-            "A unique human-readable name of the route. Follows the format of "
-            "'input_model_name:workflow_name:output_model_name'."
-        ),
-    )
-    input_model_name: str | None = Field(
-        default=None, description=" Name of the input model accepted by the route."
-    )
-    output_model_name: str | None = Field(
-        default=None, description="Name of the output model produced by the route."
-    )
-    workflow_name: str | None = Field(
-        default=None,
-        description="Name of the workflow used to transform the input model to the output model.",
-    )
-
-    @model_validator(mode="after")
-    def ensure_name_consistency(self) -> Self:
-        """Ensures that the route name is consistent with the rest of the attributes.
-
-        - If only 'name' provided, decomposes it.
-        - If all of 'input_model_name', 'output_model_name', 'workflow_name' are provided,
-        composes the 'name'.
-        - Otherwise, raises a ValueError.
-        """
-        name_parts = [self.input_model_name, self.workflow_name, self.output_model_name]
-
-        has_all_parts = all(part is not None for part in name_parts)
-        has_no_parts = all(part is None for part in name_parts)
-
-        if self.name and has_no_parts:
-            parts = self.name.split(":")
-            if len(parts) != 3:
-                raise ValueError(
-                    "'name' should be formatted as 'input_model_name:workflow_name:output_model_name'"
-                )
-            self.input_model_name, self.workflow_name, self.output_model_name = parts
-            return self
-
-        if has_all_parts:
-            name = (
-                f"{self.input_model_name}:{self.workflow_name}:{self.output_model_name}"
-            )
-            if not self.name:
-                self.name = name
-            # needed case to pass revalidation, i.e. when construction another
-            # BaseModel containing this one as part of its attributes
-            if self.name != name:
-                raise ValueError(
-                    f"Provided name '{self.name}' and name assembled from parts '{name}' do not match."
-                )
-            return self
-
-        raise ValueError(
-            "Either 'name' or all of 'input_model_name', 'workflow_name', 'output_model_name' need to be provided."
-        )
-
-
-class Route(BaseModel):
-    """Route model after validation populates None values."""
 
     name: str = Field(
         default=...,
@@ -198,6 +135,55 @@ class Route(BaseModel):
         description="Name of the workflow used to transform the input model to the output model.",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def ensure_name_consistency(cls, data: Any) -> Any:
+        """Ensures that the route name is consistent with the rest of the attributes.
+
+        - If only 'name' provided, decomposes it into the three parts.
+        - If all of 'input_model_name', 'output_model_name', 'workflow_name' are provided,
+        composes the 'name'.
+        - Otherwise, raises a ValueError.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        name = data.get("name")
+        input_model_name = data.get("input_model_name")
+        output_model_name = data.get("output_model_name")
+        workflow_name = data.get("workflow_name")
+
+        name_parts = [input_model_name, workflow_name, output_model_name]
+        has_all_parts = all(part is not None for part in name_parts)
+        has_no_parts = all(part is None for part in name_parts)
+
+        if name and has_no_parts:
+            parts = name.split(":")
+            if len(parts) != 3:
+                raise ValueError(
+                    "'name' should be formatted as 'input_model_name:workflow_name:output_model_name'"
+                )
+            (
+                data["input_model_name"],
+                data["workflow_name"],
+                data["output_model_name"],
+            ) = parts
+            return data
+
+        if has_all_parts:
+            composed_name = f"{input_model_name}:{workflow_name}:{output_model_name}"
+            if not name:
+                data["name"] = composed_name
+            elif name != composed_name:
+                raise ValueError(
+                    f"Provided name '{name}' and name assembled from parts '{composed_name}' do not match."
+                )
+            return data
+
+        raise ValueError(
+            "Either 'name' or all of 'input_model_name', 'workflow_name', 'output_model_name' need to be provided."
+        )
+
 
 class RawConfig(BaseModel):
     """Describes a raw transformation configuration before any processing/validation."""
@@ -210,7 +196,7 @@ class RawConfig(BaseModel):
         default=...,
         description="List of available workflows.",
     )
-    routes: list[RawRoute] = Field(
+    routes: list[Route] = Field(
         default=...,
         description="List of routes composing the transformation graph.",
     )
@@ -230,7 +216,7 @@ class ConfigFields(BaseModel):
     old_models: list[Model] = Field(
         default_factory=list, description="Existing, persisted models."
     )
-    routes: list[RawRoute] = Field(
+    routes: list[Route] = Field(
         default_factory=list, description="Routes from the config file."
     )
     workflows: list[Workflow] = Field(
@@ -248,7 +234,7 @@ class ComparisonResultBase(BaseModel):
         default=...,
         description="Contains either the new models to run downstream processing on or the existing, persisted models.",
     )
-    routes: list[RawRoute] = Field(
+    routes: list[Route] = Field(
         default=..., description="Up to date routes for downstream processing."
     )
     workflows: list[Workflow] = Field(
