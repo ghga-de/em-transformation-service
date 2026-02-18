@@ -31,7 +31,7 @@ from ets.core.models import (
     Workflow,
 )
 from ets.ports.inbound.config_manager import ComparisonMismatchError, ConfigManagerPort
-from ets.ports.outbound.dao import PersistedModelDao, RouteDao, WorkflowDao
+from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class ConfigManager(ConfigManagerPort):
     def __init__(
         self,
         config_path: Path,
-        model_dao: PersistedModelDao,
+        model_dao: ModelDao,
         route_dao: RouteDao,
         workflow_dao: WorkflowDao,
     ):

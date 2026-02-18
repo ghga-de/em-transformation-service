@@ -37,7 +37,7 @@ from ets.inject import (
 )
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.inbound.config_manager import ConfigManagerPort
-from ets.ports.outbound.dao import AEMPackDao, PersistedModelDao, RouteDao, WorkflowDao
+from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
 from tests.fixtures.config import get_config
 
 
@@ -46,7 +46,7 @@ class DAOs:
     """Wrapper class to hold all DAOs needed for testing"""
 
     aem_pack_dao: AEMPackDao
-    model_dao: PersistedModelDao
+    model_dao: ModelDao
     route_dao: RouteDao
     workflow_dao: WorkflowDao
 
