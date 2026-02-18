@@ -16,7 +16,7 @@
 """Defines dataclasses for holding business-logic data."""
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, Self
 
 from metldata.workflow.base import Workflow as MetldataWorkflow
@@ -53,13 +53,8 @@ class ModelBase(BaseModel):
     )
 
 
-class InternalModel(ModelBase):
-    """Describes a model whose schema is stored as a SchemaPack.
-
-    Accepts a plain dict/mapping as ``schema_`` input (auto-deserialized to
-    :class:`SchemaPack`) and serializes back to a JSON-compatible dict on
-    :py:meth:`model_dump`.
-    """
+class RawModel(ModelBase):
+    """Describes a raw model before any processing."""
 
     schema_: SchemaPack | None = Field(
         default=..., description="Schema associated with the model."
@@ -80,13 +75,7 @@ class InternalModel(ModelBase):
 
 
 class Model(ModelBase):
-    """Describes a model after resolving the topological ordering and deriving the schemas.
-
-    Accepts a plain dict/mapping as ``schema_`` input (auto-deserialized to
-    :class:`SchemaPack`) and serializes back to a JSON-compatible dict on
-    :py:meth:`model_dump` — making it suitable as a storage DTO without a
-    separate *persisted* variant.
-    """
+    """Describes a model after resolving the topological ordering and deriving the schemas."""
 
     schema_: SchemaPack = Field(
         default=..., description="Schema associated with the model."
@@ -213,7 +202,7 @@ class Route(BaseModel):
 class RawConfig(BaseModel):
     """Describes a raw transformation configuration before any processing/validation."""
 
-    models: list[InternalModel] = Field(
+    models: list[RawModel] = Field(
         default=...,
         description="List of raw models defining the transformation graph.",
     )
@@ -235,10 +224,10 @@ class ConfigFields(BaseModel):
     the up to date information.
     """
 
-    new_models: list[InternalModel] = Field(
+    new_models: list[RawModel] = Field(
         default_factory=list, description="Raw models from the config file."
     )
-    old_models: list[InternalModel] = Field(
+    old_models: list[Model] = Field(
         default_factory=list, description="Existing, persisted models."
     )
     routes: list[RawRoute] = Field(
@@ -255,7 +244,7 @@ class ComparisonResultBase(BaseModel):
     Used as base class for either variant for the result.
     """
 
-    models: list[InternalModel] = Field(
+    models: Sequence[RawModel | Model] = Field(
         default=...,
         description="Contains either the new models to run downstream processing on or the existing, persisted models.",
     )

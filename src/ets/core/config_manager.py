@@ -25,8 +25,8 @@ from ets.core.models import (
     ComparisonResultChanged,
     ComparisonResultUnchanged,
     ConfigFields,
-    InternalModel,
     RawConfig,
+    RawModel,
     RawRoute,
     Route,
     Workflow,
@@ -115,9 +115,8 @@ class ConfigManager(ConfigManagerPort):
         log.info("Loading old config from persistence layer.")
         persisted_models = []
         async for persisted_model in self.model_dao.find_all(mapping={}):
-            # schema_ is already a SchemaPack (the field validator on Model handles
-            # the dict→SchemaPack conversion when reading from the persistence layer)
-            model = InternalModel(
+            # Don't serialize the existing SchemaPack here
+            model = RawModel(
                 **persisted_model.model_dump(exclude={"order", "schema_"}),
                 schema_=persisted_model.schema_,
             )
@@ -148,24 +147,18 @@ class ConfigManager(ConfigManagerPort):
         with self.config_path.open("r") as config_file:
             new_config = safe_load(config_file)
 
-        # The field validator on InternalModel converts dict→SchemaPack during
-        # model_validate below.  Structural config errors crash as before; only
-        # schema_-specific validation failures are caught so we can fall back
-        # gracefully to the already-persisted configuration.
         try:
             raw_config = RawConfig.model_validate(new_config)
-        except ValidationError as exc:
-            if any("schema_" in str(err.get("loc", "")) for err in exc.errors()):
-                log.error(
-                    "Could not parse SchemaPack information. "
-                    "Continuing with existing, persisted data instead."
-                )
-                self.use_persisted_config = True
-                return [], [], []
-            raise
+        except ValidationError as error:
+            log.error(
+                "Could not parse new config due to validation errors.:\n%s\nFalling back to old config.",
+                error,
+            )
+            self.use_persisted_config = True
+            return
 
         # Validator should take care of None names, so all should be populated
-        routes = sorted(raw_config.routes, key=lambda route: route.name)  # type: ignore
+        routes = sorted(raw_config.routes, key=lambda route: route.name)
         workflows = sorted(raw_config.workflows, key=lambda workflow: workflow.name)
         models = sorted(raw_config.models, key=lambda m: m.name)
 
@@ -186,7 +179,7 @@ def _compare_entities[ConfigField: Route | RawRoute | Workflow](
             raise ComparisonMismatchError(f"Mismatching config entity: {n.name}.")
 
 
-def _compare_models(new: list[InternalModel], old: list[InternalModel]):
+def _compare_models(new: list[RawModel], old: list[RawModel]):
     """Custom comparison logic for both model lists.
 
     Assumes both lists are sorted by name.
