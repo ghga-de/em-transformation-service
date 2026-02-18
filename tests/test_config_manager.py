@@ -61,7 +61,7 @@ async def test_loading_configs(
     # wired correctly
     config_manager.config_path = config_path  # type: ignore
     with nullcontext() if should_pass else pytest.raises(ValidationError):
-        result = await config_manager.check_config_is_different()
+        result = await config_manager.compare_configs()
     if should_pass:
         assert isinstance(result, ComparisonResultChanged)
 
@@ -84,7 +84,7 @@ async def test_load_and_compare(
     # directly patch instance attribute for now, find a better way once everything is
     # wired correctly
     config_manager.config_path = old_config_path  # type: ignore
-    result = await config_manager.check_config_is_different()
+    result = await config_manager.compare_configs()
 
     # Populate DB from config, mocking some fields to conform to DTO
     for order, raw_model in enumerate(result.models):
@@ -106,7 +106,7 @@ async def test_load_and_compare(
         await joint_fixture.daos.workflow_dao.insert(workflow)
 
     config_manager.config_path = new_config_path  # type: ignore
-    result = await config_manager.check_config_is_different()
+    result = await config_manager.compare_configs()
     assert (
         isinstance(result, ComparisonResultChanged)
         if changed

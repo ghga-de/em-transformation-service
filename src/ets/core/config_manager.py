@@ -51,19 +51,15 @@ class ConfigManager(ConfigManagerPort):
         self.route_dao = route_dao
         self.workflow_dao = workflow_dao
 
-    async def check_config_is_different(
+    async def compare_configs(
         self,
     ) -> ComparisonResultChanged | ComparisonResultUnchanged:
-        """Check if both configs are equal.
+        """Compare new config with the persisted one.
 
-        Returns new config fields.
+        Returns:
+            ComparisonResultChanged: when the configs differ, containing the new models, routes, and workflows.
+            ComparisonResultUnchanged: when the configs are equal, containing the persisted models, routes, and workflows.
         """
-        return await self._compare_configs()
-
-    async def _compare_configs(
-        self,
-    ) -> ComparisonResultChanged | ComparisonResultUnchanged:
-        """Fetch and compare config fields, returning the appropriate result."""
         old_models, old_routes, old_workflows = await self._get_persisted_config()
         parsed = self._parse_config_from_file()
 

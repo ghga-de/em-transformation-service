@@ -27,7 +27,7 @@ class ConfigManagerPort(ABC):
     """Manages loading old and new config and comparing them."""
 
     @abstractmethod
-    async def check_config_is_different(
+    async def compare_configs(
         self,
     ) -> ComparisonResultChanged | ComparisonResultUnchanged:
         """Compare new config with the persisted one.
