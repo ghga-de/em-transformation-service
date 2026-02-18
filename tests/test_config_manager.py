@@ -26,7 +26,7 @@ from pydantic import ValidationError
 from ets.core.models import (
     ComparisonResultChanged,
     ComparisonResultUnchanged,
-    PersistedModel,
+    Model,
     Route,
 )
 from tests.fixtures.joint import JointFixture
@@ -91,17 +91,14 @@ async def test_load_and_compare(
     # Populate DB from config, mocking some fields to conform to DTO
     for order, raw_model in enumerate(result.models):
         # mock order for now, replace once the validation and derivation code is implemented
-        schema = raw_model.schema_
-        model_dict = raw_model.model_dump(exclude={"schema_"})
-        if not schema:
+        # model_dump() serializes schema_ to a JSON-compatible dict via the field_serializer
+        model_dict = raw_model.model_dump()
+        if not model_dict["schema_"]:
             # mock model derivation by simply inserting a dummy schema
             model_dict["schema_"] = MOCK_SCHEMA
-        else:
-            # SchemaPack objects need to be serialized with mode='json' to get JSON-compatible types
-            model_dict["schema_"] = json.loads(schema.model_dump_json())
         model_dict["order"] = order
 
-        model = PersistedModel.model_validate(model_dict)
+        model = Model.model_validate(model_dict)
         await joint_fixture.daos.model_dao.insert(model)
 
     for route in result.routes:

@@ -15,6 +15,7 @@
 
 """Defines dataclasses for holding business-logic data."""
 
+import json
 from collections.abc import Mapping
 from typing import Any, Self
 
@@ -22,6 +23,8 @@ from metldata.workflow.base import Workflow as MetldataWorkflow
 from pydantic import (
     BaseModel,
     Field,
+    field_serializer,
+    field_validator,
     model_validator,
 )
 from schemapack.spec.schemapack import SchemaPack
@@ -50,24 +53,40 @@ class ModelBase(BaseModel):
     )
 
 
-class RawModel(ModelBase):
-    """Describes a raw model before any processing."""
-
-    schema_: Mapping[str, Any] | None = Field(
-        default=..., description="Schema associated with the model."
-    )
-
-
 class InternalModel(ModelBase):
-    """Describes a variant of RawModel with schemas instantiated as SchemaPacks where applicable."""
+    """Describes a model whose schema is stored as a SchemaPack.
+
+    Accepts a plain dict/mapping as ``schema_`` input (auto-deserialized to
+    :class:`SchemaPack`) and serializes back to a JSON-compatible dict on
+    :py:meth:`model_dump`.
+    """
 
     schema_: SchemaPack | None = Field(
         default=..., description="Schema associated with the model."
     )
 
+    @field_validator("schema_", mode="before")
+    @classmethod
+    def _deserialize_schema(
+        cls, v: Mapping[str, Any] | SchemaPack | None
+    ) -> SchemaPack | None:
+        if v is None or isinstance(v, SchemaPack):
+            return v
+        return SchemaPack.model_validate(v)
+
+    @field_serializer("schema_")
+    def _serialize_schema(self, v: SchemaPack | None) -> dict[str, Any] | None:
+        return json.loads(v.model_dump_json()) if v is not None else None
+
 
 class Model(ModelBase):
-    """Describes a model after resolving the topological ordering and deriving the schemas."""
+    """Describes a model after resolving the topological ordering and deriving the schemas.
+
+    Accepts a plain dict/mapping as ``schema_`` input (auto-deserialized to
+    :class:`SchemaPack`) and serializes back to a JSON-compatible dict on
+    :py:meth:`model_dump` — making it suitable as a storage DTO without a
+    separate *persisted* variant.
+    """
 
     schema_: SchemaPack = Field(
         default=..., description="Schema associated with the model."
@@ -77,18 +96,16 @@ class Model(ModelBase):
         description="Topological order of the schema in the transformation graph.",
     )
 
+    @field_validator("schema_", mode="before")
+    @classmethod
+    def _deserialize_schema(cls, v: Mapping[str, Any] | SchemaPack) -> SchemaPack:
+        if isinstance(v, SchemaPack):
+            return v
+        return SchemaPack.model_validate(v)
 
-class PersistedModel(ModelBase):
-    """Variant of 'Model' with serialized schema_ for use as DTO in storage and events."""
-
-    schema_: Mapping[str, Any] = Field(
-        default=...,
-        description="Serialized representation of a schema associated with the model.",
-    )
-    order: int = Field(
-        default=...,
-        description="Topological order of the schema in the transformation graph.",
-    )
+    @field_serializer("schema_")
+    def _serialize_schema(self, v: SchemaPack) -> dict[str, Any]:
+        return json.loads(v.model_dump_json())
 
 
 class Workflow(BaseModel):
@@ -196,7 +213,7 @@ class Route(BaseModel):
 class RawConfig(BaseModel):
     """Describes a raw transformation configuration before any processing/validation."""
 
-    models: list[RawModel] = Field(
+    models: list[InternalModel] = Field(
         default=...,
         description="List of raw models defining the transformation graph.",
     )

@@ -27,7 +27,7 @@ async def get_persisted_model_dao(
 ) -> PersistedModelDao:
     """Setup the Persisted Model DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
-        name="models", dto_model=models.PersistedModel, id_field="name"
+        name="models", dto_model=models.Model, id_field="name"
     )
 
 

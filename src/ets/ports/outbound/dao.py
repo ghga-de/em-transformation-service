@@ -23,7 +23,7 @@ from ets.core import models
 __all__ = ["ResourceNotFoundError"]
 
 
-PersistedModelDao = Dao[models.PersistedModel]
+PersistedModelDao = Dao[models.Model]
 
 WorkflowDao = Dao[models.Workflow]
 

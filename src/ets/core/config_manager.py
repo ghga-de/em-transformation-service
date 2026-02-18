@@ -19,7 +19,6 @@ from pathlib import Path
 
 from pydantic import ValidationError
 from schemapack import is_equal_schemapack
-from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
 
 from ets.core.models import (
@@ -27,9 +26,7 @@ from ets.core.models import (
     ComparisonResultUnchanged,
     ConfigFields,
     InternalModel,
-    PersistedModel,
     RawConfig,
-    RawModel,
     RawRoute,
     Route,
     Workflow,
@@ -118,11 +115,11 @@ class ConfigManager(ConfigManagerPort):
         log.info("Loading old config from persistence layer.")
         persisted_models = []
         async for persisted_model in self.model_dao.find_all(mapping={}):
-            # Convert DTO model with serialized schema to internal representation using
-            # an actual schemapack object
-            schemapack = SchemaPack.model_validate(persisted_model.schema_)
+            # schema_ is already a SchemaPack (the field validator on Model handles
+            # the dict→SchemaPack conversion when reading from the persistence layer)
             model = InternalModel(
-                **persisted_model.model_dump(exclude={"schema_"}), schema_=schemapack
+                **persisted_model.model_dump(exclude={"order", "schema_"}),
+                schema_=persisted_model.schema_,
             )
             persisted_models.append(model)
 
@@ -151,33 +148,26 @@ class ConfigManager(ConfigManagerPort):
         with self.config_path.open("r") as config_file:
             new_config = safe_load(config_file)
 
-        # okay to crash here if the configuration is invalid
-        raw_config = RawConfig.model_validate(new_config)
+        # The field validator on InternalModel converts dict→SchemaPack during
+        # model_validate below.  Structural config errors crash as before; only
+        # schema_-specific validation failures are caught so we can fall back
+        # gracefully to the already-persisted configuration.
+        try:
+            raw_config = RawConfig.model_validate(new_config)
+        except ValidationError as exc:
+            if any("schema_" in str(err.get("loc", "")) for err in exc.errors()):
+                log.error(
+                    "Could not parse SchemaPack information. "
+                    "Continuing with existing, persisted data instead."
+                )
+                self.use_persisted_config = True
+                return [], [], []
+            raise
 
         # Validator should take care of None names, so all should be populated
         routes = sorted(raw_config.routes, key=lambda route: route.name)  # type: ignore
         workflows = sorted(raw_config.workflows, key=lambda workflow: workflow.name)
-
-        log.info("Deserializing model SchemaPack information.")
-        models = []
-        for raw_model in sorted(raw_config.models, key=lambda model: model.name):
-            # Convert config model with serialized schema to internal representation using
-            # an actual schemapack object, where applicable
-            schemapack = None
-            if raw_model.schema_:
-                try:
-                    schemapack = SchemaPack.model_validate(raw_model.schema_)
-                except ValidationError:
-                    log.error(
-                        "Could not parse SchemaPack information for %s. Continuing with existing, persisted data instead.",
-                        raw_model.name,
-                    )
-                    self.use_persisted_config = True
-                    break
-            model = InternalModel(
-                **raw_model.model_dump(exclude={"schema_"}), schema_=schemapack
-            )
-            models.append(model)
+        models = sorted(raw_config.models, key=lambda m: m.name)
 
         return models, routes, workflows
 
@@ -196,10 +186,12 @@ def _compare_entities[ConfigField: Route | RawRoute | Workflow](
             raise ComparisonMismatchError(f"Mismatching config entity: {n.name}.")
 
 
-def _compare_models(new: list[RawModel], old: list[PersistedModel]):
-    """Custom comparison logic for both model types.
+def _compare_models(new: list[InternalModel], old: list[InternalModel]):
+    """Custom comparison logic for both model lists.
 
     Assumes both lists are sorted by name.
+    Both ``schema_`` fields are already :class:`SchemaPack` instances — the
+    field validators on :class:`InternalModel` handle deserialization.
     """
     if len(new) != len(old):
         raise ComparisonMismatchError("Different amount of model configs.")
@@ -216,10 +208,12 @@ def _compare_models(new: list[RawModel], old: list[PersistedModel]):
         if True == new_model.is_ingress == old_model.is_ingress:
             if not new_model.schema_:
                 raise ValueError(f"Missing SchemaPack on EMIM model {new_model.name}.")
-            old_schema = SchemaPack.model_validate(old_model.schema_)
-            new_schema = SchemaPack.model_validate(new_model.schema_)
+            if not old_model.schema_:
+                raise ValueError(
+                    f"Missing SchemaPack on persisted EMIM model {old_model.name}."
+                )
             if new_model.version != old_model.version or not is_equal_schemapack(
-                old_schema, new_schema
+                old_model.schema_, new_model.schema_
             ):
                 raise ComparisonMismatchError(
                     f"Mismatching fields on EMIM model {new_model.name}."
