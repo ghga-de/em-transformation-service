@@ -202,28 +202,6 @@ class RawConfig(BaseModel):
     )
 
 
-class ConfigFields(BaseModel):
-    """Container for config fields that might be needed after comparison.
-
-    routes and workflows should be populated from the config file in either case.
-    If nothing changed, they correspond to what's already persisted, else they contain
-    the up to date information.
-    """
-
-    new_models: list[RawModel] = Field(
-        default_factory=list, description="Raw models from the config file."
-    )
-    old_models: list[Model] = Field(
-        default_factory=list, description="Existing, persisted models."
-    )
-    routes: list[Route] = Field(
-        default_factory=list, description="Routes from the config file."
-    )
-    workflows: list[Workflow] = Field(
-        default_factory=list, description="Workflows from the config file."
-    )
-
-
 class ComparisonResultBase(BaseModel):
     """Common config fields for either outcome of the comparison.
 

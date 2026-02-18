@@ -24,7 +24,6 @@ from yaml import safe_load
 from ets.core.models import (
     ComparisonResultChanged,
     ComparisonResultUnchanged,
-    ConfigFields,
     Model,
     RawConfig,
     RawModel,
@@ -47,12 +46,10 @@ class ConfigManager(ConfigManagerPort):
         route_dao: RouteDao,
         workflow_dao: WorkflowDao,
     ):
-        self.use_persisted_config = False
         self.config_path = config_path
         self.model_dao = model_dao
         self.route_dao = route_dao
         self.workflow_dao = workflow_dao
-        self.config_fields = ConfigFields()
 
     async def check_config_is_different(
         self,
@@ -61,54 +58,50 @@ class ConfigManager(ConfigManagerPort):
 
         Returns new config fields.
         """
+        return await self._compare_configs()
+
+    async def _compare_configs(
+        self,
+    ) -> ComparisonResultChanged | ComparisonResultUnchanged:
+        """Fetch and compare config fields, returning the appropriate result."""
+        old_models, old_routes, old_workflows = await self._get_persisted_config()
+        parsed = self._parse_config_from_file()
+
+        if parsed is None:
+            log.info("SchemaPack parsing failed, continuing with old config.")
+            return ComparisonResultUnchanged(
+                models=old_models, routes=old_routes, workflows=old_workflows
+            )
+
+        new_models, new_routes, new_workflows = parsed
+
         try:
-            await self._compare_configs()
+            log.info("Comparing models.")
+            _compare_models(new_models, old_models)
+            log.info("Comparing routes.")
+            _compare_entities(new_routes, old_routes)
+            log.info("Comparing workflows.")
+            _compare_entities(new_workflows, old_workflows)
         except ComparisonMismatchError as error:
             log.info(
                 f"Changes detected between configs, using new config.\nDetails:{error}"
             )
             return ComparisonResultChanged(
-                models=self.config_fields.new_models,
-                routes=self.config_fields.routes,
-                workflows=self.config_fields.workflows,
+                models=new_models, routes=new_routes, workflows=new_workflows
+            )
+        except ValueError as error:
+            log.error(error)
+            log.info(
+                "Invalid is_ingress/schema_ combination, falling back to old config."
+            )
+            return ComparisonResultUnchanged(
+                models=old_models, routes=old_routes, workflows=old_workflows
             )
 
         log.info("No changes detected between configs, continuing with old config.")
         return ComparisonResultUnchanged(
-            models=self.config_fields.old_models,
-            routes=self.config_fields.routes,
-            workflows=self.config_fields.workflows,
+            models=old_models, routes=old_routes, workflows=old_workflows
         )
-
-    async def _compare_configs(self):
-        """Fetch and compare config fields."""
-        # runs on startup, so should be ok to just let it crash if fetching information fails.
-        old_models, old_routes, old_workflows = await self._get_persisted_config()
-        new_models, new_routes, new_workflows = self._parse_config_from_file()
-
-        self.config_fields = ConfigFields(
-            new_models=new_models,
-            old_models=old_models,
-            routes=new_routes,
-            workflows=new_workflows,
-        )
-
-        # Short circuit if SchemaPack parsing failed and just use old config in that case
-        if self.use_persisted_config:
-            return
-
-        log.info("Comparing models.")
-        try:
-            _compare_models(new_models, old_models)
-        except ValueError as error:
-            # Short circuit on invalid is_ingress/schema_ combinations and use the old config
-            log.error(error)
-            log.info("Falling back to using old config.")
-            return
-        log.info("Comparing routes.")
-        _compare_entities(new_routes, old_routes)
-        log.info("Comparing workflows.")
-        _compare_entities(new_workflows, old_workflows)
 
     async def _get_persisted_config(self):
         """Fetch config fields from persistence layer and sort them by name."""
@@ -125,8 +118,14 @@ class ConfigManager(ConfigManagerPort):
 
         return models, routes, workflows
 
-    def _parse_config_from_file(self):
-        """Parse config fields from yaml file and sort them by name."""
+    def _parse_config_from_file(
+        self,
+    ) -> tuple[list[RawModel], list[Route], list[Workflow]] | None:
+        """Parse config fields from yaml file and sort them by name.
+
+        Returns ``None`` if SchemaPack validation fails, signalling that the
+        caller should fall back to the already-persisted configuration.
+        """
         log.info("Loading new config from file.")
         with self.config_path.open("r") as config_file:
             new_config = safe_load(config_file)
@@ -143,8 +142,7 @@ class ConfigManager(ConfigManagerPort):
             log.error(
                 "Could not parse SchemaPack information. Falling back to old config.",
             )
-            self.use_persisted_config = True
-            return [], [], []
+            return None
 
         routes = sorted(raw_config.routes, key=lambda route: route.name)
         workflows = sorted(raw_config.workflows, key=lambda workflow: workflow.name)
