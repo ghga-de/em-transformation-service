@@ -136,5 +136,4 @@ def _kahn_algorithm(in_degrees: dict[N, int], adj: Mapping[N, list[N]]) -> list[
             ancestors_of_next.update(ancestors_of_current)
             if not in_degrees[next_node]:
                 push(next_node)
-
     return result

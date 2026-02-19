@@ -58,12 +58,9 @@ class RawModel(ModelBase):
     )
 
 
-class Model(ModelBase):
-    """Describes a model after resolving the topological ordering and deriving the schemas."""
+class OrderedRawModel(RawModel):
+    """Describes the validated transformation configuration for models."""
 
-    schema_: SchemaPack = Field(
-        default=..., description="Schema associated with the model."
-    )
     order: int = Field(
         default=...,
         description="Topological order of the schema in the transformation graph.",
@@ -76,6 +73,18 @@ class PersistedModel(ModelBase):
     schema_: Mapping[str, Any] = Field(
         default=...,
         description="Serialized representation of a schema associated with the model.",
+    )
+    order: int = Field(
+        default=...,
+        description="Topological order of the schema in the transformation graph.",
+    )
+
+
+class Model(ModelBase):
+    """Describes a model after resolving the topological ordering and deriving the schemas."""
+
+    schema_: SchemaPack = Field(
+        default=..., description="Schema associated with the model."
     )
     order: int = Field(
         default=...,
@@ -252,3 +261,19 @@ class ComparisonResultUnchanged(ComparisonResultBase):
     models: list[PersistedModel] = Field(
         default=..., description="Existing models populated from the persistence layer."
     )
+
+
+class ValidatedConfig(BaseModel):
+    """Describes the validated transformation configuration.
+    It captures the state after the config validation, before the model derivation and
+    schema generation.
+    """
+
+    models: list[OrderedRawModel] = Field(
+        default=..., description="Validated models with topological order."
+    )
+    routes: list[Route] = Field(
+        default=...,
+        description="Validated routes with consistent naming and references.",
+    )
+    workflows: list[Workflow] = Field(default=..., description="Validated workflows.")
