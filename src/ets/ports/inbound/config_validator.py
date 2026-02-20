@@ -34,7 +34,7 @@ class ConfigValidatorPort(ABC):
         already been persisted previously.
 
         Args:
-            result: ComparisonResultChanged containing models, routes, and workflows.
+            changed_config: ComparisonResultChanged containing models, routes, and workflows.
 
         Raises:
             ConfigValidationError: If any validation fails.
