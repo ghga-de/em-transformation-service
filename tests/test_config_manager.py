@@ -32,11 +32,14 @@ from tests.fixtures.utils import BASE_DIR
 
 CONFIG_DIR = BASE_DIR / "input_configs"
 
-BASIC_TEST_CONFIG_PATH = CONFIG_DIR / "basic_test_config.yaml"
-EXTENDED_TEST_CONFIG_PATH = CONFIG_DIR / "test_config.yaml"
-INVALID_TEST_CONFIG_PATH = CONFIG_DIR / "invalid_config.yaml"
+INVALID_CONFIG_DIR = CONFIG_DIR / "invalid"
+VALID_CONFIG_DIR = CONFIG_DIR / "valid"
 
-MOCK_JSON_PATH = BASE_DIR / "mock_schema.json"
+BASIC_TEST_CONFIG_PATH = VALID_CONFIG_DIR / "basic_test_config.yaml"
+EXTENDED_TEST_CONFIG_PATH = VALID_CONFIG_DIR / "test_config.yaml"
+INVALID_TEST_CONFIG_PATH = INVALID_CONFIG_DIR / "invalid_config.yaml"
+
+MOCK_JSON_PATH = BASE_DIR / "mock.schemapack.json"
 
 with MOCK_JSON_PATH.open("r") as file:
     MOCK_SCHEMA = json.load(file)

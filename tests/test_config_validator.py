@@ -26,28 +26,11 @@ from ets.core.models import ComparisonResultChanged, RawConfig
 from ets.ports.inbound.config_validator import ConfigValidationError
 from tests.fixtures.utils import BASE_DIR
 
-CONFIG_DIR = BASE_DIR / "input_configs" / "validation"
-INPUT_CONFIGS_DIR = BASE_DIR / "input_configs"
+CONFIG_DIR = BASE_DIR / "input_configs"
 
-# Valid config for baseline
-BASIC_VALID_CONFIG_PATH = INPUT_CONFIGS_DIR / "basic_test_config.yaml"
-VALID_CONFIG_PATH = INPUT_CONFIGS_DIR / "test_config.yaml"
+VALID_BASELINE_CONFIGS = CONFIG_DIR / "manager" / "valid"
+INVALID_VALIDATOR_CONFIGS = CONFIG_DIR / "validator" / "invalid"
 
-# Invalid configs for testing each validation rule
-INVALID_ROUTE_INPUT_MODEL_PATH = CONFIG_DIR / "invalid_route_input_model.yaml"
-INVALID_ROUTE_INPUT_NOT_INGRESS_PATH = (
-    CONFIG_DIR / "invalid_route_input_not_ingress.yaml"
-)
-INVALID_ROUTE_WORKFLOW_PATH = CONFIG_DIR / "invalid_route_workflow.yaml"
-INVALID_ROUTE_OUTPUT_MODEL_PATH = CONFIG_DIR / "invalid_route_output_model.yaml"
-INVALID_ROUTE_OUTPUT_IS_INGRESS_PATH = (
-    CONFIG_DIR / "invalid_route_output_is_ingress.yaml"
-)
-INVALID_MODEL_SCHEMA_PATH = CONFIG_DIR / "invalid_model_schema.yaml"
-INVALID_WORKFLOW_UNKNOWN_TRANSFORMATION_PATH = (
-    CONFIG_DIR / "invalid_workflow_unknown_transformation.yaml"
-)
-INVALID_WORKFLOW_CONFIG_TYPE_PATH = CONFIG_DIR / "invalid_workflow_config_type.yaml"
 
 
 def _load_config(path: Path) -> ComparisonResultChanged:
