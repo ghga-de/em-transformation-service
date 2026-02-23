@@ -73,15 +73,15 @@ attrs==25.4.0 \
     #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
-boto3==1.42.50 \
-    --hash=sha256:2fdf8f5349b130d62576068a6c47b3eec368a70bc28f16d8cce17c5f7e74fc2e \
-    --hash=sha256:38545d7e6e855fefc8a11e899ccbd6d2c9f64671d6648c2acfb1c78c1057a480
+boto3==1.42.54 \
+    --hash=sha256:71194e855bfc81a21872cbe29c41f52ffdbe67e0a184a52c13346ef00b328939 \
+    --hash=sha256:fe3d8ec586c39a0c96327fd317c77ca601ec5f991e9ba7211cacae8db4c07a73
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit
-botocore==1.42.50 \
-    --hash=sha256:3ec7004009d1557a881b1d076d54b5768230849fa9ccdebfd409f0571490e691 \
-    --hash=sha256:de1e128e4898f4e66877bfabbbb03c61f99366f27520442539339e8a74afe3a5
+botocore==1.42.54 \
+    --hash=sha256:853a0822de66d060aeebafa07ca13a03799f7958313d1b29f8dc7e2e1be8f527 \
+    --hash=sha256:ab203d4e57d22913c8386a695d048e003b7508a8a4a7a46c9ddf4ebd67a20b69
     # via
     #   -c lock/requirements-dev.txt
     #   boto3
@@ -251,9 +251,9 @@ email-validator==2.3.0 \
     # via
     #   -c lock/requirements-dev.txt
     #   pydantic
-fastapi==0.129.0 \
-    --hash=sha256:61315cebd2e65df5f97ec298c888f9de30430dd0612d59d6480beafbc10655af \
-    --hash=sha256:b4946880e48f462692b31c083be0432275cbfb6e2274566b1be91479cc1a84ec
+fastapi==0.131.0 \
+    --hash=sha256:6531155e52bee2899a932c746c9a8250f210e3c3303a5f7b9f8a808bfe0548ff \
+    --hash=sha256:ed0e53decccf4459de78837ce1b867cd04fa9ce4579497b842579755d20b405a
     # via
     #   -c lock/requirements-dev.txt
     #   ghga-service-commons
@@ -674,9 +674,9 @@ pydantic-core==2.41.5 \
     # via
     #   -c lock/requirements-dev.txt
     #   pydantic
-pydantic-settings==2.13.0 \
-    --hash=sha256:95d875514610e8595672800a5c40b073e99e4aae467fa7c8f9c263061ea2e1fe \
-    --hash=sha256:d67b576fff39cd086b595441bf9c75d4193ca9c0ed643b90360694d0f1240246
+pydantic-settings==2.13.1 \
+    --hash=sha256:b4c11847b15237fb0171e1462bf540e294affb9b86db4d9aa5c01730bdbe4025 \
+    --hash=sha256:d56fd801823dbeae7f0975e1f8c8e25c258eb75d278ea7abb5d9cebb01b56237
     # via
     #   -c lock/requirements-dev.txt
     #   ghga-event-schemas
@@ -1095,9 +1095,9 @@ starlette==0.52.1 \
     # via
     #   -c lock/requirements-dev.txt
     #   fastapi
-typer==0.24.0 \
-    --hash=sha256:5fc435a9c8356f6160ed6e85a6301fdd6e3d8b2851da502050d1f92c5e9eddc8 \
-    --hash=sha256:f9373dc4eff901350694f519f783c29b6d7a110fc0dcc11b1d7e353b85ca6504
+typer==0.24.1 \
+    --hash=sha256:112c1f0ce578bfb4cab9ffdabc68f031416ebcc216536611ba21f04e9aa84c9e \
+    --hash=sha256:e39b4732d65fbdcde189ae76cf7cd48aeae72919dea1fdfc16593be016256b45
     # via
     #   -c lock/requirements-dev.txt
     #   ets (pyproject.toml)
