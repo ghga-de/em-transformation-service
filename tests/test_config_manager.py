@@ -30,7 +30,7 @@ from ets.core.models import (
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import BASE_DIR
 
-CONFIG_DIR = BASE_DIR / "input_configs"
+CONFIG_DIR = BASE_DIR / "input_configs" / "manager"
 
 INVALID_CONFIG_DIR = CONFIG_DIR / "invalid"
 VALID_CONFIG_DIR = CONFIG_DIR / "valid"

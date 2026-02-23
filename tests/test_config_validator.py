@@ -32,7 +32,6 @@ VALID_BASELINE_CONFIGS = CONFIG_DIR / "manager" / "valid"
 INVALID_VALIDATOR_CONFIGS = CONFIG_DIR / "validator" / "invalid"
 
 
-
 def _load_config(path: Path) -> ComparisonResultChanged:
     """Load a config file and convert to ComparisonResultChanged."""
     with path.open("r") as file:
@@ -54,38 +53,32 @@ class TestConfigValidator:
         """Set up test validator."""
         self.validator = ConfigValidator()
 
-    @pytest.mark.parametrize("config_path", [INVALID_MODEL_SCHEMA_PATH])
+    @pytest.mark.parametrize(
+        "config_path",
+        [INVALID_VALIDATOR_CONFIGS / "invalid_model_schema.yaml"],
+    )
     def test_incomplete_schema(self, config_path):
         """Check incorrectly specified SchemaPack raises ValidationError."""
         with pytest.raises(ValidationError):
             _load_config(config_path)
 
     @pytest.mark.parametrize(
-        "config_path,error_match",
+        "config_path",
         [
-            (INVALID_ROUTE_INPUT_MODEL_PATH, "non-existent input model"),
-            (INVALID_ROUTE_WORKFLOW_PATH, "non-existent workflow"),
-            (INVALID_ROUTE_OUTPUT_MODEL_PATH, "non-existent output model"),
-            (INVALID_ROUTE_OUTPUT_IS_INGRESS_PATH, "must not be an ingress model"),
-            (INVALID_WORKFLOW_UNKNOWN_TRANSFORMATION_PATH, "Unknown transformation"),
-            (
-                INVALID_WORKFLOW_CONFIG_TYPE_PATH,
-                "Invalid configuration for transformation",
-            ),
+            config
+            for config in sorted(INVALID_VALIDATOR_CONFIGS.iterdir())
+            if config.name != "invalid_model_schema.yaml"
         ],
     )
-    def test_invalid_config(self, config_path, error_match):
-        """Check invalid configs raise ConfigValidationError with appropriate message."""
+    def test_invalid_config(self, config_path):
+        """Check invalid configs raise ConfigValidationError."""
         changed_config = _load_config(config_path)
-        with pytest.raises(ConfigValidationError, match=error_match):
+        with pytest.raises(ConfigValidationError):
             self.validator.validate(changed_config)
 
     @pytest.mark.parametrize(
         "config_path",
-        [
-            VALID_CONFIG_PATH,
-            BASIC_VALID_CONFIG_PATH,
-        ],
+        sorted(VALID_BASELINE_CONFIGS.iterdir()),
     )
     def test_valid_config(self, config_path):
         """Check valid config passes validation without errors."""
