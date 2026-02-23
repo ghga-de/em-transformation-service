@@ -102,7 +102,7 @@ workflows:
     workflow:
       operations:
         - name: transform_content
-          description: PLACEHOLDER
+          description: Extract content properties as they are
           args:
             class_name: File
             content_schema: {
@@ -152,12 +152,12 @@ workflows:
               {% for key in content_property_names %}
                 {{ key }}: {{ original[key] }}
               {% endfor %}
-  - name: process_file_information
-    description: Quality control for genomic data
+  - name: extract_more_file_information
+    description: Extract more file information for further processing
     workflow:
       operations:
         - name: transform_content
-          description: PLACEHOLDER
+          description: Extract content properties as they are with compression information
           args:
             class_name: File
             content_schema: {
@@ -213,9 +213,9 @@ routes:
     output_model_name: extracted_file_information
 
   - input_model_name: extracted_file_information
-    workflow_name: process_file_information
+    workflow_name: extract_more_file_information
     output_model_name: processed_file_information
 
   - input_model_name: ingress_files_only
-    workflow_name: process_file_information
+    workflow_name: extract_more_file_information
     output_model_name: processed_file_information
