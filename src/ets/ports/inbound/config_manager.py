@@ -24,7 +24,7 @@ class ComparisonMismatchError(RuntimeError):
 
 
 class ConfigManagerPort(ABC):
-    """Manages loading old and new config and comparing them."""
+    """Manages the comparison of the old and the new config."""
 
     @abstractmethod
     async def compare_configs(

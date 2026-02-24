@@ -15,8 +15,9 @@
 """Contains functionality to validate the loaded config."""
 
 from metldata import get_transformation_registry, validate_workflow_against_registry
+from metldata.workflow.exceptions import WorkflowValidationError
 
-from ets.core.models import ComparisonResultChanged
+from ets.core.models import RawConfig
 from ets.ports.inbound.config_validator import (
     ConfigValidationError,
     ConfigValidatorPort,
@@ -26,24 +27,25 @@ from ets.ports.inbound.config_validator import (
 class ConfigValidator(ConfigValidatorPort):
     """Concrete implementation of configuration validator."""
 
-    def validate(self, changed_config: ComparisonResultChanged) -> None:
+    def validate(self, raw_config: RawConfig) -> None:
         """Validate new configuration loaded from yaml file.
 
         This should only be called when the loaded config does not match what has
         already been persisted previously.
 
         Args:
-            result: ComparisonResultChanged containing models, routes, and workflows.
+            raw_config: The new RawConfig to validate.
 
         Raises:
             ConfigValidationError: If any validation fails.
         """
         # models are already parsed into schemapacks for comparison and validated at that
         # point in time
-        self._validate_routes(changed_config)
-        self._validate_workflows(changed_config)
+        self._validate_routes(raw_config)
+        self._validate_workflows(raw_config)
+        self._validate_models(raw_config)
 
-    def _validate_routes(self, changed_config: ComparisonResultChanged) -> None:
+    def _validate_routes(self, raw_config: RawConfig) -> None:
         """Ensure all routes have valid references and model types.
 
         The following properties are validated:
@@ -51,15 +53,15 @@ class ConfigValidator(ConfigValidatorPort):
         - Output models for routes are NOT ingress models
 
         Args:
-            result: ComparisonResultChanged containing routes and models/workflows.
+            raw_config: The new RawConfig containing routes and models/workflows.
 
         Raises:
             ConfigValidationError: If any route validation fails.
         """
-        models_by_name = {model.name: model for model in changed_config.models}
-        workflow_names = {workflow.name for workflow in changed_config.workflows}
+        models_by_name = {model.name: model for model in raw_config.models}
+        workflow_names = {workflow.name for workflow in raw_config.workflows}
 
-        for route in changed_config.routes:
+        for route in raw_config.routes:
             # Verify input model exists
             if route.input_model_name not in models_by_name:
                 raise ConfigValidationError(
@@ -88,31 +90,53 @@ class ConfigValidator(ConfigValidatorPort):
                     f"must not be an ingress model (is_ingress must be False)."
                 )
 
-    def _validate_workflows(self, changed_config: ComparisonResultChanged) -> None:
+    def _validate_workflows(self, raw_config: RawConfig) -> None:
         """Validate all workflows using the metldata library.
 
-        In contrast to schemas, which are still serialized at this point, Workflows
-        have already been parsed into their internal representation and should be
-        structurally and syntactically valid at this point.
+        Workflows have already been parsed into their internal representation, and
+        should be structurally and syntactically valid at this point.
 
-        What needs to be validated here is that the workflows reference existing
-        transformation definitions and the arguments match the definition.
+        It validates that the workflows reference existing transformation definitions
+        and the arguments match the definition.
 
         Validating that the workflows are executable is not possible at this point,
         as not all model schemas_ are available yet for input.
 
         Args:
-            result: ComparisonResultChanged containing workflows.
+            raw_config: The new RawConfig containing workflows.
 
         Raises:
             ConfigValidationError: If any workflow validation fails.
         """
         transformation_registry = get_transformation_registry()
-        for workflow in changed_config.workflows:
+        for workflow in raw_config.workflows:
             try:
                 validate_workflow_against_registry(
                     workflow=workflow.workflow,
                     transformation_registry=transformation_registry,
                 )
-            except Exception as error:
+            except WorkflowValidationError as error:
                 raise ConfigValidationError(str(error)) from error
+
+    def _validate_models(self, raw_config: RawConfig) -> None:
+        """Validate all models.
+
+        Schema validation (`schema_`) against the SchemaPack specification is
+        handled by the transformation config file loader when serializing models
+        into SchemaPacks. Any issues with the schema should be caught at that stage.
+
+        This validator specifically ensures that if a model is marked as an ingress
+        model (`is_ingress=True`), it must have a `schema_` defined.
+
+        Args:
+            raw_config: The new RawConfig containing models.
+
+        Raises:
+            ConfigValidationError: If any model fails validation.
+        """
+        for model in raw_config.models:
+            if model.is_ingress and model.schema_ is None:
+                raise ConfigValidationError(
+                    f"Model '{model.name}' is marked as ingress but does not have a schema defined. "
+                    f"Ingress models must have a schema defined."
+                )

@@ -12,14 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Contains functionality to load and compare service config."""
+
+"""Contains functionality to compare transformation config."""
 
 import logging
-from pathlib import Path
 
-from pydantic import ValidationError
 from schemapack import is_equal_schemapack
-from yaml import safe_load
 
 from ets.core.models import (
     ComparisonResultChanged,
@@ -41,12 +39,12 @@ class ConfigManager(ConfigManagerPort):
 
     def __init__(
         self,
-        config_path: Path,
+        raw_config: RawConfig,
         model_dao: ModelDao,
         route_dao: RouteDao,
         workflow_dao: WorkflowDao,
     ):
-        self.config_path = config_path
+        self.raw_config = raw_config
         self.model_dao = model_dao
         self.route_dao = route_dao
         self.workflow_dao = workflow_dao
@@ -61,15 +59,10 @@ class ConfigManager(ConfigManagerPort):
             ComparisonResultUnchanged: when the configs are equal, containing the persisted models, routes, and workflows.
         """
         old_models, old_routes, old_workflows = await self._get_persisted_config()
-        parsed = self._parse_config_from_file()
 
-        if parsed is None:
-            log.info("SchemaPack parsing failed, continuing with old config.")
-            return ComparisonResultUnchanged(
-                models=old_models, routes=old_routes, workflows=old_workflows
-            )
-
-        new_models, new_routes, new_workflows = parsed
+        new_models = self.raw_config.models
+        new_routes = self.raw_config.routes
+        new_workflows = self.raw_config.workflows
 
         try:
             log.info("Comparing models.")
@@ -85,14 +78,6 @@ class ConfigManager(ConfigManagerPort):
             return ComparisonResultChanged(
                 models=new_models, routes=new_routes, workflows=new_workflows
             )
-        except ValueError as error:
-            log.error(error)
-            log.info(
-                "Invalid is_ingress/schema_ combination, falling back to old config."
-            )
-            return ComparisonResultUnchanged(
-                models=old_models, routes=old_routes, workflows=old_workflows
-            )
 
         log.info("No changes detected between configs, continuing with old config.")
         return ComparisonResultUnchanged(
@@ -101,7 +86,7 @@ class ConfigManager(ConfigManagerPort):
 
     async def _get_persisted_config(self):
         """Fetch config fields from persistence layer and sort them by name."""
-        log.info("Loading old config from persistence layer.")
+        log.info("Fetching old config from persistence layer.")
         models = [model async for model in self.model_dao.find_all(mapping={})]
         routes = [route async for route in self.route_dao.find_all(mapping={})]
         workflows = [
@@ -111,38 +96,6 @@ class ConfigManager(ConfigManagerPort):
         models = sorted(models, key=lambda model: model.name)
         routes = sorted(routes, key=lambda route: route.name)
         workflows = sorted(workflows, key=lambda workflow: workflow.name)
-
-        return models, routes, workflows
-
-    def _parse_config_from_file(
-        self,
-    ) -> tuple[list[RawModel], list[Route], list[Workflow]] | None:
-        """Parse config fields from yaml file and sort them by name.
-
-        Returns ``None`` if SchemaPack validation fails, signalling that the
-        caller should fall back to the already-persisted configuration.
-        """
-        log.info("Loading new config from file.")
-        with self.config_path.open("r") as config_file:
-            new_config = safe_load(config_file)
-
-        try:
-            raw_config = RawConfig.model_validate(new_config)
-        except ValidationError as exc:
-            schema_errors = [
-                err for err in exc.errors() if "schema_" in err.get("loc", ())
-            ]
-            if len(schema_errors) != len(exc.errors()):
-                # Structural config errors should propagate, not be silently swallowed
-                raise
-            log.error(
-                "Could not parse SchemaPack information. Falling back to old config.",
-            )
-            return None
-
-        routes = sorted(raw_config.routes, key=lambda route: route.name)
-        workflows = sorted(raw_config.workflows, key=lambda workflow: workflow.name)
-        models = sorted(raw_config.models, key=lambda m: m.name)
 
         return models, routes, workflows
 
@@ -168,26 +121,30 @@ def _compare_models(new: list[RawModel], old: list[Model]):
     """
     if len(new) != len(old):
         raise ComparisonMismatchError("Different amount of model configs.")
+
     for new_model, old_model in zip(new, old, strict=True):
+        # compare model attributes except the schema_s
         if not (
             new_model.name == old_model.name
             and new_model.description == old_model.description
             and new_model.publish == old_model.publish
+            and new_model.version == old_model.version
+            and new_model.is_ingress == old_model.is_ingress
         ):
             raise ComparisonMismatchError(
                 f"Mismatching fields on model {new_model.name}."
             )
+        # compare model schema_s
 
-        if True == new_model.is_ingress == old_model.is_ingress:
-            if not new_model.schema_:
-                raise ValueError(f"Missing SchemaPack on EMIM model {new_model.name}.")
-            if new_model.version != old_model.version or not is_equal_schemapack(
-                old_model.schema_, new_model.schema_
-            ):
-                raise ComparisonMismatchError(
-                    f"Mismatching fields on EMIM model {new_model.name}."
-                )
-        elif new_model.schema_:
-            raise ValueError(
-                f"SchemaPack provided for non EMIM model {new_model.name}."
+        # The old config models do not have any empty schema
+        # The new config models have empty schemas if is_ingress is not True.
+        # We should not compare derived models with empty schemas in the new config
+        # if both are not is_ingress=true
+        new_schema = new_model.schema_
+        old_schema = old_model.schema_
+        if not new_model.is_ingress and new_schema is None:
+            continue
+        if new_schema and not is_equal_schemapack(old_schema, new_schema):
+            raise ComparisonMismatchError(
+                f"Mismatching schema on EMIM model {new_model.name}."
             )
