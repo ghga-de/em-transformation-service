@@ -22,7 +22,7 @@ from pydantic import ValidationError
 from yaml import safe_load
 
 from ets.core.config_validator import ConfigValidator
-from ets.core.models import ComparisonResultChanged, RawConfig
+from ets.core.models import RawConfig
 from ets.ports.inbound.config_validator import ConfigValidationError
 from tests.fixtures.utils import BASE_DIR
 
@@ -32,18 +32,13 @@ VALID_BASELINE_CONFIGS = CONFIG_DIR / "manager" / "valid"
 INVALID_VALIDATOR_CONFIGS = CONFIG_DIR / "validator" / "invalid"
 
 
-def _load_config(path: Path) -> ComparisonResultChanged:
-    """Load a config file and convert to ComparisonResultChanged."""
+def _load_config(path: Path) -> RawConfig:
+    """Load a config file and convert to RawConfig."""
     with path.open("r") as file:
         config_dict = safe_load(file)
     # RawConfig.models is list[InternalModel]; the field validator on InternalModel
     # automatically deserializes dict schema_ values to SchemaPack objects.
-    raw_config = RawConfig.model_validate(config_dict)
-    return ComparisonResultChanged(
-        models=raw_config.models,
-        routes=raw_config.routes,
-        workflows=raw_config.workflows,
-    )
+    return RawConfig.model_validate(config_dict)
 
 
 class TestConfigValidator:
