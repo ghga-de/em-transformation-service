@@ -140,3 +140,9 @@ class ConfigValidator(ConfigValidatorPort):
                     f"Model '{model.name}' is marked as ingress but does not have a schema defined. "
                     f"Ingress models must have a schema defined."
                 )
+            if not model.is_ingress and model.schema_:
+                raise ConfigValidationError(
+                    f"Model '{model.name}' is not marked as ingress but has a schema defined."
+                    " Non-ingress models must not define a schema, as it is derived from"
+                    " ingress models after loading."
+                )

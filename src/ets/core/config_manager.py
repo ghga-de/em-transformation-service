@@ -142,8 +142,7 @@ def _compare_models(new: list[RawModel], old: list[Model]):
         # if both are not is_ingress=true
         new_schema = new_model.schema_
         old_schema = old_model.schema_
-        if not new_model.is_ingress and new_schema is None:
-            continue
+
         if new_schema and not is_equal_schemapack(old_schema, new_schema):
             raise ComparisonMismatchError(
                 f"Mismatching schema on EMIM model {new_model.name}."

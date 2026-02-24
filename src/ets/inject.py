@@ -44,9 +44,8 @@ async def prepare_config_manager(
     Factored out for better testability.
     """
     async with MongoDbDaoFactory.construct(config=config) as dao_factory:
-        raw_config = TransConfigFileLoader().load_config_from_file(
-            config.input_config_path
-        )
+        config_loader = TransConfigFileLoader()
+        raw_config = config_loader.load_config_from_file(config.input_config_path)
         model_dao = await dao.get_persisted_model_dao(dao_factory=dao_factory)
         route_dao = await dao.get_route_dao(dao_factory=dao_factory)
         workflow_dao = await dao.get_workflow_dao(dao_factory=dao_factory)

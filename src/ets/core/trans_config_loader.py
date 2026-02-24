@@ -31,17 +31,16 @@ class ConfigurationLoaderError(Exception):
 class TransConfigFileLoader:
     """Loads the transformation config file and parses it into a RawConfig."""
 
-    def read_yaml(self, config_path: Path) -> dict[str, Any]:
+    def _read_yaml(self, config_path: Path) -> dict[str, Any]:
         """Read a new config from file and return it as a dict."""
         with config_path.open("r") as config_file:
             new_config = safe_load(config_file)
         return new_config
 
-    def load_config(self, config: dict[str, Any]) -> RawConfig:
+    def _load_config(self, config: dict[str, Any]) -> RawConfig:
         """Load and return a config dict. This step takes care of the SchemaPack spec validation."""
         try:
-            raw_config = RawConfig.model_validate(config)
-            return raw_config
+            return RawConfig.model_validate(config)
         except ValidationError as exc:
             schema_errors = [
                 err for err in exc.errors() if "schema_" in err.get("loc", ())
@@ -58,6 +57,6 @@ class TransConfigFileLoader:
 
     def load_config_from_file(self, config_path: Path) -> RawConfig:
         """Load a config from a yaml file."""
-        config_dict = self.read_yaml(config_path)
-        raw_config = self.load_config(config_dict)
+        config_dict = self._read_yaml(config_path)
+        raw_config = self._load_config(config_dict)
         return raw_config
