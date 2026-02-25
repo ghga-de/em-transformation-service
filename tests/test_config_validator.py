@@ -18,10 +18,10 @@
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
 
 from ets.core.config_validator import ConfigValidator
 from ets.ports.inbound.config_validator import ConfigValidationError
+from ets.ports.outbound.config_loader import ConfigurationLoaderError
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import BASE_DIR
 
@@ -44,7 +44,7 @@ class TestConfigValidator:
     )
     def test_incomplete_schema(self, config_path: Path, joint_fixture: JointFixture):
         """Check incorrectly specified SchemaPack raises ValidationError."""
-        with pytest.raises(ValidationError):
+        with pytest.raises(ConfigurationLoaderError):
             joint_fixture.loader.load_config_from_file(config_path)
 
     @pytest.mark.parametrize(

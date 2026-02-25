@@ -97,12 +97,12 @@ def _compare_models(new: list[RawModel], old: list[Model]):
 
     for new_model, old_model in zip(new, old, strict=True):
         # compare model attributes except the schemapacks
-        if not (
-            new_model.name == old_model.name
-            and new_model.description == old_model.description
-            and new_model.publish == old_model.publish
-            and new_model.version == old_model.version
-            and new_model.is_ingress == old_model.is_ingress
+        if (
+            new_model.name != old_model.name
+            or new_model.description != old_model.description
+            or new_model.publish != old_model.publish
+            or new_model.version != old_model.version
+            or new_model.is_ingress != old_model.is_ingress
         ):
             raise ComparisonMismatchError(
                 f"Mismatching fields on model {new_model.name}."

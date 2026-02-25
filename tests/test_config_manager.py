@@ -64,10 +64,10 @@ async def test_load_and_compare(
     """
     loader = joint_fixture.loader
     persisted_config = await loader.load_config_from_db()
-    old_raw_config = loader.load_config_from_file(old_config_path)
+    first_raw_config = loader.load_config_from_file(old_config_path)
 
     config_manager = ConfigManager(
-        raw_config=old_raw_config, persisted_config=persisted_config
+        raw_config=first_raw_config, persisted_config=persisted_config
     )
     result = await config_manager.compare_configs()
 
@@ -90,8 +90,12 @@ async def test_load_and_compare(
     for workflow in result.workflows:
         await joint_fixture.daos.workflow_dao.insert(workflow)
 
-    new_raw_config = loader.load_config_from_file(new_config_path)
-    config_manager.raw_config = new_raw_config
+    persisted_config = await loader.load_config_from_db()
+    second_raw_config = loader.load_config_from_file(new_config_path)
+    # config_manager.raw_config = second_raw_config
+    config_manager = ConfigManager(
+        raw_config=second_raw_config, persisted_config=persisted_config
+    )
     result = await config_manager.compare_configs()
     assert (
         isinstance(result, RawConfig)
