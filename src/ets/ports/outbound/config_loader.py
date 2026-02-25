@@ -12,26 +12,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Contains functionality to load and compare service config."""
+
+"""Module for loading and parsing the transformation config file."""
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 from ets.core.models import PersistedConfig, RawConfig
 
 
-class ComparisonMismatchError(RuntimeError):
-    """Custom error type raised on any mismatch between the existing and new config."""
+class ConfigurationLoaderError(Exception):
+    """Raised when loading the configuration fails."""
 
 
-class ConfigManagerPort(ABC):
-    """Manages the comparison of the old and the new config."""
+class ConfigFileLoaderPort(ABC):
+    """Loads the transformation config file and parses it into a RawConfig."""
 
     @abstractmethod
-    async def compare_configs(
-        self,
-    ) -> PersistedConfig | RawConfig:
-        """Compare new config with the persisted one.
-        Returns:
-                RawConfig: when the configs differ, containing the new models, routes, and workflows.
-                PersistedConfig: when the configs are equal, containing the persisted models, routes, and workflows.
-        """
+    def load_config_from_file(self, config_path: Path) -> RawConfig:
+        """Load a config from a yaml file."""
+
+    @abstractmethod
+    async def load_config_from_db(self) -> PersistedConfig:
+        """Fetch config fields from persistence layer and sort them by name."""

@@ -16,7 +16,7 @@
 """Defines dataclasses for holding business-logic data."""
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import Any
 
 from metldata.workflow.base import Workflow as MetldataWorkflow
@@ -185,33 +185,12 @@ class Route(BaseModel):
         )
 
 
-class RawConfig(BaseModel):
-    """Describes a raw transformation configuration before any processing/validation."""
-
-    models: list[RawModel] = Field(
-        default=...,
-        description="List of raw models defining the transformation graph.",
-    )
-    workflows: list[Workflow] = Field(
-        default=...,
-        description="List of available workflows.",
-    )
-    routes: list[Route] = Field(
-        default=...,
-        description="List of routes composing the transformation graph.",
-    )
-
-
-class ComparisonResultBase(BaseModel):
+class ConfigBase(BaseModel):
     """Common config fields for either outcome of the comparison.
 
     Used as base class for either variant for the result.
     """
 
-    models: Sequence[RawModel | Model] = Field(
-        default=...,
-        description="Contains either the new models to run downstream processing on or the existing, persisted models.",
-    )
     routes: list[Route] = Field(
         default=..., description="Up to date routes for downstream processing."
     )
@@ -220,16 +199,16 @@ class ComparisonResultBase(BaseModel):
     )
 
 
-class ComparisonResultChanged(ComparisonResultBase):
+class RawConfig(ConfigBase):
     """For changed configs, the new, raw models are returned."""
 
     models: list[RawModel] = Field(
         default=...,
-        description="Contains the new models.",
+        description="List of raw models defining the transformation graph.",
     )
 
 
-class ComparisonResultUnchanged(ComparisonResultBase):
+class PersistedConfig(ConfigBase):
     """For unchanged configs, the persisted models are returned."""
 
     models: list[Model] = Field(

@@ -20,12 +20,8 @@ from pathlib import Path
 
 import pytest
 
-from ets.core.models import (
-    ComparisonResultChanged,
-    ComparisonResultUnchanged,
-    Model,
-)
-from ets.core.trans_config_loader import TransConfigFileLoader
+from ets.core.config_manager import ConfigManager
+from ets.core.models import Model, PersistedConfig, RawConfig
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import BASE_DIR
 
@@ -42,8 +38,6 @@ MOCK_JSON_PATH = BASE_DIR / "mock.schemapack.json"
 
 with MOCK_JSON_PATH.open("r") as file:
     MOCK_SCHEMA = json.load(file)
-
-loader = TransConfigFileLoader()
 
 pytestmark = pytest.mark.asyncio()
 
@@ -68,10 +62,13 @@ async def test_load_and_compare(
     """Test loading the config from a yaml file and comparing with previous data
     populated from old_config_path.
     """
-    config_manager = joint_fixture.config_manager
-    # directly patch instance attribute for now, find a better way once everything is
-    # wired correctly
-    config_manager.raw_config = loader.load_config_from_file(old_config_path)  # type: ignore
+    loader = joint_fixture.loader
+    persisted_config = await loader.load_config_from_db()
+    old_raw_config = loader.load_config_from_file(old_config_path)
+
+    config_manager = ConfigManager(
+        raw_config=old_raw_config, persisted_config=persisted_config
+    )
     result = await config_manager.compare_configs()
 
     # Populate DB from config, mocking some fields to conform to DTO
@@ -93,10 +90,11 @@ async def test_load_and_compare(
     for workflow in result.workflows:
         await joint_fixture.daos.workflow_dao.insert(workflow)
 
-    config_manager.raw_config = loader.load_config_from_file(new_config_path)  # type: ignore
+    new_raw_config = loader.load_config_from_file(new_config_path)
+    config_manager.raw_config = new_raw_config
     result = await config_manager.compare_configs()
     assert (
-        isinstance(result, ComparisonResultChanged)
+        isinstance(result, RawConfig)
         if changed
-        else isinstance(result, ComparisonResultUnchanged)
+        else isinstance(result, PersistedConfig)
     )

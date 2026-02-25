@@ -20,16 +20,14 @@ import logging
 from schemapack import is_equal_schemapack
 
 from ets.core.models import (
-    ComparisonResultChanged,
-    ComparisonResultUnchanged,
     Model,
+    PersistedConfig,
     RawConfig,
     RawModel,
     Route,
     Workflow,
 )
 from ets.ports.inbound.config_manager import ComparisonMismatchError, ConfigManagerPort
-from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 
 log = logging.getLogger(__name__)
 
@@ -37,28 +35,22 @@ log = logging.getLogger(__name__)
 class ConfigManager(ConfigManagerPort):
     """Loads the config file, fetches persisted config, and compares them to detect changes."""
 
-    def __init__(
-        self,
-        raw_config: RawConfig,
-        model_dao: ModelDao,
-        route_dao: RouteDao,
-        workflow_dao: WorkflowDao,
-    ):
+    def __init__(self, raw_config: RawConfig, persisted_config: PersistedConfig):
         self.raw_config = raw_config
-        self.model_dao = model_dao
-        self.route_dao = route_dao
-        self.workflow_dao = workflow_dao
+        self.persisted_config = persisted_config
 
     async def compare_configs(
         self,
-    ) -> ComparisonResultChanged | ComparisonResultUnchanged:
+    ) -> PersistedConfig | RawConfig:
         """Compare new config with the persisted one.
 
         Returns:
-            ComparisonResultChanged: when the configs differ, containing the new models, routes, and workflows.
-            ComparisonResultUnchanged: when the configs are equal, containing the persisted models, routes, and workflows.
+            RawConfig: when the configs differ, containing the new models, routes, and workflows.
+            PersistedConfig: when the configs are equal, containing the persisted models, routes, and workflows.
         """
-        old_models, old_routes, old_workflows = await self._get_persisted_config()
+        old_models = self.persisted_config.models
+        old_routes = self.persisted_config.routes
+        old_workflows = self.persisted_config.workflows
 
         new_models = self.raw_config.models
         new_routes = self.raw_config.routes
@@ -75,29 +67,10 @@ class ConfigManager(ConfigManagerPort):
             log.info(
                 f"Changes detected between configs, using new config.\nDetails:{error}"
             )
-            return ComparisonResultChanged(
-                models=new_models, routes=new_routes, workflows=new_workflows
-            )
+            return self.raw_config
 
         log.info("No changes detected between configs, continuing with old config.")
-        return ComparisonResultUnchanged(
-            models=old_models, routes=old_routes, workflows=old_workflows
-        )
-
-    async def _get_persisted_config(self):
-        """Fetch config fields from persistence layer and sort them by name."""
-        log.info("Fetching old config from persistence layer.")
-        models = [model async for model in self.model_dao.find_all(mapping={})]
-        routes = [route async for route in self.route_dao.find_all(mapping={})]
-        workflows = [
-            workflow async for workflow in self.workflow_dao.find_all(mapping={})
-        ]
-
-        models = sorted(models, key=lambda model: model.name)
-        routes = sorted(routes, key=lambda route: route.name)
-        workflows = sorted(workflows, key=lambda workflow: workflow.name)
-
-        return models, routes, workflows
+        return self.persisted_config
 
 
 def _compare_entities[ConfigField: Route | Workflow](
@@ -123,7 +96,7 @@ def _compare_models(new: list[RawModel], old: list[Model]):
         raise ComparisonMismatchError("Different amount of model configs.")
 
     for new_model, old_model in zip(new, old, strict=True):
-        # compare model attributes except the schema_s
+        # compare model attributes except the schemapacks
         if not (
             new_model.name == old_model.name
             and new_model.description == old_model.description
@@ -134,12 +107,10 @@ def _compare_models(new: list[RawModel], old: list[Model]):
             raise ComparisonMismatchError(
                 f"Mismatching fields on model {new_model.name}."
             )
-        # compare model schema_s
-
-        # The old config models do not have any empty schema
-        # The new config models have empty schemas if is_ingress is not True.
-        # We should not compare derived models with empty schemas in the new config
-        # if both are not is_ingress=true
+        # Validation after loading ensures that only two invariants exist here:
+        # 1) is_ingress == True and new_schema
+        # 2) is_ingress == False and new_schema is None
+        # Only the first case needs comparison
         new_schema = new_model.schema_
         old_schema = old_model.schema_
 

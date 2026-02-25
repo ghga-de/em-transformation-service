@@ -20,7 +20,8 @@ from pathlib import Path
 
 import pytest
 
-from ets.core.trans_config_loader import ConfigurationLoaderError, TransConfigFileLoader
+from ets.core.config_loader import ConfigurationLoaderError
+from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import BASE_DIR
 
 CONFIG_DIR = BASE_DIR / "input_configs" / "manager"
@@ -37,8 +38,6 @@ MOCK_JSON_PATH = BASE_DIR / "mock.schemapack.json"
 with MOCK_JSON_PATH.open("r") as file:
     MOCK_SCHEMA = json.load(file)
 
-loader = TransConfigFileLoader()
-
 
 @pytest.mark.parametrize(
     "config_path,should_pass",
@@ -48,8 +47,11 @@ loader = TransConfigFileLoader()
         (INVALID_TEST_CONFIG_PATH, False),
     ],
 )
-def test_load_config(config_path: Path, should_pass: bool) -> None:
+def test_load_config(
+    config_path: Path, should_pass: bool, joint_fixture: JointFixture
+) -> None:
     """Test loading RawConfig from a transformation config file."""
+    loader = joint_fixture.loader
     if should_pass:
         raw_config = loader.load_config_from_file(config_path)
         assert raw_config.models

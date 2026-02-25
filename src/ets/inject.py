@@ -29,31 +29,25 @@ from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound import dao
 from ets.config import Config
 from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.config_manager import ConfigManager
-from ets.core.trans_config_loader import TransConfigFileLoader
+from ets.core.config_loader import ConfigFileLoader
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
-from ets.ports.inbound.config_manager import ConfigManagerPort
+from ets.ports.outbound.config_loader import ConfigFileLoaderPort
 
 
 @asynccontextmanager
-async def prepare_config_manager(
+async def prepare_config_loader(
     *, config: Config
-) -> AsyncGenerator[ConfigManagerPort]:
+) -> AsyncGenerator[ConfigFileLoaderPort]:
     """Constructs config manager instances that can be used by the central core class.
 
     Factored out for better testability.
     """
     async with MongoDbDaoFactory.construct(config=config) as dao_factory:
-        config_loader = TransConfigFileLoader()
-        raw_config = config_loader.load_config_from_file(config.input_config_path)
         model_dao = await dao.get_persisted_model_dao(dao_factory=dao_factory)
         route_dao = await dao.get_route_dao(dao_factory=dao_factory)
         workflow_dao = await dao.get_workflow_dao(dao_factory=dao_factory)
-        yield ConfigManager(
-            raw_config=raw_config,
-            model_dao=model_dao,
-            route_dao=route_dao,
-            workflow_dao=workflow_dao,
+        yield ConfigFileLoader(
+            model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
         )
 
 

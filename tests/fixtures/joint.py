@@ -32,11 +32,11 @@ from ets.adapters.outbound.dao import (
 from ets.config import Config
 from ets.inject import (
     prepare_aem_pack_registry,
-    prepare_config_manager,
+    prepare_config_loader,
     prepare_event_subscriber,
 )
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
-from ets.ports.inbound.config_manager import ConfigManagerPort
+from ets.ports.outbound.config_loader import ConfigFileLoaderPort
 from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
 from tests.fixtures.config import get_config
 
@@ -57,10 +57,10 @@ class JointFixture:
 
     aem_pack_registry: AEMPackRegistryPort
     config: Config
-    config_manager: ConfigManagerPort
     daos: DAOs
     event_subscriber: KafkaEventSubscriber
     kafka: KafkaFixture
+    loader: ConfigFileLoaderPort
     mongodb: MongoDbFixture
 
 
@@ -89,14 +89,14 @@ async def joint_fixture(
         prepare_event_subscriber(
             config=config, core_override=aem_pack_registry
         ) as event_subscriber,
-        prepare_config_manager(config=config) as config_manager,
+        prepare_config_loader(config=config) as config_loader,
     ):
         yield JointFixture(
             aem_pack_registry=aem_pack_registry,
             daos=daos,
             config=config,
-            config_manager=config_manager,
             event_subscriber=event_subscriber,
             kafka=kafka,
+            loader=config_loader,
             mongodb=mongodb,
         )

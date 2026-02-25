@@ -15,21 +15,32 @@
 
 """Module for loading and parsing the transformation config file."""
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
 from yaml import safe_load
 
-from ets.core.models import RawConfig
+from ets.core.models import PersistedConfig, RawConfig
+from ets.ports.outbound.config_loader import (
+    ConfigFileLoaderPort,
+    ConfigurationLoaderError,
+)
+from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
+
+log = logging.getLogger(__name__)
 
 
-class ConfigurationLoaderError(Exception):
-    """Raised when loading the configuration fails."""
-
-
-class TransConfigFileLoader:
+class ConfigFileLoader(ConfigFileLoaderPort):
     """Loads the transformation config file and parses it into a RawConfig."""
+
+    def __init__(
+        self, *, model_dao: ModelDao, route_dao: RouteDao, workflow_dao: WorkflowDao
+    ):
+        self.model_dao = model_dao
+        self.route_dao = route_dao
+        self.workflow_dao = workflow_dao
 
     def _read_yaml(self, config_path: Path) -> dict[str, Any]:
         """Read a new config from file and return it as a dict."""
@@ -57,6 +68,22 @@ class TransConfigFileLoader:
 
     def load_config_from_file(self, config_path: Path) -> RawConfig:
         """Load a config from a yaml file."""
+        log.info("Fetching new config from file.")
         config_dict = self._read_yaml(config_path)
         raw_config = self._load_config(config_dict)
         return raw_config
+
+    async def load_config_from_db(self) -> PersistedConfig:
+        """Fetch config fields from persistence layer and sort them by name."""
+        log.info("Fetching old config from persistence layer.")
+        models = [model async for model in self.model_dao.find_all(mapping={})]
+        routes = [route async for route in self.route_dao.find_all(mapping={})]
+        workflows = [
+            workflow async for workflow in self.workflow_dao.find_all(mapping={})
+        ]
+
+        models = sorted(models, key=lambda model: model.name)
+        routes = sorted(routes, key=lambda route: route.name)
+        workflows = sorted(workflows, key=lambda workflow: workflow.name)
+
+        return PersistedConfig(models=models, routes=routes, workflows=workflows)
