@@ -30,8 +30,8 @@ class ConfigFileLoaderPort(ABC):
 
     @abstractmethod
     def load_config_from_file(self, config_path: Path) -> RawConfig:
-        """Load a config from a yaml file."""
+        """Load a transformation config from a yaml file."""
 
     @abstractmethod
     async def load_config_from_db(self) -> PersistedConfig:
-        """Fetch config fields from persistence layer and sort them by name."""
+        """Fetch transformation config fields from persistence layer and sort them by name."""

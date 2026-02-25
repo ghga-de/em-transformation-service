@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from ets.core.config_loader import ConfigurationLoaderError
+from ets.ports.outbound.config_loader import ConfigurationLoaderError
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import BASE_DIR
 
