@@ -1,4 +1,4 @@
-# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -48,7 +48,7 @@ class CyclicGraphError(NonUniquePathError):
     """Error indicating that a cycle was detected in the graph."""
 
 
-def get_topological_order(edges: list[tuple[N, N]]) -> dict[N, int]:
+def get_topological_order(edges: list[tuple[N, N]]) -> dict[N, int]:  # noqa: UP047
     """Validate a directed graph and get its topological order.
 
     The graph must be specified as a list of directed edges
@@ -81,7 +81,7 @@ def get_topological_order(edges: list[tuple[N, N]]) -> dict[N, int]:
     return {node: i for i, node in enumerate(result)}
 
 
-def _get_nodes_from_edges(edges: list[tuple[N, N]]) -> tuple[N, ...]:
+def _get_nodes_from_edges(edges: list[tuple[N, N]]) -> tuple[N, ...]:  # noqa: UP047
     """Get all nodes from the list of edges."""
     # use a dict to deduplicate while preserving order
     nodes: dict[N, None] = {}
@@ -91,7 +91,7 @@ def _get_nodes_from_edges(edges: list[tuple[N, N]]) -> tuple[N, ...]:
     return tuple(nodes)
 
 
-def _get_adjacency_list(edges: list[tuple[N, N]]) -> Mapping[N, list[N]]:
+def _get_adjacency_list(edges: list[tuple[N, N]]) -> Mapping[N, list[N]]:  # noqa: UP047
     """Get the adjacency list from the list of edges."""
     adj: Mapping[N, list[N]] = defaultdict(list)
     for from_node, next_node in edges:
@@ -99,7 +99,7 @@ def _get_adjacency_list(edges: list[tuple[N, N]]) -> Mapping[N, list[N]]:
     return adj
 
 
-def _get_in_degrees(nodes: Sequence[N], adj: Mapping[N, list[N]]) -> dict[N, int]:
+def _get_in_degrees(nodes: Sequence[N], adj: Mapping[N, list[N]]) -> dict[N, int]:  # noqa: UP047
     """Get the in-degrees of all nodes in the graph."""
     in_degrees: dict[N, int] = defaultdict(int)
     for current_node in nodes:
@@ -108,7 +108,7 @@ def _get_in_degrees(nodes: Sequence[N], adj: Mapping[N, list[N]]) -> dict[N, int
     return in_degrees
 
 
-def _kahn_algorithm(in_degrees: dict[N, int], adj: Mapping[N, list[N]]) -> list[N]:
+def _kahn_algorithm(in_degrees: dict[N, int], adj: Mapping[N, list[N]]) -> list[N]:  # noqa: UP047
     """Run Kahn's algorithm for topological ordering with unique path check.
 
     This is a modified version of Kahn's algorithm that checks the unique path property

@@ -1,4 +1,4 @@
-# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +14,8 @@
 # limitations under the License.
 
 """Config Parameter Modeling and Parsing."""
+
+from pathlib import Path
 
 from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
@@ -32,6 +34,10 @@ class Config(KafkaConfig, MongoDbConfig, LoggingConfig, EventSubTranslatorConfig
 
     service_name: str = Field(
         default=SERVICE_NAME, description="Short name of this service"
+    )
+    input_config_path: Path = Field(
+        default=...,
+        description="Path to the transformation config file used to populate the database.",
     )
 
 

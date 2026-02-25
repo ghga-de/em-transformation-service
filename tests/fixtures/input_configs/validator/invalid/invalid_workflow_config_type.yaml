@@ -1,0 +1,39 @@
+# Invalid: Workflow operation has wrong config type for transformation
+models:
+  - name: ingress_model
+    description: Ingress model
+    is_ingress: true
+    version: "1.0.0"
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        TestClass:
+          id:
+            propertyName: id
+          content:
+            type: object
+    publish: true
+
+  - name: output_model
+    description: Output model
+    is_ingress: false
+    version: "1.0.0"
+    schema_: null
+    publish: false
+
+workflows:
+  - name: workflow_wrong_config_type
+    description: Workflow with wrong transformation config type
+    workflow:
+      operations:
+        - name: delete_class
+          description: Delete class operation
+          args:
+            # delete_class expects specific DeleteClassConfig, not arbitrary dict
+            invalid_field: value
+
+routes:
+  - name: "ingress_model:workflow_wrong_config_type:output_model"
+    input_model_name: ingress_model
+    workflow_name: workflow_wrong_config_type
+    output_model_name: output_model

@@ -1,0 +1,36 @@
+# Invalid: Model schema is malformed
+models:
+  - name: ingress_model_bad_schema
+    description: Ingress model with malformed schema
+    is_ingress: true
+    version: "1.0.0"
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        TestClass:
+          # Missing required 'id' field
+          content:
+            type: object
+    publish: true
+
+  - name: output_model
+    description: Output model
+    is_ingress: false
+    version: "1.0.0"
+    schema_: null
+    publish: false
+
+workflows:
+  - name: test_workflow
+    description: Test workflow
+    workflow:
+      operations:
+        - name: delete_class
+          description: Delete class operation
+          args: {}
+
+routes:
+  - name: "ingress_model_bad_schema:test_workflow:output_model"
+    input_model_name: ingress_model_bad_schema
+    workflow_name: test_workflow
+    output_model_name: output_model

@@ -1,4 +1,4 @@
-# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,135 +15,203 @@
 
 """Defines dataclasses for holding business-logic data."""
 
-from typing import Self
+import json
+from collections.abc import Mapping
+from typing import Any
 
 from metldata.workflow.base import Workflow as MetldataWorkflow
 from pydantic import (
     BaseModel,
     Field,
+    field_serializer,
+    field_validator,
     model_validator,
 )
 from schemapack.spec.schemapack import SchemaPack
 
 
-class RawModel(BaseModel):
-    """Describes a raw model before any processing."""
+class ModelBase(BaseModel):
+    """Base for different model variants (old, new, serialized)"""
 
-    name: str = Field(..., description="A Unique human-readable name of the model.")
+    name: str = Field(
+        default=..., description="A Unique human-readable name of the model."
+    )
     description: str | None = Field(
-        None, description="A human-readable description of the model."
+        default=None, description="A human-readable description of the model."
     )
     is_ingress: bool = Field(
-        ...,
+        default=...,
         description="Whether this model is an experimental metadata ingress model (EMIM).",
     )
     version: str | None = Field(
-        ...,
+        default=...,
         description="The version of the model. None if the model is not an EMIM.",
     )
-    schema_: SchemaPack | None = Field(
-        ...,
-        description="Schema associated with the model. None if it is not an EMIM or not yet computed.",
-    )
     publish: bool = Field(
-        ...,
+        default=...,
         description="whether the data conforming to the schema should be published.",
     )
 
 
-class Model(RawModel):
+class RawModel(ModelBase):
+    """Describes a raw model before any processing."""
+
+    schema_: SchemaPack | None = Field(
+        default=..., description="Schema associated with the model."
+    )
+
+    @field_validator("schema_", mode="before")
+    @classmethod
+    def _deserialize_schema(
+        cls, v: Mapping[str, Any] | SchemaPack | None
+    ) -> SchemaPack | None:
+        if v is None or isinstance(v, SchemaPack):
+            return v
+        return SchemaPack.model_validate(v)
+
+    @field_serializer("schema_")
+    def _serialize_schema(self, v: SchemaPack | None) -> dict[str, Any] | None:
+        return json.loads(v.model_dump_json()) if v is not None else None
+
+
+class Model(ModelBase):
     """Describes a model after resolving the topological ordering and deriving the schemas."""
 
-    schema_: SchemaPack = Field(..., description="Schema associated with the model.")
-    order: int = Field(
-        ..., description="Topological order of the schema in the transformation graph."
+    schema_: SchemaPack = Field(
+        default=..., description="Schema associated with the model."
     )
+    order: int = Field(
+        default=...,
+        description="Topological order of the schema in the transformation graph.",
+    )
+
+    @field_validator("schema_", mode="before")
+    @classmethod
+    def _deserialize_schema(cls, v: Mapping[str, Any] | SchemaPack) -> SchemaPack:
+        if isinstance(v, SchemaPack):
+            return v
+        return SchemaPack.model_validate(v)
+
+    @field_serializer("schema_")
+    def _serialize_schema(self, v: SchemaPack) -> dict[str, Any]:
+        return json.loads(v.model_dump_json())
 
 
 class Workflow(BaseModel):
     """Describes a metldata compatible workflow definition."""
 
     name: str = Field(
-        ...,
+        default=...,
         description="A unique human-readable name of the workflow indicating the purpose of the workflow.",
     )
     description: str | None = Field(
-        None, description="A human-readable description of the workflow."
+        default=None, description="A human-readable description of the workflow."
     )
     workflow: MetldataWorkflow = Field(
-        ..., description="Workflow definition in metldata Workflow format."
+        default=..., description="Workflow definition in metldata Workflow format."
     )
 
 
 class Route(BaseModel):
-    """Describes the routes for transforming models and data by referencing the
+    """Describes a route for transforming models and data by referencing the
     workflow, the input and output models involved in each transformation by name.
     """
 
-    name: str | None = Field(
-        None,
+    name: str = Field(
+        default=...,
         description=(
             "A unique human-readable name of the route. Follows the format of "
             "'input_model_name:workflow_name:output_model_name'."
         ),
     )
-    input_model_name: str | None = Field(
-        None, description=" Name of the input model accepted by the route."
+    input_model_name: str = Field(
+        default=..., description=" Name of the input model accepted by the route."
     )
-    output_model_name: str | None = Field(
-        None, description="Name of the output model produced by the route."
+    output_model_name: str = Field(
+        default=..., description="Name of the output model produced by the route."
     )
-    workflow_name: str | None = Field(
-        None,
+    workflow_name: str = Field(
+        default=...,
         description="Name of the workflow used to transform the input model to the output model.",
     )
 
-    @model_validator(mode="after")
-    def ensure_name_consistency(self) -> Self:
+    @model_validator(mode="before")
+    @classmethod
+    def ensure_name_consistency(cls, data: Any) -> Any:
         """Ensures that the route name is consistent with the rest of the attributes.
 
-        - If only 'name' provided, decomposes it.
+        - If only 'name' provided, decomposes it into the three parts.
         - If all of 'input_model_name', 'output_model_name', 'workflow_name' are provided,
         composes the 'name'.
         - Otherwise, raises a ValueError.
         """
-        name_parts = [self.input_model_name, self.workflow_name, self.output_model_name]
+        if not isinstance(data, dict):
+            return data
 
+        name = data.get("name")
+        input_model_name = data.get("input_model_name")
+        output_model_name = data.get("output_model_name")
+        workflow_name = data.get("workflow_name")
+
+        name_parts = [input_model_name, workflow_name, output_model_name]
         has_all_parts = all(part is not None for part in name_parts)
         has_no_parts = all(part is None for part in name_parts)
 
-        if self.name and has_no_parts:
-            parts = self.name.split(":")
+        if name and has_no_parts:
+            parts = name.split(":")
             if len(parts) != 3:
                 raise ValueError(
                     "'name' should be formatted as 'input_model_name:workflow_name:output_model_name'"
                 )
-            self.input_model_name, self.workflow_name, self.output_model_name = parts
-            return self
+            (
+                data["input_model_name"],
+                data["workflow_name"],
+                data["output_model_name"],
+            ) = parts
+            return data
 
-        if not self.name and has_all_parts:
-            self.name = (
-                f"{self.input_model_name}:{self.workflow_name}:{self.output_model_name}"
-            )
-            return self
+        if has_all_parts:
+            composed_name = f"{input_model_name}:{workflow_name}:{output_model_name}"
+            if not name:
+                data["name"] = composed_name
+            elif name != composed_name:
+                raise ValueError(
+                    f"Provided name '{name}' and name assembled from parts '{composed_name}' do not match."
+                )
+            return data
 
         raise ValueError(
             "Either 'name' or all of 'input_model_name', 'workflow_name', 'output_model_name' need to be provided."
         )
 
 
-class RawConfig(BaseModel):
-    """Describes a raw transformation configuration before any processing/validation."""
+class ConfigBase(BaseModel):
+    """Common config fields for either outcome of the comparison.
 
-    models: list[RawModel] = Field(
-        ...,
-        description="List of raw models defining the transformation graph.",
+    Used as base class for either variant for the result.
+    """
+
+    routes: list[Route] = Field(
+        default=..., description="Up to date routes for downstream processing."
     )
     workflows: list[Workflow] = Field(
-        ...,
-        description="List of available workflows.",
+        default=..., description="Up to date workflows for downstream processing."
     )
-    routes: list[Route] = Field(
-        ...,
-        description="List of routes composing the transformation graph.",
+
+
+class RawConfig(ConfigBase):
+    """For changed configs, the new, raw models are returned."""
+
+    models: list[RawModel] = Field(
+        default=...,
+        description="List of raw models defining the transformation graph.",
+    )
+
+
+class PersistedConfig(ConfigBase):
+    """For unchanged configs, the persisted models are returned."""
+
+    models: list[Model] = Field(
+        default=...,
+        description="Contains the existing, persisted models.",
     )

@@ -233,6 +233,8 @@ The service requires the following configuration parameters:
   5
   ```
 
+- <a id="properties/input_config_path"></a>**`input_config_path`** *(string, format: path, required)*: Path to the transformation config file used to populate the database.
+
 ### Usage:
 
 A template YAML file for configuring the service can be found at

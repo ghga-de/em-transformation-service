@@ -237,6 +237,12 @@
       "minimum": 0,
       "title": "Kafka Retry Backoff",
       "type": "integer"
+    },
+    "input_config_path": {
+      "description": "Path to the transformation config file used to populate the database.",
+      "format": "path",
+      "title": "Input Config Path",
+      "type": "string"
     }
   },
   "required": [
@@ -244,7 +250,8 @@
     "service_instance_id",
     "mongo_dsn",
     "db_name",
-    "kafka_servers"
+    "kafka_servers",
+    "input_config_path"
   ],
   "title": "ModSettings",
   "type": "object"

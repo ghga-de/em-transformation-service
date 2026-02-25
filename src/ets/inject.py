@@ -1,4 +1,4 @@
-# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,31 +29,52 @@ from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound import dao
 from ets.config import Config
 from ets.core.aem_pack_registry import AEMPackRegistry
+from ets.core.config_loader import ConfigFileLoader
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
+from ets.ports.outbound.config_loader import ConfigFileLoaderPort
 
 
 @asynccontextmanager
-async def prepare_core(
+async def prepare_config_loader(
+    *, config: Config
+) -> AsyncGenerator[ConfigFileLoaderPort]:
+    """Constructs config manager instances that can be used by the central core class.
+
+    Factored out for better testability.
+    """
+    async with MongoDbDaoFactory.construct(config=config) as dao_factory:
+        model_dao = await dao.get_persisted_model_dao(dao_factory=dao_factory)
+        route_dao = await dao.get_route_dao(dao_factory=dao_factory)
+        workflow_dao = await dao.get_workflow_dao(dao_factory=dao_factory)
+        yield ConfigFileLoader(
+            model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
+        )
+
+
+@asynccontextmanager
+async def prepare_aem_pack_registry(
     *,
     config: Config,
 ) -> AsyncGenerator[AEMPackRegistryPort]:
     """Constructs and initializes core components and their outbound dependencies."""
-    async with (
-        MongoDbDaoFactory.construct(config=config) as dao_factory,
-    ):
-        aem_pack_dao = await dao.aem_pack_dao(
+    async with MongoDbDaoFactory.construct(config=config) as dao_factory:
+        aem_pack_dao = await dao.get_aem_pack_dao(
             dao_factory=dao_factory,
         )
         yield AEMPackRegistry(aem_pack_dao=aem_pack_dao)
 
 
-def prepare_core_with_override(
+def prepare_aem_pack_registry_with_override(
     *,
     config: Config,
     core_override: AEMPackRegistryPort | None = None,
 ):
     """Resolve the prepare_core context manager based on config and override (if any)."""
-    return nullcontext(core_override) if core_override else prepare_core(config=config)
+    return (
+        nullcontext(core_override)
+        if core_override
+        else prepare_aem_pack_registry(config=config)
+    )
 
 
 @asynccontextmanager
@@ -67,7 +88,7 @@ async def prepare_event_subscriber(
     provide them using the core_override parameter.
     """
     async with (
-        prepare_core_with_override(
+        prepare_aem_pack_registry_with_override(
             config=config, core_override=core_override
         ) as aem_pack_registry,
         KafkaEventPublisher.construct(config=config) as dlq_publisher,

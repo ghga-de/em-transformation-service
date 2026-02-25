@@ -1,0 +1,30 @@
+# Invalid: Route references non-existent output model
+models:
+  - name: ingress_model
+    description: Ingress model
+    is_ingress: true
+    version: "1.0.0"
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        TestClass:
+          id:
+            propertyName: id
+          content:
+            type: object
+    publish: true
+
+workflows:
+  - name: test_workflow
+    description: Test workflow
+    workflow:
+      operations:
+        - name: delete_class
+          description: Delete class operation
+          args: {}
+
+routes:
+  - name: "ingress_model:test_workflow:nonexistent_model"
+    input_model_name: ingress_model
+    workflow_name: test_workflow
+    output_model_name: nonexistent_model
