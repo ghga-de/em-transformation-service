@@ -16,17 +16,16 @@
 """Tests for config manager and comparison functions."""
 
 import json
-from contextlib import nullcontext
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
 
 from ets.core.models import (
     ComparisonResultChanged,
     ComparisonResultUnchanged,
     Model,
 )
+from ets.core.trans_config_loader import TransConfigFileLoader
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import BASE_DIR
 
@@ -35,38 +34,18 @@ CONFIG_DIR = BASE_DIR / "input_configs" / "manager"
 INVALID_CONFIG_DIR = CONFIG_DIR / "invalid"
 VALID_CONFIG_DIR = CONFIG_DIR / "valid"
 
-BASIC_TEST_CONFIG_PATH = VALID_CONFIG_DIR / "basic_test_config.yaml"
-EXTENDED_TEST_CONFIG_PATH = VALID_CONFIG_DIR / "test_config.yaml"
-INVALID_TEST_CONFIG_PATH = INVALID_CONFIG_DIR / "invalid_config.yaml"
+BASIC_TEST_CONFIG_PATH = VALID_CONFIG_DIR / "basic_config.yaml"
+EXTENDED_TEST_CONFIG_PATH = VALID_CONFIG_DIR / "large_config.yaml"
+INVALID_TEST_CONFIG_PATH = INVALID_CONFIG_DIR / "without_routes.yaml"
 
 MOCK_JSON_PATH = BASE_DIR / "mock.schemapack.json"
 
 with MOCK_JSON_PATH.open("r") as file:
     MOCK_SCHEMA = json.load(file)
 
+loader = TransConfigFileLoader()
+
 pytestmark = pytest.mark.asyncio()
-
-
-@pytest.mark.parametrize(
-    "config_path,should_pass",
-    [
-        (BASIC_TEST_CONFIG_PATH, True),
-        (EXTENDED_TEST_CONFIG_PATH, True),
-        (INVALID_TEST_CONFIG_PATH, False),
-    ],
-)
-async def test_loading_configs(
-    config_path: Path, should_pass: bool, joint_fixture: JointFixture
-) -> None:
-    """Test loading the config from a yaml file and comparing with no previous data persisted."""
-    config_manager = joint_fixture.config_manager
-    # directly patch instance attribute for now, find a better way once everything is
-    # wired correctly
-    config_manager.config_path = config_path  # type: ignore
-    with nullcontext() if should_pass else pytest.raises(ValidationError):
-        result = await config_manager.compare_configs()
-    if should_pass:
-        assert isinstance(result, ComparisonResultChanged)
 
 
 @pytest.mark.parametrize(
@@ -75,6 +54,10 @@ async def test_loading_configs(
         (BASIC_TEST_CONFIG_PATH, BASIC_TEST_CONFIG_PATH, False),
         (BASIC_TEST_CONFIG_PATH, EXTENDED_TEST_CONFIG_PATH, True),
     ],
+    ids=[
+        "basic_vs_basic_unchanged",
+        "basic_vs_extended_changed",
+    ],
 )
 async def test_load_and_compare(
     changed: bool,
@@ -82,11 +65,13 @@ async def test_load_and_compare(
     old_config_path: Path,
     joint_fixture: JointFixture,
 ):
-    """Test loading the config from a yaml file and comparing with previous data populated from old_config_path."""
+    """Test loading the config from a yaml file and comparing with previous data
+    populated from old_config_path.
+    """
     config_manager = joint_fixture.config_manager
     # directly patch instance attribute for now, find a better way once everything is
     # wired correctly
-    config_manager.config_path = old_config_path  # type: ignore
+    config_manager.raw_config = loader.load_config_from_file(old_config_path)  # type: ignore
     result = await config_manager.compare_configs()
 
     # Populate DB from config, mocking some fields to conform to DTO
@@ -108,7 +93,7 @@ async def test_load_and_compare(
     for workflow in result.workflows:
         await joint_fixture.daos.workflow_dao.insert(workflow)
 
-    config_manager.config_path = new_config_path  # type: ignore
+    config_manager.raw_config = loader.load_config_from_file(new_config_path)  # type: ignore
     result = await config_manager.compare_configs()
     assert (
         isinstance(result, ComparisonResultChanged)

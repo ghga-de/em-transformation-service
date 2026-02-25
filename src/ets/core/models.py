@@ -223,6 +223,16 @@ class ComparisonResultBase(BaseModel):
 class ComparisonResultChanged(ComparisonResultBase):
     """For changed configs, the new, raw models are returned."""
 
+    models: list[RawModel] = Field(
+        default=...,
+        description="Contains the new models.",
+    )
+
 
 class ComparisonResultUnchanged(ComparisonResultBase):
     """For unchanged configs, the persisted models are returned."""
+
+    models: list[Model] = Field(
+        default=...,
+        description="Contains the existing, persisted models.",
+    )

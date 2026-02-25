@@ -5,4 +5,4 @@ mongo_dsn: "mongodb://mongodb:27017"
 db_name: "dev"
 kafka_enable_dlq: True
 aem_pack_upsert_topic: aem_pack_upsert
-input_config_path: basic_test_config.yaml
+input_config_path: tests/fixtures/input_configs/manager/valid/basic_config.yaml
