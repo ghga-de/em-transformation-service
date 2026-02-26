@@ -21,51 +21,41 @@ import pytest
 
 from ets.core.config_validator import ConfigValidator
 from ets.ports.inbound.config_validator import ConfigValidationError
-from ets.ports.outbound.config_loader import ConfigurationLoaderError
+from tests.fixtures.examples import (
+    INVALID_ON_VALIDATION_CONFIGS,
+    VALID_CONFIGS,
+)
 from tests.fixtures.joint import JointFixture
-from tests.fixtures.utils import BASE_DIR
-
-CONFIG_DIR = BASE_DIR / "input_configs"
-
-VALID_BASELINE_CONFIGS = CONFIG_DIR / "manager" / "valid"
-INVALID_VALIDATOR_CONFIGS = CONFIG_DIR / "validator" / "invalid"
 
 
-class TestConfigValidator:
-    """Test suite for ConfigValidator."""
+@pytest.fixture
+def validator():
+    """Fixture to provide a ConfigValidator instance for testing."""
+    return ConfigValidator()
 
-    def setup_method(self):
-        """Set up test validator."""
-        self.validator = ConfigValidator()
 
-    @pytest.mark.parametrize(
-        "config_path",
-        [INVALID_VALIDATOR_CONFIGS / "invalid_model_schema.yaml"],
-    )
-    def test_incomplete_schema(self, config_path: Path, joint_fixture: JointFixture):
-        """Check incorrectly specified SchemaPack raises ValidationError."""
-        with pytest.raises(ConfigurationLoaderError):
-            joint_fixture.loader.load_config_from_file(config_path)
+@pytest.mark.parametrize(
+    "path",
+    INVALID_ON_VALIDATION_CONFIGS.values(),
+    ids=INVALID_ON_VALIDATION_CONFIGS.keys(),
+)
+def test_invalid_config(
+    path: Path, joint_fixture: JointFixture, validator: ConfigValidator
+):
+    """Check invalid configs raise ConfigValidationError."""
+    changed_config = joint_fixture.loader.load_config_from_file(path)
+    with pytest.raises(ConfigValidationError):
+        validator.validate(changed_config)
 
-    @pytest.mark.parametrize(
-        "config_path",
-        [
-            config
-            for config in sorted(INVALID_VALIDATOR_CONFIGS.iterdir())
-            if config.name != "invalid_model_schema.yaml"
-        ],
-    )
-    def test_invalid_config(self, config_path: Path, joint_fixture: JointFixture):
-        """Check invalid configs raise ConfigValidationError."""
-        changed_config = joint_fixture.loader.load_config_from_file(config_path)
-        with pytest.raises(ConfigValidationError):
-            self.validator.validate(changed_config)
 
-    @pytest.mark.parametrize(
-        "config_path",
-        sorted(VALID_BASELINE_CONFIGS.iterdir()),
-    )
-    def test_valid_config(self, config_path: Path, joint_fixture: JointFixture):
-        """Check valid config passes validation without errors."""
-        changed_config = joint_fixture.loader.load_config_from_file(config_path)
-        self.validator.validate(changed_config)
+@pytest.mark.parametrize(
+    "path",
+    VALID_CONFIGS.values(),
+    ids=VALID_CONFIGS.keys(),
+)
+def test_valid_config(
+    path: Path, joint_fixture: JointFixture, validator: ConfigValidator
+):
+    """Check valid config passes validation without errors."""
+    changed_config = joint_fixture.loader.load_config_from_file(path)
+    validator.validate(changed_config)

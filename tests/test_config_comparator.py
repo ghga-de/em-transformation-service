@@ -15,29 +15,18 @@
 
 """Tests for config manager and comparison functions."""
 
-import json
 from pathlib import Path
 
 import pytest
 
 from ets.core.config_comparator import ConfigComparator
 from ets.core.models import Model, PersistedConfig, RawConfig
+from tests.fixtures.examples import MOCK_SCHEMA, VALID_CONFIGS
 from tests.fixtures.joint import JointFixture
-from tests.fixtures.utils import BASE_DIR
 
-CONFIG_DIR = BASE_DIR / "input_configs" / "manager"
+BASIC_TEST_CONFIG_PATH = VALID_CONFIGS["basic_config"]
+EXTENDED_TEST_CONFIG_PATH = VALID_CONFIGS["large_config"]
 
-INVALID_CONFIG_DIR = CONFIG_DIR / "invalid"
-VALID_CONFIG_DIR = CONFIG_DIR / "valid"
-
-BASIC_TEST_CONFIG_PATH = VALID_CONFIG_DIR / "basic_config.yaml"
-EXTENDED_TEST_CONFIG_PATH = VALID_CONFIG_DIR / "large_config.yaml"
-INVALID_TEST_CONFIG_PATH = INVALID_CONFIG_DIR / "without_routes.yaml"
-
-MOCK_JSON_PATH = BASE_DIR / "mock.schemapack.json"
-
-with MOCK_JSON_PATH.open("r") as file:
-    MOCK_SCHEMA = json.load(file)
 
 pytestmark = pytest.mark.asyncio()
 
