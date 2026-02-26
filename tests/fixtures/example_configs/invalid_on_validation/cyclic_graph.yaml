@@ -1,0 +1,51 @@
+# Invalid: Route graph contains a cycle (A -> B -> C -> A)
+models:
+  - name: model_a
+    description: Model A
+    is_ingress: true
+    version: "1.0.0"
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        Class_A:
+          id:
+            propertyName: id
+          content:
+            type: object
+    publish: false
+
+  - name: model_b
+    description: Model B
+    is_ingress: false
+    version: "1.0.0"
+    schema_: null
+    publish: false
+
+  - name: model_c
+    description: Model C
+    is_ingress: false
+    version: "1.0.0"
+    schema_: null
+    publish: false
+
+# Mock workflow with a simple delete_class operation for testing
+workflows:
+  - name: workflow_1
+    description: delete class
+    workflow:
+      operations:
+        - name: delete_class
+          description: Delete Class_B
+          args:
+            class_name: Class_B
+
+routes:
+  - input_model_name: model_a
+    workflow_name: workflow_1
+    output_model_name: model_b
+  - input_model_name: model_b
+    workflow_name: workflow_1
+    output_model_name: model_c
+  - input_model_name: model_c
+    workflow_name: workflow_1
+    output_model_name: model_a

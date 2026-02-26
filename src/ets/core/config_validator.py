@@ -168,10 +168,12 @@ class ConfigValidator(ConfigValidatorPort):
         """
         topological_order = self._validate_graph_and_calculate_order(raw_config)
 
-        # Buraya TODO - independent model varsa ne olacak?
-
+        # For any model, that is not referenced by the route, assign an order of 0
         ordered_models = [
-            OrderedRawModel(**model.model_dump(), order=topological_order[model.name])
+            OrderedRawModel(
+                **model.model_dump(),
+                order=topological_order.get(model.name, 0),
+            )
             for model in raw_config.models
         ]
         return ValidatedConfig(
