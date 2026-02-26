@@ -42,7 +42,7 @@ class ConfigComparator(ConfigComparatorPort):
         self.raw_config = raw_config
         self.persisted_config = persisted_config
 
-    async def compare_configs(
+    def compare_configs(
         self,
     ) -> PersistedConfig | RawConfig:
         """Compare new config with the persisted one.
