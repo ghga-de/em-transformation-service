@@ -23,7 +23,7 @@ class ComparisonMismatchError(RuntimeError):
     """Custom error type raised on any mismatch between the existing and new config."""
 
 
-class ConfigManagerPort(ABC):
+class ConfigComparatorPort(ABC):
     """Manages the comparison of the old and the new config."""
 
     @abstractmethod

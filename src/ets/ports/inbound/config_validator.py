@@ -16,7 +16,7 @@
 
 from abc import ABC, abstractmethod
 
-from ets.core.models import RawConfig
+from ets.core.models import RawConfig, ValidatedConfig
 
 
 class ConfigValidationError(RuntimeError):
@@ -27,7 +27,7 @@ class ConfigValidatorPort(ABC):
     """Inbound port for configuration validation."""
 
     @abstractmethod
-    def validate(self, raw_config: RawConfig) -> None:
+    def validate(self, raw_config: RawConfig) -> ValidatedConfig:
         """Validate new configuration loaded from yaml file.
 
         This should only be called when the loaded config does not match what has

@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from ets.core.config_manager import ConfigManager
+from ets.core.config_comparator import ConfigComparator
 from ets.core.models import Model, PersistedConfig, RawConfig
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import BASE_DIR
@@ -66,7 +66,7 @@ async def test_load_and_compare(
     persisted_config = await loader.load_config_from_db()
     first_raw_config = loader.load_config_from_file(old_config_path)
 
-    config_manager = ConfigManager(
+    config_manager = ConfigComparator(
         raw_config=first_raw_config, persisted_config=persisted_config
     )
     result = await config_manager.compare_configs()
@@ -93,7 +93,7 @@ async def test_load_and_compare(
     persisted_config = await loader.load_config_from_db()
     second_raw_config = loader.load_config_from_file(new_config_path)
     # config_manager.raw_config = second_raw_config
-    config_manager = ConfigManager(
+    config_manager = ConfigComparator(
         raw_config=second_raw_config, persisted_config=persisted_config
     )
     result = await config_manager.compare_configs()

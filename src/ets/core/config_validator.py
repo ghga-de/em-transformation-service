@@ -17,7 +17,8 @@
 from metldata import get_transformation_registry, validate_workflow_against_registry
 from metldata.workflow.exceptions import WorkflowValidationError
 
-from ets.core.models import RawConfig
+from ets.core.graph import CyclicGraphError, NonUniquePathError, get_topological_order
+from ets.core.models import OrderedRawModel, RawConfig, ValidatedConfig
 from ets.ports.inbound.config_validator import (
     ConfigValidationError,
     ConfigValidatorPort,
@@ -27,7 +28,7 @@ from ets.ports.inbound.config_validator import (
 class ConfigValidator(ConfigValidatorPort):
     """Concrete implementation of configuration validator."""
 
-    def validate(self, raw_config: RawConfig) -> None:
+    def validate(self, raw_config: RawConfig) -> ValidatedConfig:
         """Validate new configuration loaded from yaml file.
 
         This should only be called when the loaded config does not match what has
@@ -44,6 +45,7 @@ class ConfigValidator(ConfigValidatorPort):
         self._validate_routes(raw_config)
         self._validate_workflows(raw_config)
         self._validate_models(raw_config)
+        return self._validate_graph_and_add_order(raw_config)
 
     def _validate_routes(self, raw_config: RawConfig) -> None:
         """Ensure all routes have valid references and model types.
@@ -146,3 +148,54 @@ class ConfigValidator(ConfigValidatorPort):
                     " Non-ingress models must not define a schema, as it is derived from"
                     " ingress models after loading."
                 )
+
+    def _validate_graph_and_add_order(self, raw_config: RawConfig) -> ValidatedConfig:
+        """Validate the transformation graph defined by the routes and assign a topological
+         order to the models.
+
+         This method performs the following steps:
+         1. Validates that the directed graph formed by the models and routes is acyclic
+         and had unique path properties.
+         2. Computes a topological ordering of the models.
+         3. Returns a new `ValidatedConfig` object where each model is wrapped as an
+        `OrderedRawModel` with the corresponding `order` assigned.
+
+        Args:
+            raw_config: The new RawConfig containing models.
+
+        Raises:
+            ConfigValidationError: If the graph fails validation.
+        """
+        topological_order = self._validate_graph_and_calculate_order(raw_config)
+
+        # Buraya TODO - independent model varsa ne olacak?
+
+        ordered_models = [
+            OrderedRawModel(**model.model_dump(), order=topological_order[model.name])
+            for model in raw_config.models
+        ]
+        return ValidatedConfig(
+            models=ordered_models,
+            workflows=raw_config.workflows,
+            routes=raw_config.routes,
+        )
+
+    def _validate_graph_and_calculate_order(
+        self, raw_config: RawConfig
+    ) -> dict[str, int]:
+        """Validate that the graph defined by the routes meets the unique path
+        requirement and it is a directed acyclic graph (DAG).
+
+        After a successful validation, the routes are updated with the topological order.
+        """
+        # get edges from the routes
+        edges = [
+            (route.input_model_name, route.output_model_name)
+            for route in raw_config.routes
+        ]
+
+        # calculate the topological order which also validates the graph structure
+        try:
+            return get_topological_order(edges)
+        except (CyclicGraphError, NonUniquePathError) as error:
+            raise ConfigValidationError(str(error)) from error

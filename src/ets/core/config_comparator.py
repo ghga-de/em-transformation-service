@@ -27,12 +27,15 @@ from ets.core.models import (
     Route,
     Workflow,
 )
-from ets.ports.inbound.config_manager import ComparisonMismatchError, ConfigManagerPort
+from ets.ports.inbound.config_comparator import (
+    ComparisonMismatchError,
+    ConfigComparatorPort,
+)
 
 log = logging.getLogger(__name__)
 
 
-class ConfigManager(ConfigManagerPort):
+class ConfigComparator(ConfigComparatorPort):
     """Loads the config file, fetches persisted config, and compares them to detect changes."""
 
     def __init__(self, raw_config: RawConfig, persisted_config: PersistedConfig):
