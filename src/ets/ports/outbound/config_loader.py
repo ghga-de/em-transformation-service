@@ -25,7 +25,7 @@ class ConfigurationLoaderError(Exception):
     """Raised when loading the configuration fails."""
 
 
-class ConfigFileLoaderPort(ABC):
+class ConfigLoaderPort(ABC):
     """Loads the transformation config file and parses it into a RawConfig."""
 
     @abstractmethod

@@ -36,7 +36,7 @@ from ets.inject import (
     prepare_event_subscriber,
 )
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
-from ets.ports.outbound.config_loader import ConfigFileLoaderPort
+from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
 from tests.fixtures.config import get_config
 
@@ -60,7 +60,7 @@ class JointFixture:
     daos: DAOs
     event_subscriber: KafkaEventSubscriber
     kafka: KafkaFixture
-    loader: ConfigFileLoaderPort
+    loader: ConfigLoaderPort
     mongodb: MongoDbFixture
 
 

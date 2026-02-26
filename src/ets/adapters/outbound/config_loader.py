@@ -24,7 +24,7 @@ from yaml import safe_load
 
 from ets.core.models import PersistedConfig, RawConfig
 from ets.ports.outbound.config_loader import (
-    ConfigFileLoaderPort,
+    ConfigLoaderPort,
     ConfigurationLoaderError,
 )
 from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
@@ -32,7 +32,7 @@ from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 log = logging.getLogger(__name__)
 
 
-class TransConfigLoaderAdapter(ConfigFileLoaderPort):
+class ConfigLoaderAdapter(ConfigLoaderPort):
     """Adapter for loading transformation config from YAML and DB."""
 
     def __init__(
