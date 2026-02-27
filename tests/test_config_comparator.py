@@ -58,7 +58,7 @@ async def test_load_and_compare(
     config_manager = ConfigComparator(
         raw_config=first_raw_config, persisted_config=persisted_config
     )
-    result = await config_manager.compare_configs()
+    result = config_manager.compare_configs()
 
     # Populate DB from config, mocking some fields to conform to DTO
     for order, raw_model in enumerate(result.models):
@@ -85,7 +85,7 @@ async def test_load_and_compare(
     config_manager = ConfigComparator(
         raw_config=second_raw_config, persisted_config=persisted_config
     )
-    result = await config_manager.compare_configs()
+    result = config_manager.compare_configs()
     assert (
         isinstance(result, RawConfig)
         if changed
