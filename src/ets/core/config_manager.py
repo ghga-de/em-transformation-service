@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 
 
 class ConfigManager(ConfigManagerPort):
-    """Manages loading, comparison, validation and selection of an active config operations."""
+    """Manages loading, comparison, validation and selection of an active config."""
 
     def __init__(
         self, validator: ConfigValidatorPort, comparator: ConfigComparatorPort
