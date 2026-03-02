@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 from ets.core.models import PersistedConfig, ValidatedConfig
 
 
-class ConfigManagerError(Exception):
+class ConfigManagerError(RuntimeError):
     """Raised when an unexpected error happens while handling the transformation configurations."""
 
 
