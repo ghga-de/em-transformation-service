@@ -44,12 +44,11 @@ async def prepare_config_loader(*, config: Config) -> AsyncGenerator[ConfigLoade
         model_dao = await dao.get_persisted_model_dao(dao_factory=dao_factory)
         route_dao = await dao.get_route_dao(dao_factory=dao_factory)
         workflow_dao = await dao.get_workflow_dao(dao_factory=dao_factory)
-        config_loader: ConfigLoaderPort = ConfigLoaderAdapter(
+        yield ConfigLoaderAdapter(
             model_dao=model_dao,
             route_dao=route_dao,
             workflow_dao=workflow_dao,
-        )
-        yield config_loader
+)
 
 
 @asynccontextmanager
