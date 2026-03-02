@@ -45,14 +45,10 @@ class ConfigManager(ConfigManagerPort):
         - If they are the same, return the persisted config
         """
         # compare configs
-        comparison_result = self.comparator.compare_configs()
-
-        if isinstance(comparison_result, RawConfig):
-            # validate new config
-            return self.validator.validate(comparison_result)
-        elif isinstance(comparison_result, PersistedConfig):
-            return comparison_result
-        else:
-            raise ConfigManagerError(
-                "An unexpected error happened while handling the transformation configurations."
+        match self.comparator.compare_configs():
+            case RawConfig() as raw_config:
+                # validate new config
+                return self.validator.validate(raw_config)
+            case PersistedConfig() as persisted_config:
+                return persisted_config
             )
