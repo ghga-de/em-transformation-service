@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 
 
 class ConfigComparator(ConfigComparatorPort):
-    """Loads the config file, fetches persisted config, and compares them to detect changes."""
+    """Compares new config with the persisted one to detect changes."""
 
     def __init__(self, raw_config: RawConfig, persisted_config: PersistedConfig):
         self.raw_config = raw_config
