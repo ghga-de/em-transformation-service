@@ -25,7 +25,7 @@ CONFIG_DIR = BASE_DIR / "example_configs"
 VALID_CONFIG_DIR = CONFIG_DIR / "valid"
 INVALID_CONFIG_DIR = CONFIG_DIR / "invalid_on_validation"
 
-INVALID_ON_LOADING_CONFIG_DIR = CONFIG_DIR / "invalid_on_loading"
+INVALID_ON_LOAD_CONFIG_DIR = CONFIG_DIR / "invalid_on_loading"
 
 MOCK_JSON_PATH = BASE_DIR / "mock.schemapack.json"
 
@@ -49,6 +49,6 @@ def read_mock_schema(path: Path) -> dict:
 
 VALID_CONFIGS = list_examples_in_dir(VALID_CONFIG_DIR)
 INVALID_ON_VALIDATION_CONFIGS = list_examples_in_dir(INVALID_CONFIG_DIR)
-INVALID_ON_LOADING_CONFIGS = list_examples_in_dir(INVALID_ON_LOADING_CONFIG_DIR)
+INVALID_ON_LOAD_CONFIGS = list_examples_in_dir(INVALID_ON_LOAD_CONFIG_DIR)
 
 MOCK_SCHEMA = read_mock_schema(MOCK_JSON_PATH)

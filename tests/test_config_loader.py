@@ -21,7 +21,7 @@ import pytest
 
 from ets.ports.outbound.config_loader import ConfigurationLoaderError
 from tests.fixtures.examples import (
-    INVALID_ON_LOADING_CONFIGS,
+    INVALID_ON_LOAD_CONFIGS,
     INVALID_ON_VALIDATION_CONFIGS,
     VALID_CONFIGS,
 )
@@ -48,8 +48,8 @@ def test_load_config_happy(path: Path, joint_fixture: JointFixture):
 
 @pytest.mark.parametrize(
     "path",
-    INVALID_ON_LOADING_CONFIGS.values(),
-    ids=INVALID_ON_LOADING_CONFIGS.keys(),
+    INVALID_ON_LOAD_CONFIGS.values(),
+    ids=INVALID_ON_LOAD_CONFIGS.keys(),
 )
 def test_error_on_loading(path: Path, joint_fixture: JointFixture):
     """Check structural errors in the transformation config triggers ConfigurationLoaderError."""
