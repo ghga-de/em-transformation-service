@@ -51,13 +51,17 @@ class ConfigComparator(ConfigComparatorPort):
             RawConfig: when the configs differ, containing the new models, routes, and workflows.
             PersistedConfig: when the configs are equal, containing the persisted models, routes, and workflows.
         """
-        old_models = self.persisted_config.models
-        old_routes = self.persisted_config.routes
-        old_workflows = self.persisted_config.workflows
+        old_models = sorted(self.persisted_config.models, key=lambda model: model.name)
+        old_routes = sorted(self.persisted_config.routes, key=lambda route: route.name)
+        old_workflows = sorted(
+            self.persisted_config.workflows, key=lambda workflow: workflow.name
+        )
 
-        new_models = self.raw_config.models
-        new_routes = self.raw_config.routes
-        new_workflows = self.raw_config.workflows
+        new_models = sorted(self.raw_config.models, key=lambda model: model.name)
+        new_routes = sorted(self.raw_config.routes, key=lambda route: route.name)
+        new_workflows = sorted(
+            self.raw_config.workflows, key=lambda workflow: workflow.name
+        )
 
         try:
             log.info("Comparing models.")

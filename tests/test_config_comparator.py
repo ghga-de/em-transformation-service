@@ -28,9 +28,7 @@ BASIC_TEST_CONFIG_PATH = VALID_CONFIGS["basic_config"]
 EXTENDED_TEST_CONFIG_PATH = VALID_CONFIGS["large_config"]
 
 
-pytestmark = pytest.mark.asyncio()
-
-
+@pytest.mark.asyncio()
 @pytest.mark.parametrize(
     "new_config_path,old_config_path,changed",
     [
@@ -91,3 +89,35 @@ async def test_load_and_compare(
         if changed
         else isinstance(result, PersistedConfig)
     )
+
+
+def test_compare_is_order_insensitive(joint_fixture: JointFixture):
+    """Ensure list ordering does not affect config comparison outcome."""
+    raw_config = joint_fixture.loader.load_config_from_file(BASIC_TEST_CONFIG_PATH)
+
+    persisted_models: list[Model] = []
+    for order, raw_model in enumerate(raw_config.models):
+        model_dict = raw_model.model_dump()
+        if not model_dict["schema_"]:
+            model_dict["schema_"] = MOCK_SCHEMA
+        model_dict["order"] = order
+        persisted_models.append(Model.model_validate(model_dict))
+
+    persisted_config = PersistedConfig(
+        models=list(reversed(persisted_models)),
+        routes=list(reversed(raw_config.routes)),
+        workflows=list(reversed(raw_config.workflows)),
+    )
+
+    reordered_raw_config = RawConfig(
+        models=raw_config.models,
+        routes=raw_config.routes,
+        workflows=raw_config.workflows,
+    )
+
+    result = ConfigComparator(
+        raw_config=reordered_raw_config,
+        persisted_config=persisted_config,
+    ).compare_configs()
+
+    assert isinstance(result, PersistedConfig)
