@@ -103,21 +103,21 @@ def test_compare_is_order_insensitive(joint_fixture: JointFixture):
         model_dict["order"] = order
         persisted_models.append(Model.model_validate(model_dict))
 
-    persisted_config = PersistedConfig(
+    reordered_persisted_config = PersistedConfig(
         models=list(reversed(persisted_models)),
         routes=list(reversed(raw_config.routes)),
         workflows=list(reversed(raw_config.workflows)),
     )
 
-    reordered_raw_config = RawConfig(
+    raw_config = RawConfig(
         models=raw_config.models,
         routes=raw_config.routes,
         workflows=raw_config.workflows,
     )
 
     result = ConfigComparator(
-        raw_config=reordered_raw_config,
-        persisted_config=persisted_config,
+        raw_config=raw_config,
+        persisted_config=reordered_persisted_config,
     ).compare_configs()
 
     assert isinstance(result, PersistedConfig)
