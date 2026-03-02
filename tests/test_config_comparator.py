@@ -82,7 +82,7 @@ async def test_load_and_compare(
     persisted_config = await loader.load_config_from_db()
     second_raw_config = loader.load_config_from_file(new_config_path)
     # config_manager.raw_config = second_raw_config
-    config_manager = ConfigComparator(
+    config_comparator = ConfigComparator(
         raw_config=second_raw_config, persisted_config=persisted_config
     )
     result = config_manager.compare_configs()
