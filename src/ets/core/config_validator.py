@@ -172,7 +172,7 @@ class ConfigValidator(ConfigValidatorPort):
         ordered_models = [
             OrderedRawModel(
                 **model.model_dump(),
-                order=topological_order.get(model.name, 0),
+                order=topological_order.get(model.name, -1),
             )
             for model in raw_config.models
         ]
