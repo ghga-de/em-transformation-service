@@ -168,7 +168,7 @@ class ConfigValidator(ConfigValidatorPort):
         """
         topological_order = self._validate_graph_and_calculate_order(raw_config)
 
-        # For any model, that is not referenced by the route, assign an order of 0
+        # For any model, that is not referenced by any route, assign an order of 0
         ordered_models = [
             OrderedRawModel(
                 **model.model_dump(),
