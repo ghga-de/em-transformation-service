@@ -29,6 +29,17 @@ from tests.fixtures.joint import JointFixture
 
 # As long as there is structural integrity of the workflow config,
 # it will be valid on loading
+
+# Check for overlapping keys
+overlapping_keys = INVALID_ON_VALIDATION_CONFIGS.keys() & VALID_CONFIGS.keys()
+if overlapping_keys:
+    raise ValueError(
+        "Duplicate config IDs across INVALID_ON_VALIDATION_CONFIGS and VALID_CONFIGS: "
+        f"{sorted(overlapping_keys)}"
+        "Invalid configs must be prefixed with the name of the invalid component, "
+        "e.g. 'invalid_model_...'"
+    )
+
 VALID_ON_LOAD_CONFIGS = INVALID_ON_VALIDATION_CONFIGS | VALID_CONFIGS
 
 
