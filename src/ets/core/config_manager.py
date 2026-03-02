@@ -19,7 +19,7 @@ import logging
 
 from ets.core.models import PersistedConfig, RawConfig, ValidatedConfig
 from ets.ports.inbound.config_comparator import ConfigComparatorPort
-from ets.ports.inbound.config_manager import ConfigManagerError, ConfigManagerPort
+from ets.ports.inbound.config_manager import ConfigManagerPort
 from ets.ports.inbound.config_validator import ConfigValidatorPort
 
 log = logging.getLogger(__name__)
@@ -51,4 +51,3 @@ class ConfigManager(ConfigManagerPort):
                 return self.validator.validate(raw_config)
             case PersistedConfig() as persisted_config:
                 return persisted_config
-            )
