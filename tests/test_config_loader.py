@@ -15,48 +15,54 @@
 
 """Test transformation config loading."""
 
-import json
 from pathlib import Path
 
 import pytest
 
-from ets.core.config_loader import ConfigurationLoaderError
+from ets.ports.outbound.config_loader import ConfigurationLoaderError
+from tests.fixtures.examples import (
+    INVALID_ON_LOAD_CONFIGS,
+    INVALID_ON_VALIDATION_CONFIGS,
+    VALID_CONFIGS,
+)
 from tests.fixtures.joint import JointFixture
-from tests.fixtures.utils import BASE_DIR
 
-CONFIG_DIR = BASE_DIR / "input_configs" / "manager"
+# As long as there is structural integrity of the workflow config,
+# it will be valid on loading
 
-INVALID_CONFIG_DIR = CONFIG_DIR / "invalid"
-VALID_CONFIG_DIR = CONFIG_DIR / "valid"
+# Check for overlapping keys
+overlapping_keys = INVALID_ON_VALIDATION_CONFIGS.keys() & VALID_CONFIGS.keys()
+if overlapping_keys:
+    raise ValueError(
+        "Duplicate config IDs across INVALID_ON_VALIDATION_CONFIGS and VALID_CONFIGS: "
+        f"{sorted(overlapping_keys)}"
+        "Invalid configs must be prefixed with the name of the invalid component, "
+        "e.g. 'invalid_model_...'"
+    )
 
-BASIC_TEST_CONFIG_PATH = VALID_CONFIG_DIR / "basic_config.yaml"
-EXTENDED_TEST_CONFIG_PATH = VALID_CONFIG_DIR / "large_config.yaml"
-INVALID_TEST_CONFIG_PATH = INVALID_CONFIG_DIR / "without_routes.yaml"
-
-MOCK_JSON_PATH = BASE_DIR / "mock.schemapack.json"
-
-with MOCK_JSON_PATH.open("r") as file:
-    MOCK_SCHEMA = json.load(file)
+VALID_ON_LOAD_CONFIGS = INVALID_ON_VALIDATION_CONFIGS | VALID_CONFIGS
 
 
 @pytest.mark.parametrize(
-    "config_path,should_pass",
-    [
-        (BASIC_TEST_CONFIG_PATH, True),
-        (EXTENDED_TEST_CONFIG_PATH, True),
-        (INVALID_TEST_CONFIG_PATH, False),
-    ],
+    "path",
+    VALID_ON_LOAD_CONFIGS.values(),
+    ids=VALID_ON_LOAD_CONFIGS.keys(),
 )
-def test_load_config(
-    config_path: Path, should_pass: bool, joint_fixture: JointFixture
-) -> None:
+def test_load_config_happy(path: Path, joint_fixture: JointFixture):
     """Test loading RawConfig from a transformation config file."""
     loader = joint_fixture.loader
-    if should_pass:
-        raw_config = loader.load_config_from_file(config_path)
-        assert raw_config.models
-        assert raw_config.routes
-        assert raw_config.workflows
-    else:
-        with pytest.raises(ConfigurationLoaderError):
-            loader.load_config_from_file(config_path)
+    raw_config = loader.load_config_from_file(path)
+    assert raw_config.models
+    assert raw_config.routes
+    assert raw_config.workflows
+
+
+@pytest.mark.parametrize(
+    "path",
+    INVALID_ON_LOAD_CONFIGS.values(),
+    ids=INVALID_ON_LOAD_CONFIGS.keys(),
+)
+def test_error_on_loading(path: Path, joint_fixture: JointFixture):
+    """Check structural errors in the transformation config triggers ConfigurationLoaderError."""
+    with pytest.raises(ConfigurationLoaderError):
+        joint_fixture.loader.load_config_from_file(path)

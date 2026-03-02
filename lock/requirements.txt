@@ -73,23 +73,23 @@ attrs==25.4.0 \
     #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
-boto3==1.42.56 \
-    --hash=sha256:8b0779431b349582f4d61b55a2858b943d5295f4b5de62e2d669fdbbcda96bd6 \
-    --hash=sha256:e09f91170b19e0ecd5e514321d99323be3e91a58dfa73fd58cf73b7b8b179c84
+boto3==1.42.58 \
+    --hash=sha256:1bc5ff0b7a1a3f42b115481e269e1aada1d68bbfa80a989ac2882d51072907a3 \
+    --hash=sha256:3a21b5bbc8bf8d6472a7ae7bdc77819b1f86f35d127f428f4603bed1b98122c0
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit
-botocore==1.42.56 \
-    --hash=sha256:111089dea212438a5197e909e5b528e7c30fd8cbd02c8c7d469359b368929343 \
-    --hash=sha256:b1d7d3cf2fbe4cc1804a6567a051fc7141d21bcdcfde0336257b8dd2085272c2
+botocore==1.42.58 \
+    --hash=sha256:3098178f4404cf85c8997ebb7948b3f267cff1dd191b08fc4ebb614ac1013a20 \
+    --hash=sha256:55224d6a91afae0997e8bee62d1ef1ae2dcbc6c210516939b32a774b0b35bec5
     # via
     #   -c lock/requirements-dev.txt
     #   boto3
     #   hexkit
     #   s3transfer
-certifi==2026.1.4 \
-    --hash=sha256:9943707519e4add1115f44c2bc244f782c0249876bf51b6599fee1ffbedd685c \
-    --hash=sha256:ac726dd470482006e014ad384921ed6438c457018f4b3d204aea4281258b2120
+certifi==2026.2.25 \
+    --hash=sha256:027692e4402ad994f1c42e52a4997a9763c646b73e4096e4d5d6db8af1d6f0fa \
+    --hash=sha256:e887ab5cee78ea814d3472169153c2d12cd43b14bd03329a39a9c6e2e80bfba7
     # via
     #   -c lock/requirements-dev.txt
     #   httpcore
@@ -251,9 +251,9 @@ email-validator==2.3.0 \
     # via
     #   -c lock/requirements-dev.txt
     #   pydantic
-fastapi==0.133.0 \
-    --hash=sha256:0a78878483d60702a1dde864c24ab349a1a53ef4db6b6f74f8cd4a2b2bc67d2f \
-    --hash=sha256:b900a2bf5685cdb0647a41d5900bdeafc3a9e8a28ac08c6246b76699e164d60d
+fastapi==0.133.1 \
+    --hash=sha256:658f34ba334605b1617a65adf2ea6461901bdb9af3a3080d63ff791ecf7dc2e2 \
+    --hash=sha256:ed152a45912f102592976fde6cbce7dae1a8a1053da94202e51dd35d184fadd6
     # via
     #   -c lock/requirements-dev.txt
     #   ghga-service-commons

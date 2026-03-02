@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Module for loading and parsing the transformation config file."""
+"""Outbound adapter for loading and parsing the transformation config file."""
 
 import logging
 from pathlib import Path
@@ -24,7 +24,7 @@ from yaml import safe_load
 
 from ets.core.models import PersistedConfig, RawConfig
 from ets.ports.outbound.config_loader import (
-    ConfigFileLoaderPort,
+    ConfigLoaderPort,
     ConfigurationLoaderError,
 )
 from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
@@ -32,8 +32,8 @@ from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 log = logging.getLogger(__name__)
 
 
-class ConfigFileLoader(ConfigFileLoaderPort):
-    """Loads the transformation config file and parses it into a RawConfig."""
+class ConfigLoaderAdapter(ConfigLoaderPort):
+    """Adapter for loading transformation config from YAML and DB."""
 
     def __init__(
         self, *, model_dao: ModelDao, route_dao: RouteDao, workflow_dao: WorkflowDao
@@ -81,9 +81,5 @@ class ConfigFileLoader(ConfigFileLoaderPort):
         workflows = [
             workflow async for workflow in self.workflow_dao.find_all(mapping={})
         ]
-
-        models = sorted(models, key=lambda model: model.name)
-        routes = sorted(routes, key=lambda route: route.name)
-        workflows = sorted(workflows, key=lambda workflow: workflow.name)
 
         return PersistedConfig(models=models, routes=routes, workflows=workflows)

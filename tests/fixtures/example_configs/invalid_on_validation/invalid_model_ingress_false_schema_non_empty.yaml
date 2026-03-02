@@ -1,0 +1,73 @@
+# invalid config since a non-ingress model has a defined schema_
+models:
+  - name: model_a
+    description: Ingress model
+    is_ingress: true
+    version: "1.0.0"
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        Class_A:
+          id:
+            propertyName: id
+          content:
+            $schema: "https://json-schema.org/draft/2020-12/schema"
+            additionalProperties: true
+            description: "Matching any object."
+            type: object
+    publish: false
+
+  - name: model_b
+    description: Another model
+    is_ingress: false # <-
+    version: "2.0.0"
+    schema_: # <-
+      schemapack: "4.0.0"
+      classes:
+        Class_B:
+          id:
+            propertyName: id
+          content:
+            $schema: "https://json-schema.org/draft/2020-12/schema"
+            additionalProperties: true
+            description: "Matching any object."
+            type: object
+    publish: false
+
+  - name: model_c
+    description: Another model with publish true
+    is_ingress: false
+    version: "3.0.0"
+    schema_: null
+    publish: true
+
+
+workflows:
+  - name: workflow_1
+    description: duplicate class
+    workflow:
+      operations:
+        - name: duplicate_class
+          description: Duplicate Class_A
+          args:
+            source_class_name: Class_A
+            target_class_name: Class_C
+  - name: workflow_2
+    description: duplicate class
+    workflow:
+      operations:
+        - name: duplicate_class
+          description: Duplicate Class_B
+          args:
+            source_class_name: Class_B
+            target_class_name: Class_D
+
+routes:
+  - input_model_name: model_a
+    workflow_name: workflow_1
+    output_model_name: model_b
+
+
+  - input_model_name: model_b
+    workflow_name: workflow_2
+    output_model_name: model_c

@@ -74,6 +74,15 @@ class RawModel(ModelBase):
         return json.loads(v.model_dump_json()) if v is not None else None
 
 
+class OrderedRawModel(RawModel):
+    """Describes the validated transformation configuration for models."""
+
+    order: int = Field(
+        default=...,
+        description="Topological order of the schema in the transformation graph.",
+    )
+
+
 class Model(ModelBase):
     """Describes a model after resolving the topological ordering and deriving the schemas."""
 
@@ -206,6 +215,22 @@ class RawConfig(ConfigBase):
         default=...,
         description="List of raw models defining the transformation graph.",
     )
+
+
+class ValidatedConfig(BaseModel):
+    """Describes the validated transformation configuration.
+    It captures the state after the config validation, before the model derivation and
+    schema generation.
+    """
+
+    models: list[OrderedRawModel] = Field(
+        default=..., description="Validated models with topological order."
+    )
+    routes: list[Route] = Field(
+        default=...,
+        description="Validated routes with consistent naming and references.",
+    )
+    workflows: list[Workflow] = Field(default=..., description="Validated workflows.")
 
 
 class PersistedConfig(ConfigBase):

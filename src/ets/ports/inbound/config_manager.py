@@ -12,26 +12,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Contains functionality to load and compare service config."""
+
+"""Interface for managing transformation config related operations."""
 
 from abc import ABC, abstractmethod
 
-from ets.core.models import PersistedConfig, RawConfig
+from ets.core.models import PersistedConfig, ValidatedConfig
 
 
-class ComparisonMismatchError(RuntimeError):
-    """Custom error type raised on any mismatch between the existing and new config."""
+class ConfigManagerError(RuntimeError):
+    """Raised when an unexpected error happens while handling the transformation configurations."""
 
 
 class ConfigManagerPort(ABC):
-    """Manages the comparison of the old and the new config."""
+    """Port for managing transformation config related operations."""
 
     @abstractmethod
-    async def compare_configs(
-        self,
-    ) -> PersistedConfig | RawConfig:
-        """Compare new config with the persisted one.
-        Returns:
-                RawConfig: when the configs differ, containing the new models, routes, and workflows.
-                PersistedConfig: when the configs are equal, containing the persisted models, routes, and workflows.
+    def resolve_transformation_config(self) -> PersistedConfig | ValidatedConfig:
+        """Resolve the given transformation config.
+
+        This includes:
+        - Comparing raw config with the persisted config
+        - If they differ, validate the raw config and return it for further processing
+        - If they are the same, return the persisted config
         """

@@ -15,33 +15,20 @@
 
 """Tests for config manager and comparison functions."""
 
-import json
 from pathlib import Path
 
 import pytest
 
-from ets.core.config_manager import ConfigManager
+from ets.core.config_comparator import ConfigComparator
 from ets.core.models import Model, PersistedConfig, RawConfig
+from tests.fixtures.examples import MOCK_SCHEMA, VALID_CONFIGS
 from tests.fixtures.joint import JointFixture
-from tests.fixtures.utils import BASE_DIR
 
-CONFIG_DIR = BASE_DIR / "input_configs" / "manager"
-
-INVALID_CONFIG_DIR = CONFIG_DIR / "invalid"
-VALID_CONFIG_DIR = CONFIG_DIR / "valid"
-
-BASIC_TEST_CONFIG_PATH = VALID_CONFIG_DIR / "basic_config.yaml"
-EXTENDED_TEST_CONFIG_PATH = VALID_CONFIG_DIR / "large_config.yaml"
-INVALID_TEST_CONFIG_PATH = INVALID_CONFIG_DIR / "without_routes.yaml"
-
-MOCK_JSON_PATH = BASE_DIR / "mock.schemapack.json"
-
-with MOCK_JSON_PATH.open("r") as file:
-    MOCK_SCHEMA = json.load(file)
-
-pytestmark = pytest.mark.asyncio()
+BASIC_TEST_CONFIG_PATH = VALID_CONFIGS["basic_config"]
+EXTENDED_TEST_CONFIG_PATH = VALID_CONFIGS["large_config"]
 
 
+@pytest.mark.asyncio()
 @pytest.mark.parametrize(
     "new_config_path,old_config_path,changed",
     [
@@ -66,10 +53,10 @@ async def test_load_and_compare(
     persisted_config = await loader.load_config_from_db()
     first_raw_config = loader.load_config_from_file(old_config_path)
 
-    config_manager = ConfigManager(
+    config_comparator = ConfigComparator(
         raw_config=first_raw_config, persisted_config=persisted_config
     )
-    result = await config_manager.compare_configs()
+    result = config_comparator.compare_configs()
 
     # Populate DB from config, mocking some fields to conform to DTO
     for order, raw_model in enumerate(result.models):
@@ -93,12 +80,44 @@ async def test_load_and_compare(
     persisted_config = await loader.load_config_from_db()
     second_raw_config = loader.load_config_from_file(new_config_path)
     # config_manager.raw_config = second_raw_config
-    config_manager = ConfigManager(
+    config_comparator = ConfigComparator(
         raw_config=second_raw_config, persisted_config=persisted_config
     )
-    result = await config_manager.compare_configs()
+    result = config_comparator.compare_configs()
     assert (
         isinstance(result, RawConfig)
         if changed
         else isinstance(result, PersistedConfig)
     )
+
+
+def test_compare_is_order_insensitive(joint_fixture: JointFixture):
+    """Ensure list ordering does not affect config comparison outcome."""
+    raw_config = joint_fixture.loader.load_config_from_file(BASIC_TEST_CONFIG_PATH)
+
+    persisted_models: list[Model] = []
+    for order, raw_model in enumerate(raw_config.models):
+        model_dict = raw_model.model_dump()
+        if not model_dict["schema_"]:
+            model_dict["schema_"] = MOCK_SCHEMA
+        model_dict["order"] = order
+        persisted_models.append(Model.model_validate(model_dict))
+
+    reordered_persisted_config = PersistedConfig(
+        models=list(reversed(persisted_models)),
+        routes=list(reversed(raw_config.routes)),
+        workflows=list(reversed(raw_config.workflows)),
+    )
+
+    raw_config = RawConfig(
+        models=raw_config.models,
+        routes=raw_config.routes,
+        workflows=raw_config.workflows,
+    )
+
+    result = ConfigComparator(
+        raw_config=raw_config,
+        persisted_config=reordered_persisted_config,
+    ).compare_configs()
+
+    assert isinstance(result, PersistedConfig)

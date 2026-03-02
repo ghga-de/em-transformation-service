@@ -27,18 +27,16 @@ from hexkit.providers.mongodb import MongoDbDaoFactory
 
 from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound import dao
+from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
 from ets.config import Config
 from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.config_loader import ConfigFileLoader
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
-from ets.ports.outbound.config_loader import ConfigFileLoaderPort
+from ets.ports.outbound.config_loader import ConfigLoaderPort
 
 
 @asynccontextmanager
-async def prepare_config_loader(
-    *, config: Config
-) -> AsyncGenerator[ConfigFileLoaderPort]:
-    """Constructs config manager instances that can be used by the central core class.
+async def prepare_config_loader(*, config: Config) -> AsyncGenerator[ConfigLoaderPort]:
+    """Constructs config loader instances that can be used by the central core class.
 
     Factored out for better testability.
     """
@@ -46,8 +44,10 @@ async def prepare_config_loader(
         model_dao = await dao.get_persisted_model_dao(dao_factory=dao_factory)
         route_dao = await dao.get_route_dao(dao_factory=dao_factory)
         workflow_dao = await dao.get_workflow_dao(dao_factory=dao_factory)
-        yield ConfigFileLoader(
-            model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
+        yield ConfigLoaderAdapter(
+            model_dao=model_dao,
+            route_dao=route_dao,
+            workflow_dao=workflow_dao,
         )
 
 
