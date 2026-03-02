@@ -48,7 +48,7 @@ async def prepare_config_loader(*, config: Config) -> AsyncGenerator[ConfigLoade
             model_dao=model_dao,
             route_dao=route_dao,
             workflow_dao=workflow_dao,
-)
+        )
 
 
 @asynccontextmanager

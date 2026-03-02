@@ -41,15 +41,14 @@ def list_examples_in_dir(dir: Path) -> dict[str, Path]:
     return dict(sorted(examples.items()))
 
 
-VALID_CONFIGS = list_examples_in_dir(VALID_CONFIG_DIR)
-INVALID_ON_VALIDATION_CONFIGS = list_examples_in_dir(INVALID_CONFIG_DIR)
-INVALID_ON_LOADING_CONFIGS = list_examples_in_dir(INVALID_ON_LOADING_CONFIG_DIR)
-
-
 def read_mock_schema(path: Path) -> dict:
     """Read the mock schema from the json file."""
     with path.open("r") as file:
         return json.load(file)
 
+
+VALID_CONFIGS = list_examples_in_dir(VALID_CONFIG_DIR)
+INVALID_ON_VALIDATION_CONFIGS = list_examples_in_dir(INVALID_CONFIG_DIR)
+INVALID_ON_LOADING_CONFIGS = list_examples_in_dir(INVALID_ON_LOADING_CONFIG_DIR)
 
 MOCK_SCHEMA = read_mock_schema(MOCK_JSON_PATH)
