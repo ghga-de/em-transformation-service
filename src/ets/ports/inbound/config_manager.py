@@ -36,4 +36,3 @@ class ConfigManagerPort(ABC):
         - If they differ, validate the raw config and return it for further processing
         - If they are the same, return the persisted config
         """
-        pass
