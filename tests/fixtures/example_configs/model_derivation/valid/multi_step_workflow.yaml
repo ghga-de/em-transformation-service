@@ -1,0 +1,86 @@
+# Two-step workflow config: in(ingress) → out(derived) via two_step workflow.
+
+models:
+  - name: in
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: out
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
+
+workflows:
+  - name: two_step
+    description: Two-step workflow for testing schema chaining
+    workflow:
+      operations:
+        - name: transform_content
+          description: Step 1
+          args:
+            class_name: File
+            content_schema: {
+              "$schema": "http://json-schema.org/draft-07/schema#",
+              "additionalProperties": false,
+              "properties": {
+                "checksum": {"type": "string"},
+                "filename": {"type": "string"},
+                "format": {"type": "string"},
+                "size": {"type": "integer"}
+              },
+              "required": ["filename", "format", "checksum", "size"],
+              "type": "object"
+            }
+            embedding_profile: {}
+            content_template_yaml: |
+              {% for key in content_property_names %}
+                {{ key }}: {{ original[key] }}
+              {% endfor %}
+        - name: transform_content
+          description: Step 2
+          args:
+            class_name: File
+            content_schema: {
+              "$schema": "http://json-schema.org/draft-07/schema#",
+              "additionalProperties": false,
+              "properties": {
+                "checksum": {"type": "string"},
+                "filename": {"type": "string"},
+                "format": {"type": "string"},
+                "size": {"type": "integer"}
+              },
+              "required": ["filename", "format", "checksum", "size"],
+              "type": "object"
+            }
+            embedding_profile: {}
+            content_template_yaml: |
+              {% for key in content_property_names %}
+                {{ key }}: {{ original[key] }}
+              {% endfor %}
+
+routes:
+  - input_model_name: in
+    workflow_name: two_step
+    output_model_name: out

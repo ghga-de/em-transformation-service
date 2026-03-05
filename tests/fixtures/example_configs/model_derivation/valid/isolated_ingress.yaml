@@ -1,0 +1,103 @@
+# Three isolated ingress models with no routes.
+
+models:
+  - name: I1
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: I2
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: I3
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 2
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+workflows:
+  - name: identity_workflow
+    description: Passes schema through unchanged
+    workflow:
+      operations:
+        - name: transform_content
+          description: Identity transform for testing
+          args:
+            class_name: File
+            content_schema: {
+              "$schema": "http://json-schema.org/draft-07/schema#",
+              "additionalProperties": false,
+              "properties": {
+                "checksum": {"type": "string"},
+                "filename": {"type": "string"},
+                "format": {"type": "string"},
+                "size": {"type": "integer"}
+              },
+              "required": ["filename", "format", "checksum", "size"],
+              "type": "object"
+            }
+            embedding_profile: {}
+            content_template_yaml: |
+              {% for key in content_property_names %}
+                {{ key }}: {{ original[key] }}
+              {% endfor %}
+
+routes: []

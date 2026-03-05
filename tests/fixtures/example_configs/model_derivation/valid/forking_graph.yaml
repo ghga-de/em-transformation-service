@@ -1,0 +1,115 @@
+# Fork graph: one ingress feeds two independent arms; D1 forks further.
+#
+# Graph:
+#     I → D1 → D1a
+#            → D1b
+#     I → D2 → D2a
+#
+
+models:
+  - name: I
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: D1
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
+
+  - name: D2
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 2
+    schema_: null
+
+  - name: D1a
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 3
+    schema_: null
+
+  - name: D1b
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 4
+    schema_: null
+
+  - name: D2a
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 5
+    schema_: null
+
+workflows:
+  - name: identity_workflow
+    description: Passes schema through unchanged
+    workflow:
+      operations:
+        - name: transform_content
+          description: Identity transform for testing
+          args:
+            class_name: File
+            content_schema: {
+              "$schema": "http://json-schema.org/draft-07/schema#",
+              "additionalProperties": false,
+              "properties": {
+                "checksum": {"type": "string"},
+                "filename": {"type": "string"},
+                "format": {"type": "string"},
+                "size": {"type": "integer"}
+              },
+              "required": ["filename", "format", "checksum", "size"],
+              "type": "object"
+            }
+            embedding_profile: {}
+            content_template_yaml: |
+              {% for key in content_property_names %}
+                {{ key }}: {{ original[key] }}
+              {% endfor %}
+
+routes:
+  - input_model_name: I
+    workflow_name: identity_workflow
+    output_model_name: D1
+
+  - input_model_name: I
+    workflow_name: identity_workflow
+    output_model_name: D2
+
+  - input_model_name: D1
+    workflow_name: identity_workflow
+    output_model_name: D1a
+
+  - input_model_name: D1
+    workflow_name: identity_workflow
+    output_model_name: D1b
+
+  - input_model_name: D2
+    workflow_name: identity_workflow
+    output_model_name: D2a

@@ -1,0 +1,109 @@
+# Long chain: I → D1 → D2 → D3 → D4 → D5
+
+models:
+  - name: I
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: D1
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
+
+  - name: D2
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 2
+    schema_: null
+
+  - name: D3
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 3
+    schema_: null
+
+  - name: D4
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 4
+    schema_: null
+
+  - name: D5
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 5
+    schema_: null
+
+workflows:
+  - name: identity_workflow
+    description: Passes schema through unchanged
+    workflow:
+      operations:
+        - name: transform_content
+          description: Identity transform for testing
+          args:
+            class_name: File
+            content_schema: {
+              "$schema": "http://json-schema.org/draft-07/schema#",
+              "additionalProperties": false,
+              "properties": {
+                "checksum": {"type": "string"},
+                "filename": {"type": "string"},
+                "format": {"type": "string"},
+                "size": {"type": "integer"}
+              },
+              "required": ["filename", "format", "checksum", "size"],
+              "type": "object"
+            }
+            embedding_profile: {}
+            content_template_yaml: |
+              {% for key in content_property_names %}
+                {{ key }}: {{ original[key] }}
+              {% endfor %}
+
+routes:
+  - input_model_name: I
+    workflow_name: identity_workflow
+    output_model_name: D1
+
+  - input_model_name: D1
+    workflow_name: identity_workflow
+    output_model_name: D2
+
+  - input_model_name: D2
+    workflow_name: identity_workflow
+    output_model_name: D3
+
+  - input_model_name: D3
+    workflow_name: identity_workflow
+    output_model_name: D4
+
+  - input_model_name: D4
+    workflow_name: identity_workflow
+    output_model_name: D5
