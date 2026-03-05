@@ -13,9 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Contains functionality for SchemaPack derivation for non-EMIM models"""
-
-import logging
+"""Contains functionality for SchemaPack derivation for non-EMIM models."""
 
 from metldata import get_transformation_registry
 from metldata.transform.handling import TransformationHandler
@@ -24,13 +22,6 @@ from schemapack.spec.schemapack import SchemaPack
 
 from ets.core.models import Model, Route, ValidatedConfig
 from ets.ports.inbound.model_derivation import ModelDerivationError, ModelDeriverPort
-
-__all__ = [
-    "ModelDerivationError",
-    "ModelDeriver",
-]
-
-log = logging.getLogger(__name__)
 
 
 class ModelDeriver(ModelDeriverPort):
@@ -119,8 +110,14 @@ class ModelDeriver(ModelDeriverPort):
                     "It is neither an ingress model nor the output of any route."
                 )
             models.append(
-                Model.model_validate(
-                    {**raw_model.model_dump(), "schema_": schemas[raw_model.name]}
+                Model(
+                    name=raw_model.name,
+                    description=raw_model.description,
+                    is_ingress=raw_model.is_ingress,
+                    version=raw_model.version,
+                    publish=raw_model.publish,
+                    order=raw_model.order,
+                    schema_=schemas[raw_model.name],
                 )
             )
         return models

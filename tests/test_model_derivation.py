@@ -13,19 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Integration tests for the model derivation module.
-
-Configurations are loaded from YAML fixture files under
-``tests/fixtures/example_configs/model_derivation/``.  Valid configs live in
-``valid/``, invalid ones in ``invalid/``.  Each file contains a
-``ValidatedConfig``-compatible mapping (models with ``order``, routes, and
-workflows).
-
-``_apply_workflow`` is mocked only in tests that deliberately control
-per-route schema values to verify routing and ordering logic.  Tests that
-merely check for success or failure run against real ``TransformationHandler``
-execution.
-"""
+"""Integration tests for the model derivation module."""
 
 from unittest.mock import MagicMock, patch
 
@@ -39,7 +27,7 @@ from tests.fixtures.examples import (
     VALID_MODEL_DERIVATION_CONFIGS,
 )
 from tests.fixtures.model_derivation import (
-    SCHEMA_A,
+    FILE_SCHEMA,
     ModelDerivationFixture,
     mock_apply_workflow,  # noqa: F401
     model_derivation_fixture,  # noqa: F401
@@ -95,7 +83,7 @@ def test_apply_workflow_wraps_step_failure(
         side_effect=ValueError("Destined to fail."),
     ):
         with pytest.raises(ModelDerivationError, match="Schema derivation failed"):
-            deriver._apply_workflow(route=cfg.routes[0], input_schema=SCHEMA_A)
+            deriver._apply_workflow(route=cfg.routes[0], input_schema=FILE_SCHEMA)
 
 
 @pytest.mark.parametrize(
@@ -103,70 +91,70 @@ def test_apply_workflow_wraps_step_failure(
     [
         (
             VALID_MODEL_DERIVATION_CONFIGS["multi_step_workflow"],
-            {"in": SCHEMA_A, "out": SCHEMA_A},
+            {"in": FILE_SCHEMA, "out": FILE_SCHEMA},
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
-            {"A": SCHEMA_A, "B": SCHEMA_A, "C": SCHEMA_A},
+            {"A": FILE_SCHEMA, "B": FILE_SCHEMA, "C": FILE_SCHEMA},
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["long_chain"],
             {
-                "I": SCHEMA_A,
-                **{f"D{i}": SCHEMA_A for i in range(1, 6)},
+                "I": FILE_SCHEMA,
+                **{f"D{i}": FILE_SCHEMA for i in range(1, 6)},
             },
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["isolated_ingress"],
-            {"I1": SCHEMA_A, "I2": SCHEMA_A, "I3": SCHEMA_A},
+            {"I1": FILE_SCHEMA, "I2": FILE_SCHEMA, "I3": FILE_SCHEMA},
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["forking_graph"],
             {
-                "I": SCHEMA_A,
-                "D1": SCHEMA_A,
-                "D2": SCHEMA_A,
-                "D1a": SCHEMA_A,
-                "D1b": SCHEMA_A,
-                "D2a": SCHEMA_A,
+                "I": FILE_SCHEMA,
+                "D1": FILE_SCHEMA,
+                "D2": FILE_SCHEMA,
+                "D1a": FILE_SCHEMA,
+                "D1b": FILE_SCHEMA,
+                "D2a": FILE_SCHEMA,
             },
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["convergence"],
             {
-                "I1": SCHEMA_A,
-                "I2": SCHEMA_A,
-                "D1": SCHEMA_A,
-                "D2": SCHEMA_A,
-                "D_out": SCHEMA_A,
+                "I1": FILE_SCHEMA,
+                "I2": FILE_SCHEMA,
+                "D1": FILE_SCHEMA,
+                "D2": FILE_SCHEMA,
+                "D_out": FILE_SCHEMA,
             },
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["wide_convergence"],
             {
-                "I1": SCHEMA_A,
-                "I2": SCHEMA_A,
-                "I3": SCHEMA_A,
-                "D1": SCHEMA_A,
-                "D2": SCHEMA_A,
-                "D3": SCHEMA_A,
-                "D_out": SCHEMA_A,
+                "I1": FILE_SCHEMA,
+                "I2": FILE_SCHEMA,
+                "I3": FILE_SCHEMA,
+                "D1": FILE_SCHEMA,
+                "D2": FILE_SCHEMA,
+                "D3": FILE_SCHEMA,
+                "D_out": FILE_SCHEMA,
             },
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["disjunct_subgraphs"],
             {
-                "I1": SCHEMA_A,
-                "I2": SCHEMA_A,
-                "I3": SCHEMA_A,
-                "D1": SCHEMA_A,
-                "D2": SCHEMA_A,
-                "D3": SCHEMA_A,
-                "D4": SCHEMA_A,
-                "D5": SCHEMA_A,
-                "D6": SCHEMA_A,
-                "D7": SCHEMA_A,
-                "D8": SCHEMA_A,
+                "I1": FILE_SCHEMA,
+                "I2": FILE_SCHEMA,
+                "I3": FILE_SCHEMA,
+                "D1": FILE_SCHEMA,
+                "D2": FILE_SCHEMA,
+                "D3": FILE_SCHEMA,
+                "D4": FILE_SCHEMA,
+                "D5": FILE_SCHEMA,
+                "D6": FILE_SCHEMA,
+                "D7": FILE_SCHEMA,
+                "D8": FILE_SCHEMA,
             },
         ),
     ],

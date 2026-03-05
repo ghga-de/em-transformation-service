@@ -27,7 +27,7 @@ from ets.core.model_derivation import ModelDeriver
 from ets.core.models import ValidatedConfig
 from tests.fixtures.examples import load_model_derivation_config
 
-SCHEMA_A = SchemaPack.model_validate(
+FILE_SCHEMA = SchemaPack.model_validate(
     {
         "schemapack": "4.0.0",
         "classes": {
