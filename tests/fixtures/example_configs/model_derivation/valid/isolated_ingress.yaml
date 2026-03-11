@@ -1,4 +1,9 @@
-# Three isolated ingress models with no routes.
+# Two isolated ingress models (I2, I3) and one ingress model (I1) with a route to a derived model (D1).
+#
+# Graph:
+#     I1 → D1
+#     I2 (isolated)
+#     I3 (isolated)
 
 models:
   - name: I1
@@ -29,7 +34,7 @@ models:
     is_ingress: true
     version: "1.0.0"
     publish: false
-    order: 1
+    order: -1
     schema_:
       schemapack: "4.0.0"
       classes:
@@ -53,7 +58,7 @@ models:
     is_ingress: true
     version: "1.0.0"
     publish: false
-    order: 2
+    order: -1
     schema_:
       schemapack: "4.0.0"
       classes:
@@ -72,6 +77,13 @@ models:
             "required": ["filename", "format", "checksum", "size"],
             "type": "object"
           }
+
+  - name: D1
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
 
 workflows:
   - name: identity_workflow
@@ -100,4 +112,7 @@ workflows:
                 {{ key }}: {{ original[key] }}
               {% endfor %}
 
-routes: []
+routes:
+  - input_model_name: I1
+    workflow_name: identity_workflow
+    output_model_name: D1
