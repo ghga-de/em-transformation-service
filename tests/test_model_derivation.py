@@ -21,7 +21,7 @@ import pytest
 from schemapack import is_equal_schemapack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.ports.inbound.model_derivation import ModelDerivationError
+from ets.ports.inbound.model_derivation import ConsistencyError, ModelDerivationError
 from tests.fixtures.examples import (
     INVALID_MODEL_DERIVATION_CONFIGS,
     VALID_MODEL_DERIVATION_CONFIGS,
@@ -253,3 +253,26 @@ def test_invalid_config_specific_error(
     """Confirm each invalid config raises ModelDerivationError with the expected message."""
     with pytest.raises(ModelDerivationError, match=expected_match):
         model_derivation_fixture.deriver.derive_models()
+
+
+@pytest.mark.parametrize(
+    "model_derivation_fixture",
+    [VALID_MODEL_DERIVATION_CONFIGS["chained_routes"]],
+    ids=["chained_routes"],
+    indirect=True,
+)
+def test_route_references_unknown_model_raises_internal_error(
+    model_derivation_fixture: ModelDerivationFixture,  # noqa: F811
+):
+    """Confirm that a route referencing a model absent from the model list raises
+    ConsistencyError (the sanity check inside _process_routes).
+
+    This state should be unreachable via the normal config-validation path;
+    it is triggered here by deliberately removing a model from the deriver's
+    internal list after construction.
+    """
+    deriver = model_derivation_fixture.deriver
+    # Remove model 'B', which is referenced as the output of the A→B route
+    deriver._models = [m for m in deriver._models if m.name != "B"]
+    with pytest.raises(ConsistencyError, match="internal consistency error"):
+        deriver.derive_models()

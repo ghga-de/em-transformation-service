@@ -21,7 +21,11 @@ from schemapack import is_equivalent_schemapack
 from schemapack.spec.schemapack import SchemaPack
 
 from ets.core.models import Model, Route, ValidatedConfig
-from ets.ports.inbound.model_derivation import ModelDerivationError, ModelDeriverPort
+from ets.ports.inbound.model_derivation import (
+    ConsistencyError,
+    ModelDerivationError,
+    ModelDeriverPort,
+)
 
 
 class ModelDeriver(ModelDeriverPort):
@@ -44,18 +48,20 @@ class ModelDeriver(ModelDeriverPort):
         topological_order: dict[str, int] = {
             model.name: model.order for model in self._models
         }
+        for route in self._routes:
+            for model_name in (route.input_model_name, route.output_model_name):
+                if model_name not in topological_order:
+                    raise ConsistencyError(
+                        f"Model '{model_name}' referenced by route '{route.name}' "
+                        "is not present in the topological order. "
+                        "This is an internal consistency error that should have been "
+                        "caught by the config validator."
+                    )
         routes_sorted = sorted(
             self._routes,
             key=lambda route: topological_order[route.input_model_name],
         )
         for route in routes_sorted:
-            for model_name in (route.input_model_name, route.output_model_name):
-                if model_name not in topological_order:
-                    raise ModelDerivationError(
-                        f"Model '{model_name}' referenced by route '{route.name}' "
-                        "is not present in the topological order. "
-                        "Ensure the route references a model that exists in the configuration."
-                    )
             input_schema = schemas.get(route.input_model_name)
             if input_schema is None:
                 raise ModelDerivationError(
