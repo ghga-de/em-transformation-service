@@ -106,7 +106,12 @@ def test_apply_workflow_wraps_step_failure(
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["isolated_ingress"],
-            {"I1": FILE_SCHEMA, "I2": FILE_SCHEMA, "I3": FILE_SCHEMA},
+            {
+                "I1": FILE_SCHEMA,
+                "I2": FILE_SCHEMA,
+                "I3": FILE_SCHEMA,
+                "D1": FILE_SCHEMA,
+            },
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["forking_graph"],
@@ -205,11 +210,11 @@ def test_convergence_conflicting_schemas_raises(
             ["A->B", "B->C"],
         ),
         (
-            VALID_MODEL_DERIVATION_CONFIGS["interleaved_subgraphs"],
+            VALID_MODEL_DERIVATION_CONFIGS["parallel_chains"],
             ["I1->D1", "D1->D2", "I2->D3", "D3->D4"],
         ),
     ],
-    ids=["chained_routes", "interleaved_subgraphs"],
+    ids=["chained_routes", "parallel_chains"],
     indirect=["model_derivation_fixture"],
 )
 def test_routes_processed_in_topological_order(
