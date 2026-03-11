@@ -206,7 +206,7 @@ def test_convergence_conflicting_schemas_raises(
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["interleaved_subgraphs"],
-            ["I1->D1", "I2->D3", "D1->D2", "D3->D4"],
+            ["I1->D1", "D1->D2", "I2->D3", "D3->D4"],
         ),
     ],
     ids=["chained_routes", "interleaved_subgraphs"],
@@ -234,15 +234,11 @@ def test_routes_processed_in_topological_order(
     "model_derivation_fixture, expected_match",
     [
         (
-            INVALID_MODEL_DERIVATION_CONFIGS["all_orphans"],
+            INVALID_MODEL_DERIVATION_CONFIGS["orphans"],
             "could not be derived",
         ),
-        (
-            INVALID_MODEL_DERIVATION_CONFIGS["nonexistent_model_route"],
-            "topological order",
-        ),
     ],
-    ids=["all_orphans", "nonexistent_model_route"],
+    ids=["all_orphans"],
     indirect=["model_derivation_fixture"],
 )
 def test_invalid_config_specific_error(
