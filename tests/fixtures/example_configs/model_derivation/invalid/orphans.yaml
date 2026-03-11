@@ -1,11 +1,13 @@
-# All derived models are orphans; none is reachable from any ingress model.
+# D1 and D2 are orphans; neither is reachable from any ingress model.
+# I2 has a route to D3, so routes is non-empty and passes validation.
 #
 # Graph:
 #     I1
+#     I2 → D3
 #     D1   (no incoming route)
 #     D2   (no incoming route)
 #
-# The first derived model encountered during _update_models raises because
+# The first orphaned derived model encountered during _update_models raises because
 # no schema could be derived.
 
 models:
@@ -13,21 +15,21 @@ models:
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 0
+    order: -1
     schema_: null
 
   - name: D2
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 1
+    order: -1
     schema_: null
 
   - name: I1
     is_ingress: true
     version: "1.0.0"
     publish: false
-    order: 2
+    order: -1
     schema_:
       schemapack: "4.0.0"
       classes:
@@ -46,6 +48,37 @@ models:
             "required": ["filename", "format", "checksum", "size"],
             "type": "object"
           }
+
+  - name: I2
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: D3
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
 
 workflows:
   - name: identity_workflow
@@ -74,4 +107,7 @@ workflows:
                 {{ key }}: {{ original[key] }}
               {% endfor %}
 
-routes: []
+routes:
+  - input_model_name: I2
+    workflow_name: identity_workflow
+    output_model_name: D3
