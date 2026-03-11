@@ -13,7 +13,7 @@ models:
     is_ingress: true
     version: "1.0.0"
     publish: false
-    order: 0
+    order: 3
     schema_:
       schemapack: "4.0.0"
       classes:
@@ -37,49 +37,49 @@ models:
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 1
+    order: 4
     schema_: null
 
   - name: D2
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 2
+    order: 5
     schema_: null
 
   - name: D3
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 3
+    order: 8
     schema_: null
 
   - name: D5
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 4
+    order: 6
     schema_: null
 
   - name: D4
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 5
+    order: 9
     schema_: null
 
   - name: D6
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 6
+    order: 7
     schema_: null
 
   - name: I2
     is_ingress: true
     version: "1.0.0"
     publish: false
-    order: 7
+    order: 0
     schema_:
       schemapack: "4.0.0"
       classes:
@@ -103,21 +103,21 @@ models:
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 8
+    order: 1
     schema_: null
 
   - name: D8
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 9
+    order: 2
     schema_: null
 
   - name: I3
     is_ingress: true
     version: "1.0.0"
     publish: false
-    order: 10
+    order: -1
     schema_:
       schemapack: "4.0.0"
       classes:

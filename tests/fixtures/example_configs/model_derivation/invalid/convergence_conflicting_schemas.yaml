@@ -15,7 +15,7 @@ models:
     is_ingress: true
     version: "1.0.0"
     publish: false
-    order: 0
+    order: 2
     schema_:
       schemapack: "4.0.0"
       classes:
@@ -39,7 +39,7 @@ models:
     is_ingress: true
     version: "1.0.0"
     publish: false
-    order: 1
+    order: 0
     schema_:
       schemapack: "4.0.0"
       classes:
@@ -63,14 +63,14 @@ models:
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 2
+    order: 3
     schema_: null
 
   - name: D2
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 3
+    order: 1
     schema_: null
 
   - name: D_out

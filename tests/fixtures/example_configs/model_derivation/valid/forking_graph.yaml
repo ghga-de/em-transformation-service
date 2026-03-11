@@ -35,21 +35,21 @@ models:
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 1
+    order: 3
     schema_: null
 
   - name: D2
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 2
+    order: 1
     schema_: null
 
   - name: D1a
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 3
+    order: 5
     schema_: null
 
   - name: D1b
@@ -63,7 +63,7 @@ models:
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 5
+    order: 2
     schema_: null
 
 workflows:
