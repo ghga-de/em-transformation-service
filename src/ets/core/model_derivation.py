@@ -17,7 +17,7 @@
 
 from metldata import get_transformation_registry
 from metldata.transform.handling import TransformationHandler
-from schemapack import is_equal_schemapack
+from schemapack import is_equivalent_schemapack
 from schemapack.spec.schemapack import SchemaPack
 
 from ets.core.models import Model, Route, ValidatedConfig
@@ -67,7 +67,7 @@ class ModelDeriver(ModelDeriverPort):
                 route=route, input_schema=input_schema
             )
             existing_schema = schemas.get(route.output_model_name)
-            if existing_schema is not None and not is_equal_schemapack(
+            if existing_schema is not None and not is_equivalent_schemapack(
                 existing_schema, derived_schema
             ):
                 raise ModelDerivationError(
