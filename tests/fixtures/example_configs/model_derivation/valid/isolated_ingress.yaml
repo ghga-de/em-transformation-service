@@ -1,4 +1,5 @@
-# Two isolated ingress models (I2, I3) and one ingress model (I1) with a route to a derived model (D1).
+# Two isolated ingress models (I2, I3) and one ingress model (I1) with a route
+# to a derived model (D1) via rename_id_property.
 #
 # Graph:
 #     I1 → D1
@@ -86,33 +87,17 @@ models:
     schema_: null
 
 workflows:
-  - name: identity_workflow
-    description: Passes schema through unchanged
+  - name: rename_to_file_id
+    description: Renames the File id property from alias to file_id
     workflow:
       operations:
-        - name: transform_content
-          description: Identity transform for testing
+        - name: rename_id_property
+          description: Rename id from alias to file_id
           args:
             class_name: File
-            content_schema: {
-              "$schema": "http://json-schema.org/draft-07/schema#",
-              "additionalProperties": false,
-              "properties": {
-                "checksum": {"type": "string"},
-                "filename": {"type": "string"},
-                "format": {"type": "string"},
-                "size": {"type": "integer"}
-              },
-              "required": ["filename", "format", "checksum", "size"],
-              "type": "object"
-            }
-            embedding_profile: {}
-            content_template_yaml: |
-              {% for key in content_property_names %}
-                {{ key }}: {{ original[key] }}
-              {% endfor %}
+            id_property_name: file_id
 
 routes:
   - input_model_name: I1
-    workflow_name: identity_workflow
+    workflow_name: rename_to_file_id
     output_model_name: D1

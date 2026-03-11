@@ -1,12 +1,10 @@
-# Wide convergence: three ingress models feed into a common output via
-# intermediate derived models.
+# Wide convergence: three ingress models converge to a single output
+# through intermediate derived models.
 #
 # Graph:
-#     I1 → D1 ↘
+#     I1 → D1 → D_out
 #     I2 → D2 → D_out
-#     I3 → D3 ↗
-#
-# All three paths must produce equal schemas for D_out to succeed.
+#     I3 → D3 → D_out
 
 models:
   - name: I1
@@ -105,58 +103,51 @@ models:
   - name: D_out
     is_ingress: false
     version: "1.0.0"
-    publish: true
+    publish: false
     order: 6
     schema_: null
 
 workflows:
-  - name: identity_workflow
-    description: Passes schema through unchanged
+  - name: replace_file_ids
+    description: Replaces resource IDs for the File class
     workflow:
       operations:
-        - name: transform_content
-          description: Identity transform for testing
+        - name: replace_resource_ids
+          description: Replace resource IDs
           args:
             class_name: File
-            content_schema: {
-              "$schema": "http://json-schema.org/draft-07/schema#",
-              "additionalProperties": false,
-              "properties": {
-                "checksum": {"type": "string"},
-                "filename": {"type": "string"},
-                "format": {"type": "string"},
-                "size": {"type": "integer"}
-              },
-              "required": ["filename", "format", "checksum", "size"],
-              "type": "object"
-            }
-            embedding_profile: {}
-            content_template_yaml: |
-              {% for key in content_property_names %}
-                {{ key }}: {{ original[key] }}
-              {% endfor %}
+
+  - name: rename_to_file_id
+    description: Renames the File id property from alias to file_id
+    workflow:
+      operations:
+        - name: rename_id_property
+          description: Rename id from alias to file_id
+          args:
+            class_name: File
+            id_property_name: file_id
 
 routes:
   - input_model_name: I1
-    workflow_name: identity_workflow
+    workflow_name: replace_file_ids
     output_model_name: D1
 
   - input_model_name: I2
-    workflow_name: identity_workflow
+    workflow_name: replace_file_ids
     output_model_name: D2
 
   - input_model_name: I3
-    workflow_name: identity_workflow
+    workflow_name: replace_file_ids
     output_model_name: D3
 
   - input_model_name: D1
-    workflow_name: identity_workflow
+    workflow_name: rename_to_file_id
     output_model_name: D_out
 
   - input_model_name: D2
-    workflow_name: identity_workflow
+    workflow_name: rename_to_file_id
     output_model_name: D_out
 
   - input_model_name: D3
-    workflow_name: identity_workflow
+    workflow_name: rename_to_file_id
     output_model_name: D_out

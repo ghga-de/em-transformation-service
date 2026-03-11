@@ -1,10 +1,9 @@
 # Fork graph: one ingress feeds two independent arms; D1 forks further.
 #
 # Graph:
-#     I → D1 → D1a
-#            → D1b
-#     I → D2 → D2a
-#
+#     I → D1 → D1a     (rename_id + replace_resource_ids)
+#            → D1b     (rename_id + duplicate_class)
+#     I → D2 → D2a     (replace_resource_ids + rename_id)
 
 models:
   - name: I
@@ -67,49 +66,52 @@ models:
     schema_: null
 
 workflows:
-  - name: identity_workflow
-    description: Passes schema through unchanged
+  - name: rename_to_file_id
+    description: Renames the File id property from alias to file_id
     workflow:
       operations:
-        - name: transform_content
-          description: Identity transform for testing
+        - name: rename_id_property
+          description: Rename id from alias to file_id
           args:
             class_name: File
-            content_schema: {
-              "$schema": "http://json-schema.org/draft-07/schema#",
-              "additionalProperties": false,
-              "properties": {
-                "checksum": {"type": "string"},
-                "filename": {"type": "string"},
-                "format": {"type": "string"},
-                "size": {"type": "integer"}
-              },
-              "required": ["filename", "format", "checksum", "size"],
-              "type": "object"
-            }
-            embedding_profile: {}
-            content_template_yaml: |
-              {% for key in content_property_names %}
-                {{ key }}: {{ original[key] }}
-              {% endfor %}
+            id_property_name: file_id
+
+  - name: replace_file_ids
+    description: Replaces resource IDs for the File class
+    workflow:
+      operations:
+        - name: replace_resource_ids
+          description: Replace resource IDs
+          args:
+            class_name: File
+
+  - name: add_backup_class
+    description: Duplicates the File class as FileBackup
+    workflow:
+      operations:
+        - name: duplicate_class
+          description: Duplicate File as FileBackup
+          args:
+            source_class_name: File
+            target_class_name: FileBackup
 
 routes:
   - input_model_name: I
-    workflow_name: identity_workflow
+    workflow_name: rename_to_file_id
     output_model_name: D1
 
   - input_model_name: I
-    workflow_name: identity_workflow
+    workflow_name: replace_file_ids
     output_model_name: D2
 
   - input_model_name: D1
-    workflow_name: identity_workflow
+    workflow_name: replace_file_ids
     output_model_name: D1a
 
   - input_model_name: D1
-    workflow_name: identity_workflow
+    workflow_name: add_backup_class
     output_model_name: D1b
 
   - input_model_name: D2
-    workflow_name: identity_workflow
+    workflow_name: rename_to_file_id
     output_model_name: D2a

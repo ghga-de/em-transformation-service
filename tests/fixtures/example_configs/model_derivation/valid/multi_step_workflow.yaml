@@ -1,4 +1,7 @@
-# Two-step workflow config: in(ingress) → out(derived) via two_step workflow.
+# Two-step workflow config.
+#
+# Step 1: rename_id_property (alias → file_id)
+# Step 2: replace_resource_ids (File)
 
 models:
   - name: in
@@ -33,54 +36,21 @@ models:
     schema_: null
 
 workflows:
-  - name: two_step
-    description: Two-step workflow for testing schema chaining
+  - name: rename_then_replace
+    description: Two-step workflow that renames an id property then replaces resource IDs
     workflow:
       operations:
-        - name: transform_content
-          description: Step 1
+        - name: rename_id_property
+          description: Rename File id from alias to file_id
           args:
             class_name: File
-            content_schema: {
-              "$schema": "http://json-schema.org/draft-07/schema#",
-              "additionalProperties": false,
-              "properties": {
-                "checksum": {"type": "string"},
-                "filename": {"type": "string"},
-                "format": {"type": "string"},
-                "size": {"type": "integer"}
-              },
-              "required": ["filename", "format", "checksum", "size"],
-              "type": "object"
-            }
-            embedding_profile: {}
-            content_template_yaml: |
-              {% for key in content_property_names %}
-                {{ key }}: {{ original[key] }}
-              {% endfor %}
-        - name: transform_content
-          description: Step 2
+            id_property_name: file_id
+        - name: replace_resource_ids
+          description: Replace resource IDs for the File class
           args:
             class_name: File
-            content_schema: {
-              "$schema": "http://json-schema.org/draft-07/schema#",
-              "additionalProperties": false,
-              "properties": {
-                "checksum": {"type": "string"},
-                "filename": {"type": "string"},
-                "format": {"type": "string"},
-                "size": {"type": "integer"}
-              },
-              "required": ["filename", "format", "checksum", "size"],
-              "type": "object"
-            }
-            embedding_profile: {}
-            content_template_yaml: |
-              {% for key in content_property_names %}
-                {{ key }}: {{ original[key] }}
-              {% endfor %}
 
 routes:
   - input_model_name: in
-    workflow_name: two_step
+    workflow_name: rename_then_replace
     output_model_name: out

@@ -27,7 +27,9 @@ from tests.fixtures.examples import (
     VALID_MODEL_DERIVATION_CONFIGS,
 )
 from tests.fixtures.model_derivation import (
+    FILE_RENAMED_ID_SCHEMA,
     FILE_SCHEMA,
+    RENAMED_ID_WITH_BACKUP_SCHEMA,
     ModelDerivationFixture,
     mock_apply_workflow,  # noqa: F401
     model_derivation_fixture,  # noqa: F401
@@ -91,7 +93,7 @@ def test_apply_workflow_wraps_step_failure(
     [
         (
             VALID_MODEL_DERIVATION_CONFIGS["multi_step_workflow"],
-            {"in": FILE_SCHEMA, "out": FILE_SCHEMA},
+            {"in": FILE_SCHEMA, "out": FILE_RENAMED_ID_SCHEMA},
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
@@ -101,7 +103,11 @@ def test_apply_workflow_wraps_step_failure(
             VALID_MODEL_DERIVATION_CONFIGS["long_chain"],
             {
                 "I": FILE_SCHEMA,
-                **{f"D{i}": FILE_SCHEMA for i in range(1, 6)},
+                "D1": FILE_RENAMED_ID_SCHEMA,
+                "D2": RENAMED_ID_WITH_BACKUP_SCHEMA,
+                "D3": RENAMED_ID_WITH_BACKUP_SCHEMA,
+                "D4": FILE_RENAMED_ID_SCHEMA,
+                "D5": FILE_RENAMED_ID_SCHEMA,
             },
         ),
         (
@@ -110,18 +116,18 @@ def test_apply_workflow_wraps_step_failure(
                 "I1": FILE_SCHEMA,
                 "I2": FILE_SCHEMA,
                 "I3": FILE_SCHEMA,
-                "D1": FILE_SCHEMA,
+                "D1": FILE_RENAMED_ID_SCHEMA,
             },
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["forking_graph"],
             {
                 "I": FILE_SCHEMA,
-                "D1": FILE_SCHEMA,
+                "D1": FILE_RENAMED_ID_SCHEMA,
                 "D2": FILE_SCHEMA,
-                "D1a": FILE_SCHEMA,
-                "D1b": FILE_SCHEMA,
-                "D2a": FILE_SCHEMA,
+                "D1a": FILE_RENAMED_ID_SCHEMA,
+                "D1b": RENAMED_ID_WITH_BACKUP_SCHEMA,
+                "D2a": FILE_RENAMED_ID_SCHEMA,
             },
         ),
         (
@@ -131,7 +137,7 @@ def test_apply_workflow_wraps_step_failure(
                 "I2": FILE_SCHEMA,
                 "D1": FILE_SCHEMA,
                 "D2": FILE_SCHEMA,
-                "D_out": FILE_SCHEMA,
+                "D_out": FILE_RENAMED_ID_SCHEMA,
             },
         ),
         (
@@ -143,7 +149,7 @@ def test_apply_workflow_wraps_step_failure(
                 "D1": FILE_SCHEMA,
                 "D2": FILE_SCHEMA,
                 "D3": FILE_SCHEMA,
-                "D_out": FILE_SCHEMA,
+                "D_out": FILE_RENAMED_ID_SCHEMA,
             },
         ),
         (
@@ -152,14 +158,14 @@ def test_apply_workflow_wraps_step_failure(
                 "I1": FILE_SCHEMA,
                 "I2": FILE_SCHEMA,
                 "I3": FILE_SCHEMA,
-                "D1": FILE_SCHEMA,
-                "D2": FILE_SCHEMA,
-                "D3": FILE_SCHEMA,
-                "D4": FILE_SCHEMA,
-                "D5": FILE_SCHEMA,
-                "D6": FILE_SCHEMA,
+                "D1": FILE_RENAMED_ID_SCHEMA,
+                "D2": RENAMED_ID_WITH_BACKUP_SCHEMA,
+                "D3": FILE_RENAMED_ID_SCHEMA,
+                "D4": FILE_RENAMED_ID_SCHEMA,
+                "D5": RENAMED_ID_WITH_BACKUP_SCHEMA,
+                "D6": FILE_RENAMED_ID_SCHEMA,
                 "D7": FILE_SCHEMA,
-                "D8": FILE_SCHEMA,
+                "D8": FILE_RENAMED_ID_SCHEMA,
             },
         ),
     ],

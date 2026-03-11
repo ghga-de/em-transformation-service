@@ -1,4 +1,11 @@
 # Long chain: I → D1 → D2 → D3 → D4 → D5
+#
+# Each route uses a different transformation type:
+#   I→D1:  rename_id_property (alias → file_id)
+#   D1→D2: duplicate_class (File → FileBackup)
+#   D2→D3: replace_resource_ids (File) — schema unchanged
+#   D3→D4: delete_class (FileBackup)
+#   D4→D5: transform_content (identity)
 
 models:
   - name: I
@@ -61,12 +68,50 @@ models:
     schema_: null
 
 workflows:
-  - name: identity_workflow
-    description: Passes schema through unchanged
+  - name: rename_to_file_id
+    description: Renames the File id property from alias to file_id
+    workflow:
+      operations:
+        - name: rename_id_property
+          description: Rename id from alias to file_id
+          args:
+            class_name: File
+            id_property_name: file_id
+
+  - name: add_backup_class
+    description: Duplicates the File class as FileBackup
+    workflow:
+      operations:
+        - name: duplicate_class
+          description: Duplicate File as FileBackup
+          args:
+            source_class_name: File
+            target_class_name: FileBackup
+
+  - name: replace_file_ids
+    description: Replaces resource IDs for the File class
+    workflow:
+      operations:
+        - name: replace_resource_ids
+          description: Replace resource IDs
+          args:
+            class_name: File
+
+  - name: remove_backup_class
+    description: Deletes the FileBackup class
+    workflow:
+      operations:
+        - name: delete_class
+          description: Delete the FileBackup class
+          args:
+            class_name: FileBackup
+
+  - name: preserve_content
+    description: Passes content schema through unchanged
     workflow:
       operations:
         - name: transform_content
-          description: Identity transform for testing
+          description: Identity transformation
           args:
             class_name: File
             content_schema: {
@@ -89,21 +134,21 @@ workflows:
 
 routes:
   - input_model_name: I
-    workflow_name: identity_workflow
+    workflow_name: rename_to_file_id
     output_model_name: D1
 
   - input_model_name: D1
-    workflow_name: identity_workflow
+    workflow_name: add_backup_class
     output_model_name: D2
 
   - input_model_name: D2
-    workflow_name: identity_workflow
+    workflow_name: replace_file_ids
     output_model_name: D3
 
   - input_model_name: D3
-    workflow_name: identity_workflow
+    workflow_name: remove_backup_class
     output_model_name: D4
 
   - input_model_name: D4
-    workflow_name: identity_workflow
+    workflow_name: preserve_content
     output_model_name: D5

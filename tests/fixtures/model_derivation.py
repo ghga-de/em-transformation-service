@@ -27,25 +27,55 @@ from ets.core.model_derivation import ModelDeriver
 from ets.core.models import ValidatedConfig
 from tests.fixtures.examples import load_model_derivation_config
 
+_FILE_CONTENT = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": False,
+    "properties": {
+        "checksum": {"type": "string"},
+        "filename": {"type": "string"},
+        "format": {"type": "string"},
+        "size": {"type": "integer"},
+    },
+    "required": ["filename", "format", "checksum", "size"],
+    "type": "object",
+}
+
 FILE_SCHEMA = SchemaPack.model_validate(
     {
         "schemapack": "4.0.0",
         "classes": {
             "File": {
                 "id": {"propertyName": "alias"},
-                "content": {
-                    "$schema": "http://json-schema.org/draft-07/schema#",
-                    "additionalProperties": False,
-                    "properties": {
-                        "checksum": {"type": "string"},
-                        "filename": {"type": "string"},
-                        "format": {"type": "string"},
-                        "size": {"type": "integer"},
-                    },
-                    "required": ["filename", "format", "checksum", "size"],
-                    "type": "object",
-                },
+                "content": _FILE_CONTENT,
             }
+        },
+    }
+)
+
+FILE_RENAMED_ID_SCHEMA = SchemaPack.model_validate(
+    {
+        "schemapack": "4.0.0",
+        "classes": {
+            "File": {
+                "id": {"propertyName": "file_id"},
+                "content": _FILE_CONTENT,
+            }
+        },
+    }
+)
+
+RENAMED_ID_WITH_BACKUP_SCHEMA = SchemaPack.model_validate(
+    {
+        "schemapack": "4.0.0",
+        "classes": {
+            "File": {
+                "id": {"propertyName": "file_id"},
+                "content": _FILE_CONTENT,
+            },
+            "FileBackup": {
+                "id": {"propertyName": "file_id"},
+                "content": _FILE_CONTENT,
+            },
         },
     }
 )

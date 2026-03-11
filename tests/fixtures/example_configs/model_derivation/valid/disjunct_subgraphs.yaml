@@ -1,12 +1,16 @@
-# Two disjunct sub-graphs with a fork, plus an isolated ingress model.
+# Disjunct subgraphs: two independent subgraphs plus one isolated ingress.
 #
-# Sub-graph 1:  I1 → D1 → D2 → D3 → D4
-#                              ↘ D5 → D6   (fork at D2)
-# Sub-graph 2:  I2 → D7 → D8
-# Isolated:     I3  (no routes)
+# Subgraph 1:
+#     I1 → D1 → D2 → D3 → D4
+#                  → D5 → D6
 #
-# Order values ensure topological sorting across sub-graphs.
-# D2→D3 must appear before D2→D5 to get a deterministic side_effect order.
+# Subgraph 2:
+#     I2 → D7 → D8
+#
+# Isolated:
+#     I3
+#
+# Uses rename_id_property, duplicate_class, delete_class, and replace_resource_ids.
 
 models:
   - name: I1
@@ -14,6 +18,54 @@ models:
     version: "1.0.0"
     publish: false
     order: 3
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: I2
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: I3
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: -1
     schema_:
       schemapack: "4.0.0"
       classes:
@@ -54,18 +106,18 @@ models:
     order: 8
     schema_: null
 
-  - name: D5
-    is_ingress: false
-    version: "1.0.0"
-    publish: false
-    order: 6
-    schema_: null
-
   - name: D4
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 9
+    schema_: null
+
+  - name: D5
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 6
     schema_: null
 
   - name: D6
@@ -74,30 +126,6 @@ models:
     publish: false
     order: 7
     schema_: null
-
-  - name: I2
-    is_ingress: true
-    version: "1.0.0"
-    publish: false
-    order: 0
-    schema_:
-      schemapack: "4.0.0"
-      classes:
-        File:
-          id:
-            propertyName: alias
-          content: {
-            "$schema": "http://json-schema.org/draft-07/schema#",
-            "additionalProperties": false,
-            "properties": {
-              "checksum": {"type": "string"},
-              "filename": {"type": "string"},
-              "format": {"type": "string"},
-              "size": {"type": "integer"}
-            },
-            "required": ["filename", "format", "checksum", "size"],
-            "type": "object"
-          }
 
   - name: D7
     is_ingress: false
@@ -113,87 +141,74 @@ models:
     order: 2
     schema_: null
 
-  - name: I3
-    is_ingress: true
-    version: "1.0.0"
-    publish: false
-    order: -1
-    schema_:
-      schemapack: "4.0.0"
-      classes:
-        File:
-          id:
-            propertyName: alias
-          content: {
-            "$schema": "http://json-schema.org/draft-07/schema#",
-            "additionalProperties": false,
-            "properties": {
-              "checksum": {"type": "string"},
-              "filename": {"type": "string"},
-              "format": {"type": "string"},
-              "size": {"type": "integer"}
-            },
-            "required": ["filename", "format", "checksum", "size"],
-            "type": "object"
-          }
-
 workflows:
-  - name: identity_workflow
-    description: Passes schema through unchanged
+  - name: rename_to_file_id
+    description: Renames the File id property from alias to file_id
     workflow:
       operations:
-        - name: transform_content
-          description: Identity transform for testing
+        - name: rename_id_property
+          description: Rename id from alias to file_id
           args:
             class_name: File
-            content_schema: {
-              "$schema": "http://json-schema.org/draft-07/schema#",
-              "additionalProperties": false,
-              "properties": {
-                "checksum": {"type": "string"},
-                "filename": {"type": "string"},
-                "format": {"type": "string"},
-                "size": {"type": "integer"}
-              },
-              "required": ["filename", "format", "checksum", "size"],
-              "type": "object"
-            }
-            embedding_profile: {}
-            content_template_yaml: |
-              {% for key in content_property_names %}
-                {{ key }}: {{ original[key] }}
-              {% endfor %}
+            id_property_name: file_id
 
-# D2→D3 before D2→D5 to guarantee side_effect ordering in tests
+  - name: add_backup_class
+    description: Duplicates the File class as FileBackup
+    workflow:
+      operations:
+        - name: duplicate_class
+          description: Duplicate File as FileBackup
+          args:
+            source_class_name: File
+            target_class_name: FileBackup
+
+  - name: remove_backup_class
+    description: Deletes the FileBackup class
+    workflow:
+      operations:
+        - name: delete_class
+          description: Delete the FileBackup class
+          args:
+            class_name: FileBackup
+
+  - name: replace_file_ids
+    description: Replaces resource IDs for the File class
+    workflow:
+      operations:
+        - name: replace_resource_ids
+          description: Replace resource IDs
+          args:
+            class_name: File
+
 routes:
   - input_model_name: I1
-    workflow_name: identity_workflow
+    workflow_name: rename_to_file_id
     output_model_name: D1
 
   - input_model_name: D1
-    workflow_name: identity_workflow
+    workflow_name: add_backup_class
     output_model_name: D2
 
   - input_model_name: D2
-    workflow_name: identity_workflow
+    workflow_name: remove_backup_class
     output_model_name: D3
 
   - input_model_name: D3
-    workflow_name: identity_workflow
+    workflow_name: replace_file_ids
     output_model_name: D4
 
   - input_model_name: D2
-    workflow_name: identity_workflow
+    workflow_name: replace_file_ids
     output_model_name: D5
 
   - input_model_name: D5
-    workflow_name: identity_workflow
+    workflow_name: remove_backup_class
     output_model_name: D6
 
   - input_model_name: I2
-    workflow_name: identity_workflow
+    workflow_name: replace_file_ids
     output_model_name: D7
 
   - input_model_name: D7
-    workflow_name: identity_workflow
+    workflow_name: rename_to_file_id
     output_model_name: D8

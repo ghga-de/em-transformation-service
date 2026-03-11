@@ -40,12 +40,12 @@ models:
     schema_: null
 
 workflows:
-  - name: identity_workflow
-    description: Passes schema through unchanged
+  - name: preserve_content
+    description: Passes content schema through unchanged
     workflow:
       operations:
         - name: transform_content
-          description: Identity transform for testing
+          description: Identity transformation
           args:
             class_name: File
             content_schema: {
@@ -69,9 +69,9 @@ workflows:
 # Routes listed in reverse order to verify that topological sorting works
 routes:
   - input_model_name: B
-    workflow_name: identity_workflow
+    workflow_name: preserve_content
     output_model_name: C
 
   - input_model_name: A
-    workflow_name: identity_workflow
+    workflow_name: preserve_content
     output_model_name: B
