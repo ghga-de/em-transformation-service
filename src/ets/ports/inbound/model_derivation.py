@@ -23,7 +23,7 @@ class ModelDerivationError(RuntimeError):
     """Raised when schema derivation fails for a route in the transformation graph."""
 
 
-class ConsistencyError(ModelDerivationError):
+class ConsistencyError(RuntimeError):
     """Raised when an internal consistency check fails inside the model deriver.
 
     This indicates a programming error or a state that should have been caught
