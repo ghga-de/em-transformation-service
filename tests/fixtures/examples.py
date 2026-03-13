@@ -18,14 +18,17 @@
 import json
 from pathlib import Path
 
+from yaml import safe_load
+
+from ets.core.models import ValidatedConfig
 from tests.fixtures.utils import BASE_DIR
 
 CONFIG_DIR = BASE_DIR / "example_configs"
 
 VALID_CONFIG_DIR = CONFIG_DIR / "valid"
 INVALID_CONFIG_DIR = CONFIG_DIR / "invalid_on_validation"
-
 INVALID_ON_LOAD_CONFIG_DIR = CONFIG_DIR / "invalid_on_loading"
+MODEL_DERIVATION_DIR = CONFIG_DIR / "model_derivation"
 
 MOCK_JSON_PATH = BASE_DIR / "mock.schemapack.json"
 
@@ -36,7 +39,7 @@ def list_examples_in_dir(dir: Path) -> dict[str, Path]:
     Returns:
         A dict of {example_name: path}.
     """
-    examples = {path.stem: path for path in dir.iterdir()}
+    examples = {path.stem: path for path in dir.iterdir() if path.is_file()}
 
     return dict(sorted(examples.items()))
 
@@ -47,8 +50,26 @@ def read_mock_schema(path: Path) -> dict:
         return json.load(file)
 
 
+def load_model_derivation_config(path: Path) -> ValidatedConfig:
+    """Load a ``ValidatedConfig`` for model-derivation tests from a YAML file.
+
+    Args:
+        path: Path to the YAML fixture file.
+
+    Returns:
+        A ``ValidatedConfig`` instance populated from the file.
+    """
+    with path.open("r") as fh:
+        return ValidatedConfig.model_validate(safe_load(fh))
+
+
 VALID_CONFIGS = list_examples_in_dir(VALID_CONFIG_DIR)
 INVALID_ON_VALIDATION_CONFIGS = list_examples_in_dir(INVALID_CONFIG_DIR)
 INVALID_ON_LOAD_CONFIGS = list_examples_in_dir(INVALID_ON_LOAD_CONFIG_DIR)
+
+VALID_MODEL_DERIVATION_CONFIGS = list_examples_in_dir(MODEL_DERIVATION_DIR / "valid")
+INVALID_MODEL_DERIVATION_CONFIGS = list_examples_in_dir(
+    MODEL_DERIVATION_DIR / "invalid"
+)
 
 MOCK_SCHEMA = read_mock_schema(MOCK_JSON_PATH)

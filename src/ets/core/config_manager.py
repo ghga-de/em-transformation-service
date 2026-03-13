@@ -34,9 +34,7 @@ class ConfigManager(ConfigManagerPort):
         self.validator = validator
         self.comparator = comparator
 
-    def resolve_transformation_config(
-        self,
-    ) -> PersistedConfig | ValidatedConfig:
+    def resolve_transformation_config(self) -> PersistedConfig | ValidatedConfig:
         """Resolve the given transformation config.
 
         This includes:

@@ -1,0 +1,56 @@
+# Two-step workflow config.
+#
+# Step 1: rename_id_property (alias → file_id)
+# Step 2: replace_resource_ids (File)
+
+models:
+  - name: in
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: out
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
+
+workflows:
+  - name: rename_then_replace
+    description: Two-step workflow that renames an id property then replaces resource IDs
+    workflow:
+      operations:
+        - name: rename_id_property
+          description: Rename File id from alias to file_id
+          args:
+            class_name: File
+            id_property_name: file_id
+        - name: replace_resource_ids
+          description: Replace resource IDs for the File class
+          args:
+            class_name: File
+
+routes:
+  - input_model_name: in
+    workflow_name: rename_then_replace
+    output_model_name: out

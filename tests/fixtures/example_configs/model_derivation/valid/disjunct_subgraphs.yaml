@@ -1,0 +1,214 @@
+# Disjunct subgraphs: two independent subgraphs plus one isolated ingress.
+#
+# Subgraph 1:
+#     I1 → D1 → D2 → D3 → D4
+#                  → D5 → D6
+#
+# Subgraph 2:
+#     I2 → D7 → D8
+#
+# Isolated:
+#     I3
+#
+# Uses rename_id_property, duplicate_class, delete_class, and replace_resource_ids.
+
+models:
+  - name: I1
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 3
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: I2
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: I3
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: -1
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: D1
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 4
+    schema_: null
+
+  - name: D2
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 5
+    schema_: null
+
+  - name: D3
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 8
+    schema_: null
+
+  - name: D4
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 9
+    schema_: null
+
+  - name: D5
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 6
+    schema_: null
+
+  - name: D6
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 7
+    schema_: null
+
+  - name: D7
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
+
+  - name: D8
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 2
+    schema_: null
+
+workflows:
+  - name: rename_to_file_id
+    description: Renames the File id property from alias to file_id
+    workflow:
+      operations:
+        - name: rename_id_property
+          description: Rename id from alias to file_id
+          args:
+            class_name: File
+            id_property_name: file_id
+
+  - name: add_backup_class
+    description: Duplicates the File class as FileBackup
+    workflow:
+      operations:
+        - name: duplicate_class
+          description: Duplicate File as FileBackup
+          args:
+            source_class_name: File
+            target_class_name: FileBackup
+
+  - name: remove_backup_class
+    description: Deletes the FileBackup class
+    workflow:
+      operations:
+        - name: delete_class
+          description: Delete the FileBackup class
+          args:
+            class_name: FileBackup
+
+  - name: replace_file_ids
+    description: Replaces resource IDs for the File class
+    workflow:
+      operations:
+        - name: replace_resource_ids
+          description: Replace resource IDs
+          args:
+            class_name: File
+
+routes:
+  - input_model_name: I1
+    workflow_name: rename_to_file_id
+    output_model_name: D1
+
+  - input_model_name: D1
+    workflow_name: add_backup_class
+    output_model_name: D2
+
+  - input_model_name: D2
+    workflow_name: remove_backup_class
+    output_model_name: D3
+
+  - input_model_name: D3
+    workflow_name: replace_file_ids
+    output_model_name: D4
+
+  - input_model_name: D2
+    workflow_name: replace_file_ids
+    output_model_name: D5
+
+  - input_model_name: D5
+    workflow_name: remove_backup_class
+    output_model_name: D6
+
+  - input_model_name: I2
+    workflow_name: replace_file_ids
+    output_model_name: D7
+
+  - input_model_name: D7
+    workflow_name: rename_to_file_id
+    output_model_name: D8
