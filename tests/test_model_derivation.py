@@ -18,6 +18,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from metldata.transform.exceptions import ModelAssumptionError, ModelTransformationError
 from schemapack import is_equal_schemapack
 from schemapack.spec.schemapack import SchemaPack
 
@@ -73,18 +74,29 @@ def test_invalid_config_raises(
     ids=["multi_step_workflow"],
     indirect=True,
 )
-def test_apply_workflow_wraps_step_failure(
+@pytest.mark.parametrize(
+    "side_effect_exc, expected_exc",
+    [
+        (ModelAssumptionError("model assumption violated"), ModelDerivationError),
+        (ModelTransformationError("model transformation failed"), ModelDerivationError),
+        (ValueError("unexpected error"), ValueError),
+    ],
+    ids=["ModelAssumptionError", "ModelTransformationError", "ValueError"],
+)
+def test_apply_workflow_exception_handling(
     model_derivation_fixture: ModelDerivationFixture,  # noqa: F811
+    side_effect_exc: Exception,
+    expected_exc: type[Exception],
 ):
-    """Confirm any exception raised inside a workflow step is wrapped in ModelDerivationError."""
+    """Confirm expected metldata exceptions are wrapped in ModelDerivationError."""
     cfg = model_derivation_fixture.config
     deriver = model_derivation_fixture.deriver
 
     with patch(
         "ets.core.model_derivation.TransformationHandler",
-        side_effect=ValueError("Destined to fail."),
+        side_effect=side_effect_exc,
     ):
-        with pytest.raises(ModelDerivationError, match="Schema derivation failed"):
+        with pytest.raises(expected_exc):
             deriver._apply_workflow(route=cfg.routes[0], input_schema=FILE_SCHEMA)
 
 

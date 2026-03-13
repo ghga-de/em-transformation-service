@@ -16,6 +16,7 @@
 """Contains functionality for SchemaPack derivation for non-EMIM models."""
 
 from metldata import get_transformation_registry
+from metldata.transform.exceptions import ModelAssumptionError, ModelTransformationError
 from metldata.transform.handling import TransformationHandler
 from schemapack import is_equivalent_schemapack
 from schemapack.spec.schemapack import SchemaPack
@@ -108,7 +109,7 @@ class ModelDeriver(ModelDeriverPort):
                     input_model=current_schema,
                 )
                 current_schema = handler.transformed_model
-            except Exception as err:
+            except (ModelAssumptionError, ModelTransformationError) as err:
                 raise ModelDerivationError(
                     f"Schema derivation failed for route '{route.name}' "
                     f"at workflow step '{step.name}': {err}"
