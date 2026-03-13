@@ -43,6 +43,16 @@ class ModelDeriver(ModelDeriverPort):
         self._transformation_registry = get_transformation_registry()
         self._workflows_by_name = {w.name: w for w in config.workflows}
 
+    def derive_models(self) -> list[Model]:
+        """Derive and return all models with populated schemas."""
+        schemas: dict[str, SchemaPack] = {
+            model.name: model.schema_  # type: ignore[misc]
+            for model in self._models
+            if model.is_ingress
+        }
+        self._process_routes(schemas=schemas)
+        return self._update_models(schemas=schemas)
+
     def _process_routes(self, *, schemas: dict[str, SchemaPack]) -> None:
         """Process each route in order, collecting derived output schemas."""
         topological_order: dict[str, int] = {
@@ -127,13 +137,3 @@ class ModelDeriver(ModelDeriverPort):
                 )
             )
         return models
-
-    def derive_models(self) -> list[Model]:
-        """Derive and return all models with populated schemas."""
-        schemas: dict[str, SchemaPack] = {
-            model.name: model.schema_  # type: ignore[misc]
-            for model in self._models
-            if model.is_ingress
-        }
-        self._process_routes(schemas=schemas)
-        return self._update_models(schemas=schemas)
