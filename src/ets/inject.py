@@ -61,7 +61,12 @@ async def prepare_aem_pack_registry(
         aem_pack_dao = await dao.get_aem_pack_dao(
             dao_factory=dao_factory,
         )
-        yield AEMPackRegistry(aem_pack_dao=aem_pack_dao)
+        config_loader = ConfigLoaderAdapter(
+            model_dao=await dao.get_persisted_model_dao(dao_factory=dao_factory),
+            route_dao=await dao.get_route_dao(dao_factory=dao_factory),
+            workflow_dao=await dao.get_workflow_dao(dao_factory=dao_factory),
+        )
+        yield AEMPackRegistry(aem_pack_dao=aem_pack_dao, config_loader=config_loader)
 
 
 def prepare_aem_pack_registry_with_override(

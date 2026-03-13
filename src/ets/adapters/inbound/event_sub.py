@@ -15,12 +15,14 @@
 
 """KafkaEventSubscriber receiving events."""
 
-from uuid import UUID
+import logging
 
 from hexkit.protocols.daosub import DaoSubscriberProtocol
 
 from ets.adapters.inbound.event_schemas import AEMPack, AEMPackEventConfig
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
+
+log = logging.getLogger(__name__)
 
 
 class EventSubTranslatorConfig(AEMPackEventConfig):
@@ -57,5 +59,8 @@ class EventSubTranslator(DaoSubscriberProtocol):
         await self._aem_pack_registry.upsert_aem_pack(aem_pack)
 
     async def deleted(self, resource_id: str) -> None:
-        """Consume an event indicating the deletion of an AEMPack"""
-        await self._aem_pack_registry.delete_aem_pack(aem_pack_id=UUID(resource_id))
+        """Consume a deletion event for an AEMPack."""
+        log.warning(
+            "Received deletion event for resource '%s', but deletion is not yet implemented.",
+            resource_id,
+        )

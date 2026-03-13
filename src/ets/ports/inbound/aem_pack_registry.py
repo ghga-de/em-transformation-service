@@ -27,9 +27,8 @@ class AEMPackRegistryPort(ABC):
 
     This port defines the interface for:
     - Upserting AEMPacks (insert or update)
-    - Deleting AEMPacks TODO
+    - Transforming an original AEMPack into all derived representations
     - Validating AEMPack data against schemas TODO
-    - Triggering data transformation TODO
     """
 
     class ModelNotFoundError(RuntimeError):
@@ -37,15 +36,6 @@ class AEMPackRegistryPort(ABC):
 
         def __init__(self, *, model_name: str):
             message = f"Model '{model_name}' not found in configuration."
-            super().__init__(message)
-
-    class AEMPackNotFoundError(RuntimeError):
-        """Raised when an AEMPack does not exist in the data storage.
-        Triggered if deletion is attempted on a non-existing AEMPack.
-        """
-
-        def __init__(self, *, aem_pack_id: UUID4):
-            message = f"AEMPack with ID '{aem_pack_id}' not found in storage."
             super().__init__(message)
 
     class DataPackValidationError(RuntimeError):
@@ -70,16 +60,23 @@ class AEMPackRegistryPort(ABC):
             DataPackValidationError: If the data doesn't conform to the model schema.
             UpsertionError: If the database operation fails.
         """
-        ...
 
     @abstractmethod
-    async def delete_aem_pack(self, aem_pack_id: UUID4) -> None:
-        """Delete an existing AEMPack.
+    async def transform_aem_pack(
+        self, original: AEMPack
+    ) -> tuple[dict[str, AEMPack], dict[str, UUID4]]:
+        """Traverse the transformation graph for an original AEMPack (steps 1-3).
+
+        Builds the dirty map of existing derived data, initializes the transformed
+        map with the original, and traverses the DAG in topological order applying
+        each route's workflow to produce derived AEMPacks.
 
         Args:
-            aem_pack_id (UUID4): The id of the AEMPack to delete.
+            original: The incoming original AEMPack to transform.
 
-        Raises:
-            AEMPackNotFoundError: If the AEMPack does not exist.
+        Returns:
+            A tuple of (transformed_map, dirty_map):
+            - transformed_map: mapping from model name to the newly produced AEMPack.
+            - dirty_map: mapping from model name to IDs of derived AEMPacks that were
+              not re-created and should be deleted (step 4).
         """
-        ...
