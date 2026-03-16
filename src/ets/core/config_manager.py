@@ -47,53 +47,78 @@ class ConfigManager(ConfigManagerPort):
             case RawConfig() as raw_config:
                 # validate new config
                 config = self.validator.validate(raw_config)
-                return self._prune_unpublished_leaves(config)  
+                return self._prune_unpublished_leaves(config)
             case PersistedConfig() as persisted_config:
                 return persisted_config
 
     def _prune_unpublished_leaves(self, config: ValidatedConfig) -> ValidatedConfig:
-        """TODO"""
-        # Use inverted model order to start at the last leaf
-        models = sorted(config.models, key=lambda conf: conf.order, reverse=True)
+        """Remove unpublished trailing models, along with their associated routes and orphaned workflows.
 
-        models_to_prune = []
-        routes_to_prune = []
-        workflow_prune_candidates = {}
+        Traverses models in reverse order, pruning any that appear after the last published
+        model within each subgraph. Routes referencing pruned models are removed, and workflows
+        are pruned if no remaining routes reference them.
+        """
+        pruned_model_names = self._collect_unpublished_model_names(config)
 
-        needs_pruning = True
-        for model in models:
+        # Prune models from config as they are unique
+        config.models = [m for m in config.models if m.name not in pruned_model_names]
+        for name in pruned_model_names:
+            log.warning("Pruned unpublished model: %s", name)
 
-            if model.publish:
-                needs_pruning = False
-
-            if not needs_pruning and not model.is_ingress:
-                continue
-
-            if model.is_ingress:
-                needs_pruning = True
-                continue
-            
-            models_to_prune.append(model)
-        
-        pruned_models = []
-        for model in models_to_prune:
-            config.models.remove(model)
-            pruned_models.append(model.name)
-
+        # Collect workflow candidates and drop routes referencing pruned models
+        surviving_routes = []
+        workflow_prune_candidates: set[str] = set()
         for route in config.routes:
-            if route.input_model_name in pruned_models or route.output_model_name in pruned_models:
-                routes_to_prune.append(route)
+            if (
+                route.input_model_name in pruned_model_names
+                or route.output_model_name in pruned_model_names
+            ):
                 workflow_prune_candidates.add(route.workflow_name)
+                log.warning("Pruned route referencing removed model: %s", route.name)
+            else:
+                surviving_routes.append(route)
 
-        for route in routes_to_prune:
-            config.routes.remove(route)
+        config.routes = surviving_routes
 
+        # Remove still referenced workflows from the list of deletion candidates
         for route in config.routes:
-            if route.workflow_name in workflow_prune_candidates:
-                workflow_prune_candidates.pop(route.workflow_name)
+            workflow_prune_candidates.discard(route.workflow_name)
 
-        for workflow in config.workflows:
-            if workflow.name in workflow_prune_candidates:
-                config.workflows.remove(workflow)
+        # Finally, also prune the workflows
+        config.workflows = [
+            workflow
+            for workflow in config.workflows
+            if workflow.name not in workflow_prune_candidates
+        ]
+        for name in workflow_prune_candidates:
+            log.warning("Pruned orphaned workflow: %s", name)
 
         return config
+
+    def _collect_unpublished_model_names(self, config: ValidatedConfig) -> set[str]:
+        """Return names of models that trail unpublished in each subgraph.
+
+        Iterates models in reverse order. Within each subgraph, any model that
+        appears after the last published model is collected.
+        Ingress models are never collected.
+        """
+        # Use inverted model order to start at the last leaf
+        models = sorted(config.models, key=lambda conf: conf.order, reverse=True)
+        pruned: set[str] = set()
+        needs_pruning = True
+        for model in models:
+            # Reached valid part of the subgraph
+            if model.publish:
+                needs_pruning = False
+            # Skip the rest if we're in a valid part of the subgraph
+            if not needs_pruning and not model.is_ingress:
+                continue
+            # On reaching the subgraph ingress model, the next model should be a leaf of another subgraph
+            if model.is_ingress:
+                # Prune the ingress itself if no published model was found in its subgraph
+                if needs_pruning:
+                    pruned.add(model.name)
+                needs_pruning = True
+                continue
+            pruned.add(model.name)
+        return pruned
