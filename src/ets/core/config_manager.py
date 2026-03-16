@@ -46,6 +46,54 @@ class ConfigManager(ConfigManagerPort):
         match self.comparator.compare_configs():
             case RawConfig() as raw_config:
                 # validate new config
-                return self.validator.validate(raw_config)
+                config = self.validator.validate(raw_config)
+                return self._prune_unpublished_leaves(config)  
             case PersistedConfig() as persisted_config:
                 return persisted_config
+
+    def _prune_unpublished_leaves(self, config: ValidatedConfig) -> ValidatedConfig:
+        """TODO"""
+        # Use inverted model order to start at the last leaf
+        models = sorted(config.models, key=lambda conf: conf.order, reverse=True)
+
+        models_to_prune = []
+        routes_to_prune = []
+        workflow_prune_candidates = {}
+
+        needs_pruning = True
+        for model in models:
+
+            if model.publish:
+                needs_pruning = False
+
+            if not needs_pruning and not model.is_ingress:
+                continue
+
+            if model.is_ingress:
+                needs_pruning = True
+                continue
+            
+            models_to_prune.append(model)
+        
+        pruned_models = []
+        for model in models_to_prune:
+            config.models.remove(model)
+            pruned_models.append(model.name)
+
+        for route in config.routes:
+            if route.input_model_name in pruned_models or route.output_model_name in pruned_models:
+                routes_to_prune.append(route)
+                workflow_prune_candidates.add(route.workflow_name)
+
+        for route in routes_to_prune:
+            config.routes.remove(route)
+
+        for route in config.routes:
+            if route.workflow_name in workflow_prune_candidates:
+                workflow_prune_candidates.pop(route.workflow_name)
+
+        for workflow in config.workflows:
+            if workflow.name in workflow_prune_candidates:
+                config.workflows.remove(workflow)
+
+        return config
