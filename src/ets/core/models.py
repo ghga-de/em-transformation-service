@@ -195,26 +195,18 @@ class Route(BaseModel):
         )
 
 
-class ConfigBase(BaseModel):
-    """Common config fields for either outcome of the comparison.
-
-    Used as base class for either variant for the result.
-    """
-
-    routes: Annotated[list[Route], MinLen(1)] = Field(
-        default=..., description="Up to date routes for downstream processing."
-    )
-    workflows: Annotated[list[Workflow], MinLen(1)] = Field(
-        default=..., description="Up to date workflows for downstream processing."
-    )
-
-
-class RawConfig(ConfigBase):
+class RawConfig(BaseModel):
     """For changed configs, the new, raw models are returned."""
 
     models: Annotated[list[RawModel], MinLen(1)] = Field(
         default=...,
         description="List of raw models defining the transformation graph.",
+    )
+    routes: Annotated[list[Route], MinLen(1)] = Field(
+        default=..., description="Up to date routes for downstream processing."
+    )
+    workflows: Annotated[list[Workflow], MinLen(1)] = Field(
+        default=..., description="Up to date workflows for downstream processing."
     )
 
 
@@ -236,10 +228,19 @@ class ValidatedConfig(BaseModel):
     )
 
 
-class PersistedConfig(ConfigBase):
-    """For unchanged configs, the persisted models are returned."""
+class PersistedConfig(BaseModel):
+    """For unchanged configs, the persisted models are returned.
 
-    models: Annotated[list[Model], MinLen(1)] = Field(
+    All list fields may be empty as the config might not be fully populated yet.
+    """
+
+    models: list[Model] = Field(
         default=...,
         description="Contains the existing, persisted models.",
+    )
+    routes: list[Route] = Field(
+        default=..., description="Up to date routes for downstream processing."
+    )
+    workflows: list[Workflow] = Field(
+        default=..., description="Up to date workflows for downstream processing."
     )
