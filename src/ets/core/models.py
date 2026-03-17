@@ -17,8 +17,9 @@
 
 import json
 from collections.abc import Mapping
-from typing import Any
+from typing import Annotated, Any
 
+from annotated_types import MinLen
 from metldata.workflow.base import Workflow as MetldataWorkflow
 from pydantic import (
     BaseModel,
@@ -200,10 +201,10 @@ class ConfigBase(BaseModel):
     Used as base class for either variant for the result.
     """
 
-    routes: list[Route] = Field(
+    routes: Annotated[list[Route], MinLen(1)] = Field(
         default=..., description="Up to date routes for downstream processing."
     )
-    workflows: list[Workflow] = Field(
+    workflows: Annotated[list[Workflow], MinLen(1)] = Field(
         default=..., description="Up to date workflows for downstream processing."
     )
 
@@ -211,7 +212,7 @@ class ConfigBase(BaseModel):
 class RawConfig(ConfigBase):
     """For changed configs, the new, raw models are returned."""
 
-    models: list[RawModel] = Field(
+    models: Annotated[list[RawModel], MinLen(1)] = Field(
         default=...,
         description="List of raw models defining the transformation graph.",
     )
@@ -223,20 +224,22 @@ class ValidatedConfig(BaseModel):
     schema generation.
     """
 
-    models: list[OrderedRawModel] = Field(
+    models: Annotated[list[OrderedRawModel], MinLen(1)] = Field(
         default=..., description="Validated models with topological order."
     )
-    routes: list[Route] = Field(
+    routes: Annotated[list[Route], MinLen(1)] = Field(
         default=...,
         description="Validated routes with consistent naming and references.",
     )
-    workflows: list[Workflow] = Field(default=..., description="Validated workflows.")
+    workflows: Annotated[list[Workflow], MinLen(1)] = Field(
+        default=..., description="Validated workflows."
+    )
 
 
 class PersistedConfig(ConfigBase):
     """For unchanged configs, the persisted models are returned."""
 
-    models: list[Model] = Field(
+    models: Annotated[list[Model], MinLen(1)] = Field(
         default=...,
         description="Contains the existing, persisted models.",
     )
