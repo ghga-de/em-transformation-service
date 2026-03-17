@@ -1,16 +1,14 @@
-# A workflow referenced by both a pruned and a surviving route in different subgraphs is kept.
+# A workflow referenced only by removed routes is pruned;
+# a workflow still referenced by a surviving route is kept.
 #
-# Subgraph 1:
-#     UnpublishedSource --[shared_workflow]--> PublishedDerived
-#
-# Subgraph 2:
-#     PublishedSource --[shared_workflow]--> UnpublishedLeaf
+# Graph:
+#     PublishedSource --[kept_workflow]--> PublishedDerived --[dropped_workflow]--> UnpublishedLeaf
 
 config:
   models:
-    - name: UnpublishedSource
+    - name: PublishedSource
       order: 0
-      publish: false
+      publish: true
       is_ingress: true
       version: null
       schema_:
@@ -28,35 +26,37 @@ config:
       is_ingress: false
       version: null
       schema_: null
-    - name: PublishedSource
-      order: 2
-      publish: true
-      is_ingress: true
-      version: null
-      schema_:
-        schemapack: "4.0.0"
-        classes:
-          Item:
-            id:
-              propertyName: id
-            content:
-              type: object
-              additionalProperties: false
     - name: UnpublishedLeaf
-      order: 3
+      order: 2
       publish: false
       is_ingress: false
       version: null
       schema_: null
   routes:
-    - input_model_name: UnpublishedSource
-      workflow_name: shared_workflow
-      output_model_name: PublishedDerived
     - input_model_name: PublishedSource
-      workflow_name: shared_workflow
+      workflow_name: kept_workflow
+      output_model_name: PublishedDerived
+    - input_model_name: PublishedDerived
+      workflow_name: dropped_workflow
       output_model_name: UnpublishedLeaf
   workflows:
-    - name: shared_workflow
+    - name: kept_workflow
+      description: Passes content schema through unchanged
+      workflow:
+        operations:
+          - name: transform_content
+            description: Identity transformation
+            args:
+              class_name: Item
+              content_schema:
+                type: object
+                additionalProperties: false
+              embedding_profile: {}
+              content_template_yaml: |
+                {% for key in content_property_names %}
+                  {{ key }}: {{ original[key] }}
+                {% endfor %}
+    - name: dropped_workflow
       description: Passes content schema through unchanged
       workflow:
         operations:

@@ -83,7 +83,7 @@ RENAMED_ID_WITH_BACKUP_SCHEMA = SchemaPack.model_validate(
 
 @dataclass
 class ModelDerivationFixture:
-    """Holds a loaded ``ValidatedConfig`` and the corresponding ``ModelDeriver``."""
+    """Holds a loaded ValidatedConfig and the corresponding ModelDeriver."""
 
     config: ValidatedConfig
     deriver: ModelDeriver
@@ -93,7 +93,7 @@ class ModelDerivationFixture:
 def model_derivation_fixture(
     request: pytest.FixtureRequest,
 ) -> Generator[ModelDerivationFixture]:
-    """Build a ``ModelDerivationFixture`` from the path passed via ``indirect``."""
+    """Build a ModelDerivationFixture from the path passed via indirect (needs to be set on the test case)."""
     path: Path = request.param
     config = load_model_derivation_config(path)
     deriver = ModelDeriver(config=config)
@@ -104,10 +104,6 @@ def model_derivation_fixture(
 def mock_apply_workflow(
     model_derivation_fixture: ModelDerivationFixture,
 ) -> Generator[MagicMock]:
-    """Patch ``_apply_workflow`` on the deriver and yield the mock.
-
-    Tests configure the mock via ``.return_value`` or ``.side_effect``
-    before calling ``derive_models``.
-    """
+    """Patch _apply_workflow on the deriver and yield the mock."""
     with patch.object(model_derivation_fixture.deriver, "_apply_workflow") as mock:
         yield mock

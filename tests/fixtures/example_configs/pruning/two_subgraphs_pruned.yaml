@@ -1,17 +1,17 @@
 # Isolated published ingress survives; ingresses with no published models are pruned.
 #
 # Subgraph 1 (orphaned):
-#     I1(unpub)    ← pruned
+#     UnpublishedSource
 #
 # Subgraph 2:
-#     A(pub)
+#     PublishedSource
 #
 # Subgraph 3:
-#     I2(unpub) --[wf]--> B(unpub)    ← both pruned
+#     UnpublishedSource_2 --[workflow]--> UnpublishedLeaf
 
 config:
   models:
-    - name: I1
+    - name: UnpublishedSource
       order: 0
       publish: false
       is_ingress: true
@@ -25,7 +25,7 @@ config:
             content:
               type: object
               additionalProperties: false
-    - name: A
+    - name: PublishedSource
       order: 1
       publish: true
       is_ingress: true
@@ -39,7 +39,7 @@ config:
             content:
               type: object
               additionalProperties: false
-    - name: I2
+    - name: UnpublishedSource_2
       order: 2
       publish: false
       is_ingress: true
@@ -53,20 +53,30 @@ config:
             content:
               type: object
               additionalProperties: false
-    - name: B
+    - name: UnpublishedLeaf
       order: 3
       publish: false
       is_ingress: false
       version: null
       schema_: null
   routes:
-    - input_model_name: I2
-      workflow_name: wf
-      output_model_name: B
+    - input_model_name: UnpublishedSource_2
+      workflow_name: workflow
+      output_model_name: UnpublishedLeaf
   workflows:
-    - name: wf
+    - name: workflow
+      description: Passes content schema through unchanged
       workflow:
         operations:
-          - name: step
-            description: test step
-            args: {}
+          - name: transform_content
+            description: Identity transformation
+            args:
+              class_name: Item
+              content_schema:
+                type: object
+                additionalProperties: false
+              embedding_profile: {}
+              content_template_yaml: |
+                {% for key in content_property_names %}
+                  {{ key }}: {{ original[key] }}
+                {% endfor %}

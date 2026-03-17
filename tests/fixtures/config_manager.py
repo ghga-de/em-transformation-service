@@ -15,7 +15,7 @@
 
 """Fixtures for config manager pruning tests."""
 
-from dataclasses import dataclass, field
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -26,25 +26,16 @@ from ets.core.config_manager import ConfigManager
 from ets.core.models import ValidatedConfig
 
 
-@dataclass
-class PruningExpected:
-    """Expected state after applying ``_prune_unpublished_leaves``."""
-
-    models: set[str] = field(default_factory=set)
-    routes: set[str] = field(default_factory=set)
-    workflows: set[str] = field(default_factory=set)
+@pytest.fixture
+def manager() -> Generator[ConfigManager]:
+    """ConfigManager with mock ports (unused by pruning methods)."""
+    yield ConfigManager(validator=MagicMock(), comparator=MagicMock())
 
 
 @pytest.fixture
-def manager() -> ConfigManager:
-    """``ConfigManager`` with mock ports (unused by pruning methods)."""
-    return ConfigManager(validator=MagicMock(), comparator=MagicMock())  # type: ignore[arg-type]
-
-
-@pytest.fixture
-def pruning_fixture(request: pytest.FixtureRequest) -> ValidatedConfig:
-    """Load a ``ValidatedConfig`` from the YAML path passed via ``indirect``."""
+def pruning_fixture(request: pytest.FixtureRequest) -> Generator[ValidatedConfig]:
+    """Load a ValidatedConfig from the YAML path passed via indirect (needs to be set on the test case)."""
     path: Path = request.param
     with path.open("r") as fh:
         data = safe_load(fh)
-    return ValidatedConfig.model_validate(data["config"])
+    yield ValidatedConfig.model_validate(data["config"])

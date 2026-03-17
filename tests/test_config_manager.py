@@ -15,59 +15,73 @@
 
 """Tests for the pruning logic in ConfigManager."""
 
+from dataclasses import dataclass, field
+
 import pytest
 
 from ets.core.config_manager import ConfigManager
 from ets.core.models import ValidatedConfig
 from tests.fixtures.config_manager import (
-    PruningExpected,
     manager,  # noqa: F401
     pruning_fixture,  # noqa: F401
 )
 from tests.fixtures.examples import PRUNING_CASES
 
 
+@dataclass
+class PruningResult:
+    """Expected state after applying _prune_unpublished_leaves."""
+
+    models: set[str] = field(default_factory=set)
+    routes: set[str] = field(default_factory=set)
+    workflows: set[str] = field(default_factory=set)
+
+
 @pytest.mark.parametrize(
     "pruning_fixture, expected",
     [
         (
-            PRUNING_CASES["all_published_nothing_pruned"],
-            PruningExpected(
-                models={"I", "A", "B"}, routes={"I:wf:A"}, workflows={"wf"}
+            PRUNING_CASES["nothing_pruned"],
+            PruningResult(
+                models={"PublishedSource", "PublishedDerived", "PublishedSource_2"},
+                routes={"PublishedSource:workflow:PublishedDerived"},
+                workflows={"workflow"},
             ),
         ),
         (
-            PRUNING_CASES["all_unpublished_subgraph_prunes_ingress"],
-            PruningExpected(),
+            PRUNING_CASES["everything_pruned"],
+            PruningResult(),
         ),
         (
-            PRUNING_CASES["published_ingress_with_trailing_unpublished"],
-            PruningExpected(models={"I", "A"}),
+            PRUNING_CASES["two_subgraphs_pruned"],
+            PruningResult(models={"PublishedSource"}),
         ),
         (
-            PRUNING_CASES["only_unpublished_subgraph_pruned"],
-            PruningExpected(models={"A"}),
+            PRUNING_CASES["keep_referenced_workflow"],
+            PruningResult(
+                models={"PublishedSource", "PublishedDerived"},
+                routes={"PublishedSource:workflow:PublishedDerived"},
+                workflows={"workflow"},
+            ),
         ),
         (
-            PRUNING_CASES["route_referencing_pruned_output_removed"],
-            PruningExpected(models={"I", "A"}, routes={"I:wf:A"}, workflows={"wf"}),
+            PRUNING_CASES["prune_unreferenced_workflow"],
+            PruningResult(models={"PublishedSource"}),
         ),
         (
-            PRUNING_CASES["route_referencing_pruned_input_removed"],
-            PruningExpected(models={"I"}),
-        ),
-        (
-            PRUNING_CASES["orphaned_workflow_pruned"],
-            PruningExpected(
-                models={"I", "A"}, routes={"I:wf_keep:A"}, workflows={"wf_keep"}
+            PRUNING_CASES["leaf_pruned"],
+            PruningResult(
+                models={"PublishedSource", "PublishedDerived"},
+                routes={"PublishedSource:kept_workflow:PublishedDerived"},
+                workflows={"kept_workflow"},
             ),
         ),
         (
             PRUNING_CASES["shared_workflow_not_pruned"],
-            PruningExpected(
-                models={"I1", "A", "I2"},
-                routes={"I1:shared_wf:A"},
-                workflows={"shared_wf"},
+            PruningResult(
+                models={"UnpublishedSource", "PublishedDerived", "PublishedSource"},
+                routes={"UnpublishedSource:shared_workflow:PublishedDerived"},
+                workflows={"shared_workflow"},
             ),
         ),
     ],
@@ -77,9 +91,9 @@ from tests.fixtures.examples import PRUNING_CASES
 def test_prune_unpublished_leaves(
     manager: ConfigManager,  # noqa: F811
     pruning_fixture: ValidatedConfig,  # noqa: F811
-    expected: PruningExpected,
+    expected: PruningResult,
 ):
-    """Confirm ``_prune_unpublished_leaves`` retains the correct models, routes, and workflows."""
+    """Confirm _prune_unpublished_leaves retains the correct models, routes, and workflows."""
     result = manager._prune_unpublished_leaves(pruning_fixture)
     assert {m.name for m in result.models} == expected.models
     assert {r.name for r in result.routes} == expected.routes

@@ -1,10 +1,10 @@
-# A workflow referenced by both a pruned and a surviving route in different subgraphs is kept.
+# All subgraphs contain no published models and are pruned entirely.
 #
 # Subgraph 1:
-#     UnpublishedSource --[shared_workflow]--> PublishedDerived
+#     UnpublishedSource --[workflow]--> UnpublishedLeaf
 #
 # Subgraph 2:
-#     PublishedSource --[shared_workflow]--> UnpublishedLeaf
+#     UnpublishedSource_2
 
 config:
   models:
@@ -22,15 +22,15 @@ config:
             content:
               type: object
               additionalProperties: false
-    - name: PublishedDerived
+    - name: UnpublishedLeaf
       order: 1
-      publish: true
+      publish: false
       is_ingress: false
       version: null
       schema_: null
-    - name: PublishedSource
+    - name: UnpublishedSource_2
       order: 2
-      publish: true
+      publish: false
       is_ingress: true
       version: null
       schema_:
@@ -42,21 +42,12 @@ config:
             content:
               type: object
               additionalProperties: false
-    - name: UnpublishedLeaf
-      order: 3
-      publish: false
-      is_ingress: false
-      version: null
-      schema_: null
   routes:
     - input_model_name: UnpublishedSource
-      workflow_name: shared_workflow
-      output_model_name: PublishedDerived
-    - input_model_name: PublishedSource
-      workflow_name: shared_workflow
+      workflow_name: workflow
       output_model_name: UnpublishedLeaf
   workflows:
-    - name: shared_workflow
+    - name: workflow
       description: Passes content schema through unchanged
       workflow:
         operations:
