@@ -20,7 +20,10 @@ import logging
 from ets.core.models import PersistedConfig, RawConfig, ValidatedConfig
 from ets.ports.inbound.config_comparator import ConfigComparatorPort
 from ets.ports.inbound.config_manager import ConfigManagerPort
-from ets.ports.inbound.config_validator import ConfigValidatorPort
+from ets.ports.inbound.config_validator import (
+    ConfigValidationError,
+    ConfigValidatorPort,
+)
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +67,8 @@ class ConfigManager(ConfigManagerPort):
         config.models = [m for m in config.models if m.name not in pruned_model_names]
         for name in pruned_model_names:
             log.warning("Pruned unpublished model: %s", name)
+        if not config.models:
+            raise ConfigValidationError("All models were pruned from the config.")
 
         # Collect workflow candidates and drop routes referencing pruned models
         surviving_routes = []
@@ -77,6 +82,8 @@ class ConfigManager(ConfigManagerPort):
                 log.warning("Pruned route referencing removed model: %s", route.name)
             else:
                 surviving_routes.append(route)
+        if not surviving_routes:
+            raise ConfigValidationError("All routes were pruned from the config.")
 
         config.routes = surviving_routes
 
@@ -92,6 +99,8 @@ class ConfigManager(ConfigManagerPort):
         ]
         for name in workflow_prune_candidates:
             log.warning("Pruned orphaned workflow: %s", name)
+        if not config.workflows:
+            raise ConfigValidationError("All workflows were pruned from the config.")
 
         return config
 

@@ -21,6 +21,7 @@ import pytest
 
 from ets.core.config_manager import ConfigManager
 from ets.core.models import ValidatedConfig
+from ets.ports.inbound.config_validator import ConfigValidationError
 from tests.fixtures.config_manager import (
     manager,  # noqa: F401
     pruning_fixture,  # noqa: F401
@@ -49,24 +50,12 @@ class PruningResult:
             ),
         ),
         (
-            PRUNING_CASES["everything_pruned"],
-            PruningResult(),
-        ),
-        (
-            PRUNING_CASES["two_subgraphs_pruned"],
-            PruningResult(models={"PublishedSource"}),
-        ),
-        (
             PRUNING_CASES["keep_referenced_workflow"],
             PruningResult(
                 models={"PublishedSource", "PublishedDerived"},
                 routes={"PublishedSource:workflow:PublishedDerived"},
                 workflows={"workflow"},
             ),
-        ),
-        (
-            PRUNING_CASES["prune_unreferenced_workflow"],
-            PruningResult(models={"PublishedSource"}),
         ),
         (
             PRUNING_CASES["leaf_pruned"],
@@ -85,7 +74,12 @@ class PruningResult:
             ),
         ),
     ],
-    ids=PRUNING_CASES.keys(),
+    ids=[
+        "nothing_pruned",
+        "keep_referenced_workflow",
+        "leaf_pruned",
+        "shared_workflow_not_pruned",
+    ],
     indirect=["pruning_fixture"],
 )
 def test_prune_unpublished_leaves(
@@ -98,3 +92,22 @@ def test_prune_unpublished_leaves(
     assert {m.name for m in result.models} == expected.models
     assert {r.name for r in result.routes} == expected.routes
     assert {w.name for w in result.workflows} == expected.workflows
+
+
+@pytest.mark.parametrize(
+    "pruning_fixture",
+    [
+        PRUNING_CASES["everything_pruned"],
+        PRUNING_CASES["two_subgraphs_pruned"],
+        PRUNING_CASES["prune_unreferenced_workflow"],
+    ],
+    ids=["everything_pruned", "two_subgraphs_pruned", "prune_unreferenced_workflow"],
+    indirect=["pruning_fixture"],
+)
+def test_prune_unpublished_leaves_raises(
+    manager: ConfigManager,  # noqa: F811
+    pruning_fixture: ValidatedConfig,  # noqa: F811
+):
+    """Confirm _prune_unpublished_leaves raises when pruning leaves results in any empty config field."""
+    with pytest.raises(ConfigValidationError):
+        manager._prune_unpublished_leaves(pruning_fixture)
