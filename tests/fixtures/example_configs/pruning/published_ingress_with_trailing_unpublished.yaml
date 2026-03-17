@@ -1,0 +1,45 @@
+# Ingress is retained when at least one model in its subgraph is published;
+# the trailing unpublished leaf is pruned.
+#
+# Graph:
+#     I(unpub)    A(pub) --[wf]--> B(unpub)    ← B pruned
+
+config:
+  models:
+    - name: I
+      order: 0
+      publish: false
+      is_ingress: true
+      version: null
+      schema_:
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+    - name: A
+      order: 1
+      publish: true
+      is_ingress: false
+      version: null
+      schema_: null
+    - name: B
+      order: 2
+      publish: false
+      is_ingress: false
+      version: null
+      schema_: null
+  routes:
+    - input_model_name: A
+      workflow_name: wf
+      output_model_name: B
+  workflows:
+    - name: wf
+      workflow:
+        operations:
+          - name: step
+            description: test step
+            args: {}

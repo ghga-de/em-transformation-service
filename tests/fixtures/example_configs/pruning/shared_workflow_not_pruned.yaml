@@ -1,0 +1,64 @@
+# A workflow referenced by both a pruned and a surviving route is kept.
+#
+# Subgraph 1:
+#     I1(unpub) --[shared_wf]--> A(pub)
+#
+# Subgraph 2:
+#     I2(pub) --[shared_wf]--> B(unpub)    ← B and route I2→B pruned; shared_wf survives
+
+config:
+  models:
+    - name: I1
+      order: 0
+      publish: false
+      is_ingress: true
+      version: null
+      schema_:
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+    - name: A
+      order: 1
+      publish: true
+      is_ingress: false
+      version: null
+      schema_: null
+    - name: I2
+      order: 2
+      publish: true
+      is_ingress: true
+      version: null
+      schema_:
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+    - name: B
+      order: 3
+      publish: false
+      is_ingress: false
+      version: null
+      schema_: null
+  routes:
+    - input_model_name: I1
+      workflow_name: shared_wf
+      output_model_name: A
+    - input_model_name: I2
+      workflow_name: shared_wf
+      output_model_name: B
+  workflows:
+    - name: shared_wf
+      workflow:
+        operations:
+          - name: step
+            description: test step
+            args: {}

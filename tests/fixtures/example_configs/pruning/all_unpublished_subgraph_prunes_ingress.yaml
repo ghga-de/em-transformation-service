@@ -1,0 +1,55 @@
+# All subgraphs contain no published models — all are pruned entirely.
+#
+# Subgraph 1:
+#     I(unpub) --[wf]--> A(unpub)    ← pruned
+#
+# Subgraph 2:
+#     B(unpub)    ← pruned
+
+config:
+  models:
+    - name: I
+      order: 0
+      publish: false
+      is_ingress: true
+      version: null
+      schema_:
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+    - name: A
+      order: 1
+      publish: false
+      is_ingress: false
+      version: null
+      schema_: null
+    - name: B
+      order: 2
+      publish: false
+      is_ingress: true
+      version: null
+      schema_:
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+  routes:
+    - input_model_name: I
+      workflow_name: wf
+      output_model_name: A
+  workflows:
+    - name: wf
+      workflow:
+        operations:
+          - name: step
+            description: test step
+            args: {}
