@@ -62,7 +62,16 @@ class ConfigManager(ConfigManagerPort):
         model within each subgraph. Routes referencing pruned models are removed, and workflows
         are pruned if no remaining routes reference them.
         """
-        pruned_model_names = self._collect_unpublished_model_names(config)
+        # Build downstream neighbor map
+        downstream = defaultdict(set)
+        for route in config.routes:
+            downstream[route.input_model_name].add(route.output_model_name)
+
+        # Check which models need pruning by traversing in reverse topological order
+        pruned_model_names: set[str] = set()
+        for model in sorted(config.models, key=lambda model: model.order, reverse=True):
+            if not model.publish and not (downstream[model.name] - pruned_model_names):
+                pruned_model_names.add(model.name)
 
         # Directly prune models from config as they are unique
         config.models = [m for m in config.models if m.name not in pruned_model_names]
@@ -75,10 +84,7 @@ class ConfigManager(ConfigManagerPort):
         surviving_routes = []
         workflow_prune_candidates: set[str] = set()
         for route in config.routes:
-            if (
-                route.input_model_name in pruned_model_names
-                or route.output_model_name in pruned_model_names
-            ):
+            if route.output_model_name in pruned_model_names:
                 workflow_prune_candidates.add(route.workflow_name)
                 log.warning("Pruned route referencing removed model: %s", route.name)
             else:
@@ -104,26 +110,3 @@ class ConfigManager(ConfigManagerPort):
             raise ConfigValidationError("All workflows were pruned from the config.")
 
         return config
-
-    def _collect_unpublished_model_names(self, config: ValidatedConfig) -> set[str]:
-        """Return names of unpublished models with no surviving downstream neighbors.
-
-        Iterates models in reverse topological order. An unpublished model is pruned
-        if all its direct downstream neighbors have already been pruned, or it has none.
-        Published models are never pruned.
-        """
-        # Build downstream neighbor map
-        downstream = defaultdict(set)
-        for route in config.routes:
-            downstream[route.input_model_name].add(route.output_model_name)
-
-        # Use inverted model order to start at the last leaf
-        models = sorted(config.models, key=lambda model: model.order, reverse=True)
-
-        pruned: set[str] = set()
-
-        for model in models:
-            if not model.publish and not (downstream[model.name] - pruned):
-                pruned.add(model.name)
-
-        return pruned
