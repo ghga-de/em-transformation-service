@@ -62,6 +62,13 @@ class ConfigManager(ConfigManagerPort):
         model within each subgraph. Routes referencing pruned models are removed, and workflows
         are pruned if no remaining routes reference them.
         """
+        pruned_model_names = self._prune_models(config)
+        workflow_prune_candidates = self._prune_routes(config, pruned_model_names)
+        self._prune_workflows(config, workflow_prune_candidates)
+        return config
+
+    def _prune_models(self, config: ValidatedConfig) -> set[str]:
+        """Prune unpublished leaf models and return their names."""
         # Build downstream neighbor map
         downstream = defaultdict(set)
         for route in config.routes:
@@ -80,7 +87,12 @@ class ConfigManager(ConfigManagerPort):
         if not config.models:
             raise ConfigValidationError("All models were pruned from the config.")
 
-        # Collect workflow candidates and drop routes referencing pruned models
+        return pruned_model_names
+
+    def _prune_routes(
+        self, config: ValidatedConfig, pruned_model_names: set[str]
+    ) -> set[str]:
+        """Prune routes referencing pruned models and return orphaned workflow pruning candidates."""
         surviving_routes = []
         workflow_prune_candidates: set[str] = set()
         for route in config.routes:
@@ -93,12 +105,15 @@ class ConfigManager(ConfigManagerPort):
             raise ConfigValidationError("All routes were pruned from the config.")
 
         config.routes = surviving_routes
-
-        # Remove still referenced workflows from the list of deletion candidates
         for route in config.routes:
             workflow_prune_candidates.discard(route.workflow_name)
 
-        # Finally, also prune the workflows
+        return workflow_prune_candidates
+
+    def _prune_workflows(
+        self, config: ValidatedConfig, workflow_prune_candidates: set[str]
+    ) -> None:
+        """Prune orphaned workflows from config."""
         config.workflows = [
             workflow
             for workflow in config.workflows
@@ -108,5 +123,3 @@ class ConfigManager(ConfigManagerPort):
             log.warning("Pruned orphaned workflow: %s", name)
         if not config.workflows:
             raise ConfigValidationError("All workflows were pruned from the config.")
-
-        return config
