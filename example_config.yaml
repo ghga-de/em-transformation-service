@@ -1,3 +1,4 @@
+aem_pack_publish_topic: aem_pack_publish
 aem_pack_upsert_topic: aem_pack_upsert
 db_name: dev
 generate_correlation_id: true

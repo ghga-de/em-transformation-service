@@ -24,10 +24,16 @@ from hexkit.providers.akafka import (
     KafkaEventSubscriber,
 )
 from hexkit.providers.mongodb import MongoDbDaoFactory
+from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
 
 from ets.adapters.inbound.event_sub import EventSubTranslator
-from ets.adapters.outbound import dao
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
+from ets.adapters.outbound.dao import (
+    AEMPackDaoFactory,
+    get_persisted_model_dao,
+    get_route_dao,
+    get_workflow_dao,
+)
 from ets.config import Config
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
@@ -41,9 +47,9 @@ async def prepare_config_loader(*, config: Config) -> AsyncGenerator[ConfigLoade
     Factored out for better testability.
     """
     async with MongoDbDaoFactory.construct(config=config) as dao_factory:
-        model_dao = await dao.get_persisted_model_dao(dao_factory=dao_factory)
-        route_dao = await dao.get_route_dao(dao_factory=dao_factory)
-        workflow_dao = await dao.get_workflow_dao(dao_factory=dao_factory)
+        model_dao = await get_persisted_model_dao(dao_factory=dao_factory)
+        route_dao = await get_route_dao(dao_factory=dao_factory)
+        workflow_dao = await get_workflow_dao(dao_factory=dao_factory)
         yield ConfigLoaderAdapter(
             model_dao=model_dao,
             route_dao=route_dao,
@@ -57,16 +63,24 @@ async def prepare_aem_pack_registry(
     config: Config,
 ) -> AsyncGenerator[AEMPackRegistryPort]:
     """Constructs and initializes core components and their outbound dependencies."""
-    async with MongoDbDaoFactory.construct(config=config) as dao_factory:
-        aem_pack_dao = await dao.get_aem_pack_dao(
-            dao_factory=dao_factory,
+    async with (
+        MongoDbDaoFactory.construct(config=config) as dao_factory,
+        MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
+    ):
+        aem_pack_dao_factory = AEMPackDaoFactory(
+            config=config, dao_publisher_factory=dao_pub_factory
         )
+        aem_pack_dao = await aem_pack_dao_factory.get_aem_pack_dao()
         config_loader = ConfigLoaderAdapter(
-            model_dao=await dao.get_persisted_model_dao(dao_factory=dao_factory),
-            route_dao=await dao.get_route_dao(dao_factory=dao_factory),
-            workflow_dao=await dao.get_workflow_dao(dao_factory=dao_factory),
+            model_dao=await get_persisted_model_dao(dao_factory=dao_factory),
+            route_dao=await get_route_dao(dao_factory=dao_factory),
+            workflow_dao=await get_workflow_dao(dao_factory=dao_factory),
         )
-        yield AEMPackRegistry(aem_pack_dao=aem_pack_dao, config_loader=config_loader)
+
+        yield AEMPackRegistry(
+            aem_pack_dao=aem_pack_dao,
+            config_loader=config_loader,
+        )
 
 
 def prepare_aem_pack_registry_with_override(

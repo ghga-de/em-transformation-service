@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import UUID4
 
-from ets.adapters.inbound.event_schemas import AEMPack
+from ets.event_schemas import AEMPack
 
 
 class AEMPackRegistryPort(ABC):
@@ -62,14 +62,15 @@ class AEMPackRegistryPort(ABC):
         """
 
     @abstractmethod
-    async def transform_aem_pack(
+    async def process_aem_pack(
         self, original: AEMPack
     ) -> tuple[dict[str, AEMPack], dict[str, UUID4]]:
-        """Traverse the transformation graph for an original AEMPack (steps 1-3).
+        """Transform an original AEMPack through the full user journey (steps 1-4).
 
-        Builds the dirty map of existing derived data, initializes the transformed
-        map with the original, and traverses the DAG in topological order applying
-        each route's workflow to produce derived AEMPacks.
+        Steps 1-3 build the dirty map, initialize the transformed map, and traverse
+        the DAG in topological order applying each route's workflow.
+        Step 4 upserts all transformed AEMPacks whose model has ``publish=True``
+        and deletes any stale entries remaining in the dirty map.
 
         Args:
             original: The incoming original AEMPack to transform.
@@ -77,6 +78,6 @@ class AEMPackRegistryPort(ABC):
         Returns:
             A tuple of (transformed_map, dirty_map):
             - transformed_map: mapping from model name to the newly produced AEMPack.
-            - dirty_map: mapping from model name to IDs of derived AEMPacks that were
-              not re-created and should be deleted (step 4).
+            - dirty_map: mapping from model name to IDs of stale AEMPacks that were
+              deleted from the database in step 4.
         """

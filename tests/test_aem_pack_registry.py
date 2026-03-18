@@ -20,8 +20,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from ets.adapters.inbound.event_schemas import AEMPack
 from ets.core.aem_pack_registry import AEMPackRegistry
+from ets.event_schemas import AEMPack
 from tests.fixtures.aem_pack_registry import (
     ORIGINAL_AEM_PACK,
     REGISTRY_DATAPACK,
@@ -293,7 +293,7 @@ async def test_transform_aem_pack_first_time_populates_all_derived_models(
     (
         transformed_map,
         dirty_map,
-    ) = await joint_fixture.aem_pack_registry.transform_aem_pack(ORIGINAL_AEM_PACK)
+    ) = await joint_fixture.aem_pack_registry.process_aem_pack(ORIGINAL_AEM_PACK)
 
     assert "A" in transformed_map
     assert "B" in transformed_map
@@ -313,7 +313,7 @@ async def test_transform_aem_pack_retransformation_reuses_existing_ids(
         await joint_fixture.daos.workflow_dao.upsert(workflow)
 
     # First pass — capture the IDs assigned.
-    first_transformed, _ = await joint_fixture.aem_pack_registry.transform_aem_pack(
+    first_transformed, _ = await joint_fixture.aem_pack_registry.process_aem_pack(
         ORIGINAL_AEM_PACK
     )
     b_id_first = first_transformed["B"].id
@@ -328,7 +328,7 @@ async def test_transform_aem_pack_retransformation_reuses_existing_ids(
     (
         second_transformed,
         dirty_map,
-    ) = await joint_fixture.aem_pack_registry.transform_aem_pack(ORIGINAL_AEM_PACK)
+    ) = await joint_fixture.aem_pack_registry.process_aem_pack(ORIGINAL_AEM_PACK)
 
     assert second_transformed["B"].id == b_id_first
     assert second_transformed["C"].id == c_id_first

@@ -19,9 +19,9 @@ from uuid import uuid4
 
 from schemapack.spec.datapack import DataPack
 
-from ets.adapters.inbound.event_schemas import AEMPack
 from ets.core.model_derivation import ModelDeriver
 from ets.core.models import PersistedConfig
+from ets.event_schemas import AEMPack
 from tests.fixtures.examples import (
     VALID_MODEL_DERIVATION_CONFIGS,
     load_model_derivation_config,

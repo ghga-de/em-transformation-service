@@ -24,8 +24,8 @@ from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.adapters.inbound.event_schemas import AEMPack
 from ets.core.models import Model, PersistedConfig, Route, Workflow
+from ets.event_schemas import AEMPack
 from ets.ports.inbound.aem_pack_registry import (
     AEMPackRegistryPort,
 )
@@ -43,50 +43,37 @@ class AEMPackRegistry(AEMPackRegistryPort):
         self._config_loader = config_loader
         self._transformation_registry = get_transformation_registry()
 
-    async def _build_dirty_map(self, original_id: str) -> dict[str, UUID4]:
-        """Build a mapping from model names to AEMPack IDs for all existing
-        derived data that share the given original ID.
+    async def process_aem_pack(
+        self, original: AEMPack
+    ) -> tuple[dict[str, AEMPack], dict[str, UUID4]]:
+        """Run steps 1-4 of the transformation user journey.
 
-        This tracks data that may need to be re-created or deleted during
-        transformation.
+        Returns:
+            A tuple of (transformed_map, dirty_map) where dirty_map contains
+            only entries that were not re-created during traversal (these have
+            been deleted from the database in step 4).
         """
-        dirty_map: dict[str, UUID4] = {}
-        async for aem_pack in self._aem_pack_dao.find_all(
-            mapping={"original_id": original_id}
-        ):
-            dirty_map[aem_pack.model_name] = aem_pack.id
-        return dirty_map
+        config = await self._config_loader.load_config_from_db()
 
-    def _build_transformed_map(self, original: AEMPack) -> dict[str, AEMPack]:
-        """Initialize the transformed map with the incoming original AEMPack.
-
-        The map accumulates all data generated during the transformation,
-        keyed by model name.
-        """
-        return {original.model_name: original}
-
-    def _apply_workflow_to_data(
-        self,
-        *,
-        data: DataPack,
-        annotation: dict,
-        input_schema: SchemaPack,
-        workflow: Workflow,
-    ) -> DataPack:
-        """Apply every step of a workflow to a DataPack and return the result."""
-        current_data = data
-        current_schema = input_schema
-        for step in workflow.workflow.operations:
-            transformation_def = self._transformation_registry[step.name]
-            typed_config = transformation_def.config_cls.model_validate(step.args)
-            handler = TransformationHandler(
-                transformation_definition=transformation_def,
-                transformation_config=typed_config,
-                input_model=current_schema,
+        dirty_map = {
+            aem_pack.model_name: aem_pack.id
+            async for aem_pack in self._aem_pack_dao.find_all(
+                mapping={"original_id": original.id}
             )
-            current_data = handler.transform_data(current_data, annotation)
-            current_schema = handler.transformed_model
-        return current_data
+        }
+        transformed_map = {original.model_name: original}
+        self._traverse_graph(
+            original=original,
+            dirty_map=dirty_map,
+            transformed_map=transformed_map,
+            config=config,
+        )
+        await self._apply_db_updates(
+            transformed_map=transformed_map,
+            dirty_map=dirty_map,
+            config=config,
+        )
+        return transformed_map, dirty_map
 
     def _traverse_graph(
         self,
@@ -96,12 +83,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         transformed_map: dict[str, AEMPack],
         config: PersistedConfig,
     ) -> None:
-        """Traverse the transformation graph in topological order, applying
-        workflows to produce transformed AEMPacks.
-
-        Mutates dirty_map (removing re-created entries) and transformed_map
-        (adding newly produced entries) in place.
-        """
+        """Traverse the transformation graph in topological order, applying workflows to produce transformed AEMPacks."""
         routes_by_input: dict[str, Route] = {
             r.input_model_name: r for r in config.routes
         }
@@ -112,9 +94,6 @@ class AEMPackRegistry(AEMPackRegistryPort):
         models_sorted: list[Model] = sorted(config.models, key=lambda m: m.order)
 
         for model in models_sorted:
-            if model.name not in routes_by_input:
-                continue
-
             route = routes_by_input[model.name]
             input_aem_pack = transformed_map.get(route.input_model_name)
             if input_aem_pack is None:
@@ -123,7 +102,6 @@ class AEMPackRegistry(AEMPackRegistryPort):
                     f" transformed map when processing route '{route.name}'."
                     " This indicates an error in the topological ordering."
                 )
-
             input_schema = schemas_by_model[route.input_model_name]
             workflow = workflows_by_name[route.workflow_name]
             transformed_data = self._apply_workflow_to_data(
@@ -154,25 +132,60 @@ class AEMPackRegistry(AEMPackRegistryPort):
                     annotation=original.annotation,
                 )
 
-    async def transform_aem_pack(
-        self, original: AEMPack
-    ) -> tuple[dict[str, AEMPack], dict[str, UUID4]]:
-        """Run steps 1-3 of the transformation user journey.
+    def _apply_workflow_to_data(
+        self,
+        *,
+        data: DataPack,
+        annotation: dict,
+        input_schema: SchemaPack,
+        workflow: Workflow,
+    ) -> DataPack:
+        """Apply every step of a workflow to a DataPack and return the result."""
+        current_data = data
+        current_schema = input_schema
+        for step in workflow.workflow.operations:
+            transformation_def = self._transformation_registry[step.name]
+            typed_config = transformation_def.config_cls.model_validate(step.args)
+            handler = TransformationHandler(
+                transformation_definition=transformation_def,
+                transformation_config=typed_config,
+                input_model=current_schema,
+            )
+            current_data = handler.transform_data(current_data, annotation)
+            current_schema = handler.transformed_model
+        return current_data
 
-        Returns:
-            A tuple of (transformed_map, dirty_map) for downstream persistence
-            in step 4.
+    async def _apply_db_updates(
+        self,
+        *,
+        transformed_map: dict[str, AEMPack],
+        dirty_map: dict[str, UUID4],
+        config: PersistedConfig,
+    ) -> None:
+        """Step 4: Apply database updates.
+
+        Upserts all transformed AEMPacks whose model has ``publish=True``.
+        Deletes any remaining entries in the dirty map (stale derived data
+        that were not re-created during traversal).
         """
-        config = await self._config_loader.load_config_from_db()
-        dirty_map = await self._build_dirty_map(str(original.id))
-        transformed_map = self._build_transformed_map(original)
-        self._traverse_graph(
-            original=original,
-            dirty_map=dirty_map,
-            transformed_map=transformed_map,
-            config=config,
-        )
-        return transformed_map, dirty_map
+        published_models = {m.name for m in config.models if m.publish}
+
+        for model_name, aem_pack in transformed_map.items():
+            if model_name in published_models:
+                await self._aem_pack_dao.upsert(aem_pack)
+                log.debug(
+                    "Upserted AEMPack '%s' for published model '%s'.",
+                    aem_pack.id,
+                    model_name,
+                )
+
+        for model_name, aem_pack_id in dirty_map.items():
+            await self._aem_pack_dao.delete(id_=aem_pack_id)
+            log.debug(
+                "Deleted stale AEMPack '%s' for model '%s'.",
+                aem_pack_id,
+                model_name,
+            )
 
     async def upsert_aem_pack(self, aem_pack: AEMPack) -> None:
         """Upsert AEM Pack. Inserts a new AEMPack or updates an existing one.

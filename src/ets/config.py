@@ -19,17 +19,19 @@ from pathlib import Path
 
 from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
-from hexkit.providers.akafka import KafkaConfig
-from hexkit.providers.mongodb import MongoDbConfig
+from hexkit.providers.mongokafka import MongoKafkaConfig
 from pydantic import Field
 
 from ets.adapters.inbound.event_sub import EventSubTranslatorConfig
+from ets.adapters.outbound.dao import AEMPackDaoConfig
 
 SERVICE_NAME: str = "ets"
 
 
 @config_from_yaml(prefix=SERVICE_NAME)
-class Config(KafkaConfig, MongoDbConfig, LoggingConfig, EventSubTranslatorConfig):
+class Config(
+    LoggingConfig, MongoKafkaConfig, EventSubTranslatorConfig, AEMPackDaoConfig
+):
     """Config parameters and their defaults."""
 
     service_name: str = Field(

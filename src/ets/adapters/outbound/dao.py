@@ -15,11 +15,25 @@
 
 """DAO translators for accessing the database."""
 
-from hexkit.protocols.dao import DaoFactoryProtocol
+import logging
 
-from ets.adapters.inbound.event_schemas import AEMPack
+from hexkit.protocols.dao import DaoFactoryProtocol
+from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
+from pydantic import Field
+from pydantic_settings import BaseSettings
+
 from ets.core import models
-from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
+from ets.event_schemas import AEMPack
+from ets.ports.outbound.dao import (
+    AEMPackEventPublisherPort,
+    ModelDao,
+    RouteDao,
+    WorkflowDao,
+)
+
+log = logging.getLogger(__name__)
+
+AEM_PACK_COLLECTION = "aem_packs"
 
 
 async def get_persisted_model_dao(*, dao_factory: DaoFactoryProtocol) -> ModelDao:
@@ -43,6 +57,35 @@ async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
     )
 
 
-async def get_aem_pack_dao(*, dao_factory: DaoFactoryProtocol) -> AEMPackDao:
-    """Setup the AEMPack DAO using the specified provider of the DaoFactoryProtocol."""
-    return await dao_factory.get_dao(name="aem_packs", dto_model=AEMPack, id_field="id")
+class AEMPackDaoConfig(BaseSettings):
+    """Config for the AEMPack event publisher adapter."""
+
+    aem_pack_topic: str = Field(
+        default=...,
+        description="Topic containing published FileUpload outbox events",
+        examples=["file-uploads", "file-upload-topic"],
+    )
+
+
+class AEMPackDaoFactory(AEMPackEventPublisherPort):
+    """Adapter translating domain publish calls into Kafka events."""
+
+    def __init__(
+        self,
+        *,
+        config: AEMPackDaoConfig,
+        dao_publisher_factory: DaoPublisherFactoryProtocol,
+    ):
+        self._aem_pack_topic = config.aem_pack_topic
+        self._dao_publisher_factory = dao_publisher_factory
+
+    async def get_aem_pack_dao(self) -> DaoPublisher[AEMPack]:
+        """Construct an outbox DAO for AEMPack objects."""
+        return await self._dao_publisher_factory.get_dao(
+            name=AEM_PACK_COLLECTION,
+            id_field="id",
+            dto_model=AEMPack,
+            dto_to_event=lambda x: x.model_dump(mode="json"),
+            event_topic=self._aem_pack_topic,
+            autopublish=True,
+        )

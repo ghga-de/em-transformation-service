@@ -15,18 +15,26 @@
 
 """DAO interface for accessing the database."""
 
-from hexkit.protocols.dao import Dao, ResourceNotFoundError
+from abc import ABC, abstractmethod
 
-from ets.adapters.inbound.event_schemas import AEMPack
+from hexkit.protocols.dao import Dao, ResourceNotFoundError
+from hexkit.protocols.daopub import DaoPublisher
+
 from ets.core import models
+from ets.event_schemas import AEMPack
 
 __all__ = ["ResourceNotFoundError"]
 
 
 ModelDao = Dao[models.Model]
-
 WorkflowDao = Dao[models.Workflow]
-
 RouteDao = Dao[models.Route]
-
 AEMPackDao = Dao[AEMPack]
+
+
+class AEMPackEventPublisherPort(ABC):
+    """Port for publishing AEMPack lifecycle events to downstream consumers."""
+
+    @abstractmethod
+    async def get_aem_pack_dao(self) -> DaoPublisher[AEMPack]:
+        """Publish an upsert event for the given AEMPack."""

@@ -24,7 +24,6 @@ from hexkit.providers.akafka.testutils import KafkaFixture
 from hexkit.providers.mongodb.testutils import MongoDbFixture
 
 from ets.adapters.outbound.dao import (
-    get_aem_pack_dao,
     get_persisted_model_dao,
     get_route_dao,
     get_workflow_dao,
