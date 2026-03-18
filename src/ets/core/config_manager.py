@@ -16,6 +16,7 @@
 """Manages transformation config related operations."""
 
 import logging
+from collections import defaultdict
 
 from ets.core.models import PersistedConfig, RawConfig, ValidatedConfig
 from ets.ports.inbound.config_comparator import ConfigComparatorPort
@@ -63,7 +64,7 @@ class ConfigManager(ConfigManagerPort):
         """
         pruned_model_names = self._collect_unpublished_model_names(config)
 
-        # Prune models from config as they are unique
+        # Directly prune models from config as they are unique
         config.models = [m for m in config.models if m.name not in pruned_model_names]
         for name in pruned_model_names:
             log.warning("Pruned unpublished model: %s", name)
@@ -105,29 +106,24 @@ class ConfigManager(ConfigManagerPort):
         return config
 
     def _collect_unpublished_model_names(self, config: ValidatedConfig) -> set[str]:
-        """Return names of models that trail unpublished in each subgraph.
+        """Return names of unpublished models with no surviving downstream neighbors.
 
-        Iterates models in reverse order. Within each subgraph, any model that
-        appears after the last published model is collected.
-        Ingress models are never collected.
+        Iterates models in reverse topological order. An unpublished model is pruned
+        if all its direct downstream neighbors have already been pruned, or it has none.
+        Published models are never pruned.
         """
+        # Build downstream neighbor map
+        downstream = defaultdict(set)
+        for route in config.routes:
+            downstream[route.input_model_name].add(route.output_model_name)
+
         # Use inverted model order to start at the last leaf
-        models = sorted(config.models, key=lambda conf: conf.order, reverse=True)
+        models = sorted(config.models, key=lambda model: model.order, reverse=True)
+
         pruned: set[str] = set()
-        needs_pruning = True
+
         for model in models:
-            # Reached valid part of the subgraph
-            if model.publish:
-                needs_pruning = False
-            # Skip the rest if we're in a valid part of the subgraph
-            if not needs_pruning and not model.is_ingress:
-                continue
-            # On reaching the subgraph ingress model, the next model should be a leaf of another subgraph
-            if model.is_ingress:
-                # Prune the ingress itself if no published model was found in its subgraph
-                if needs_pruning:
-                    pruned.add(model.name)
-                needs_pruning = True
-                continue
-            pruned.add(model.name)
+            if not model.publish and not (downstream[model.name] - pruned):
+                pruned.add(model.name)
+
         return pruned

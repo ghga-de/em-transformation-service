@@ -42,6 +42,53 @@ class PruningResult:
     "pruning_fixture, expected",
     [
         (
+            PRUNING_CASES["bifurcating_subgraph"],
+            PruningResult(
+                models={"PublishedSource", "PublishedBranch1", "PublishedBranch2"},
+                routes={
+                    "PublishedSource:workflow:PublishedBranch1",
+                    "PublishedSource:workflow:PublishedBranch2",
+                },
+                workflows={"workflow"},
+            ),
+        ),
+        (
+            PRUNING_CASES["converging_subgraph"],
+            PruningResult(
+                models={
+                    "UnpublishedSource1",
+                    "UnpublishedSource2",
+                    "PublishedSource",
+                    "PublishedDerived",
+                },
+                routes={
+                    "UnpublishedSource1:workflow:PublishedDerived",
+                    "UnpublishedSource2:workflow:PublishedDerived",
+                    "PublishedSource:workflow:PublishedDerived",
+                },
+                workflows={"workflow"},
+            ),
+        ),
+        (
+            PRUNING_CASES["bottleneck_subgraph"],
+            PruningResult(
+                models={
+                    "UnpublishedSource",
+                    "PublishedSource",
+                    "Bottleneck",
+                    "Published1",
+                    "Published2",
+                },
+                routes={
+                    "UnpublishedSource:workflow:Bottleneck",
+                    "PublishedSource:workflow:Bottleneck",
+                    "Bottleneck:workflow:Published1",
+                    "Bottleneck:workflow:Published2",
+                },
+                workflows={"workflow"},
+            ),
+        ),
+        (
             PRUNING_CASES["nothing_pruned"],
             PruningResult(
                 models={"PublishedSource", "PublishedDerived", "PublishedSource_2"},
@@ -75,6 +122,9 @@ class PruningResult:
         ),
     ],
     ids=[
+        "bifurcating_subgraph",
+        "converging_subgraph",
+        "bottleneck_subgraph",
         "nothing_pruned",
         "keep_referenced_workflow",
         "leaf_pruned",
