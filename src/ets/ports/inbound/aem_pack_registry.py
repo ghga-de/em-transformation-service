@@ -62,9 +62,7 @@ class AEMPackRegistryPort(ABC):
         """
 
     @abstractmethod
-    async def process_aem_pack(
-        self, original: AEMPack
-    ) -> tuple[dict[str, AEMPack], dict[str, UUID4]]:
+    async def process_aem_pack(self, original: AEMPack):
         """Transform an original AEMPack through the full user journey (steps 1-4).
 
         Steps 1-3 build the dirty map, initialize the transformed map, and traverse

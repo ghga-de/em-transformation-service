@@ -44,7 +44,7 @@ class AEMPack(BaseModel):
         ...,
         description="Unique name of the model the EMPack conforms to.",
     )
-    original_id: str | None = Field(
+    original_id: UUID4 | None = Field(
         None,
         description="ID of the original incoming EMPack it was derived from. None if it is an original EMPack",
     )
@@ -56,4 +56,4 @@ class AEMPack(BaseModel):
         ...,
         description="Additional information from other models held by the service",
     )
-    model_config = ConfigDict(title="aem_pack_received")
+    model_config = ConfigDict(title="aem_pack")

@@ -24,7 +24,7 @@ from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.core.models import Model, PersistedConfig, Route, Workflow
+from ets.core.models import PersistedConfig, Workflow
 from ets.event_schemas import AEMPack
 from ets.ports.inbound.aem_pack_registry import (
     AEMPackRegistryPort,
@@ -43,16 +43,8 @@ class AEMPackRegistry(AEMPackRegistryPort):
         self._config_loader = config_loader
         self._transformation_registry = get_transformation_registry()
 
-    async def process_aem_pack(
-        self, original: AEMPack
-    ) -> tuple[dict[str, AEMPack], dict[str, UUID4]]:
-        """Run steps 1-4 of the transformation user journey.
-
-        Returns:
-            A tuple of (transformed_map, dirty_map) where dirty_map contains
-            only entries that were not re-created during traversal (these have
-            been deleted from the database in step 4).
-        """
+    async def process_aem_pack(self, original: AEMPack) -> None:
+        """Run steps 1-4 of the transformation user journey."""
         config = await self._config_loader.load_config_from_db()
 
         dirty_map = {
@@ -62,18 +54,37 @@ class AEMPackRegistry(AEMPackRegistryPort):
             )
         }
         transformed_map = {original.model_name: original}
-        self._traverse_graph(
+
+        aem_packs_to_publish, dirty_map = self._traverse_graph(
             original=original,
             dirty_map=dirty_map,
             transformed_map=transformed_map,
             config=config,
         )
-        await self._apply_db_updates(
-            transformed_map=transformed_map,
-            dirty_map=dirty_map,
-            config=config,
-        )
-        return transformed_map, dirty_map
+
+        if dirty_map:
+            # Check if there are corresponding models remaining or if they have been removed from the config.
+
+            # AEMPacks without matching models can be a result of configuration and need to be deleted, as they've become unreachable.
+            # Extant AEMPacks with existing models point to the AEMPack moving to a different subgraph with a different original ID:
+            # TODO:
+            # - Check if that can happen in the program logic
+            # - Can this be consolidated or is this a critical, structural error?
+            models_by_name = {model.name: model for model in config.models}
+            for model_name, aem_pack_id in dirty_map.items():
+                if not models_by_name.get(model_name):
+                    log.warning(
+                        f"Model with name {model_name} no longer exists in the config, previously derived AEMPack with id {aem_pack_id} is no longer valid. Removing."
+                    )
+                    await self._aem_pack_dao.delete(aem_pack_id)
+                else:
+                    log.warning(
+                        f"Derived AEMPack with id {aem_pack_id} is no reachable from its previous original ID. Removing."
+                    )
+
+        for aem_pack in aem_packs_to_publish:
+            log.info(f"Upserting newly derived AEM Pack {aem_pack.id}")
+            await self._aem_pack_dao.upsert(aem_pack)
 
     def _traverse_graph(
         self,
@@ -82,55 +93,72 @@ class AEMPackRegistry(AEMPackRegistryPort):
         dirty_map: dict[str, UUID4],
         transformed_map: dict[str, AEMPack],
         config: PersistedConfig,
-    ) -> None:
+    ) -> tuple[list[AEMPack], dict[str, UUID4]]:
         """Traverse the transformation graph in topological order, applying workflows to produce transformed AEMPacks."""
-        routes_by_input: dict[str, Route] = {
-            r.input_model_name: r for r in config.routes
-        }
-        workflows_by_name: dict[str, Workflow] = {w.name: w for w in config.workflows}
-        schemas_by_model: dict[str, SchemaPack] = {
-            m.name: m.schema_ for m in config.models
-        }
-        models_sorted: list[Model] = sorted(config.models, key=lambda m: m.order)
+        aem_packs_to_publish = []
+        models_by_name = {model.name: model for model in config.models}
+        model_order = {model.name: model.order for model in config.models}
+        workflows_by_name = {workflow.name: workflow for workflow in config.workflows}
 
-        for model in models_sorted:
-            route = routes_by_input[model.name]
-            input_aem_pack = transformed_map.get(route.input_model_name)
-            if input_aem_pack is None:
-                raise RuntimeError(
-                    f"Input data for model '{route.input_model_name}' not found in"
-                    f" transformed map when processing route '{route.name}'."
-                    " This indicates an error in the topological ordering."
-                )
-            input_schema = schemas_by_model[route.input_model_name]
-            workflow = workflows_by_name[route.workflow_name]
-            transformed_data = self._apply_workflow_to_data(
-                data=input_aem_pack.data,
-                annotation=input_aem_pack.annotation,
-                input_schema=input_schema,
-                workflow=workflow,
+        current_model_name = original.model_name
+        original_model = models_by_name.get(current_model_name)
+        if not original_model:
+            # Needs DLQ setup
+            raise ValueError(
+                f"No model with name {current_model_name} registered for AEMPack with id {original.id}."
             )
 
-            output_model_name = route.output_model_name
-            original_id = str(original.id)
+        current_routes = sorted(
+            [
+                route
+                for route in config.routes
+                if route.input_model_name == current_model_name
+            ],
+            key=lambda route: model_order[route.output_model_name],
+        )
 
-            if output_model_name in dirty_map:
-                existing_id = dirty_map.pop(output_model_name)
-                transformed_map[output_model_name] = AEMPack(
-                    id=existing_id,
-                    model_name=output_model_name,
-                    original_id=original_id,
-                    data=transformed_data,
-                    annotation=original.annotation,
+        while transformed_map:
+            for route in current_routes:
+                current_aem_pack = transformed_map[current_model_name]
+                current_model = models_by_name[current_model_name]
+                current_workflow = workflows_by_name[route.workflow_name]
+                if not current_aem_pack:
+                    raise ValueError("Invalid state, TODO")
+
+                transformed_data = self._apply_workflow_to_data(
+                    data=current_aem_pack.data,
+                    annotation={},
+                    input_schema=current_model.schema_,
+                    workflow=current_workflow,
                 )
-            else:
-                transformed_map[output_model_name] = AEMPack(
-                    id=uuid4(),
-                    model_name=output_model_name,
-                    original_id=original_id,
+                transformed_aem_pack = self._create_aem_pack(
                     data=transformed_data,
-                    annotation=original.annotation,
+                    model_name=route.output_model_name,
+                    original_id=original.id,
                 )
+                # TODO: needs to account for branching here
+                transformed_map[route.output_model_name] = transformed_aem_pack
+                model = models_by_name[transformed_aem_pack.model_name]
+                if model.publish:
+                    aem_packs_to_publish.append(transformed_aem_pack)
+
+            # processed, no longer dirty
+            dirty_map.pop(current_model_name, None)
+            # processed, no longer in queue
+            transformed_map.pop(current_model_name)
+            # continue with next item in transformation map based on insertion order
+            current_aem_pack = next(iter(transformed_map.values()))
+            current_model_name = current_aem_pack.model_name
+            current_routes = sorted(
+                [
+                    route
+                    for route in config.routes
+                    if route.input_model_name == current_model_name
+                ],
+                key=lambda route: model_order[route.output_model_name],
+            )
+
+        return aem_packs_to_publish, dirty_map
 
     def _apply_workflow_to_data(
         self,
@@ -155,37 +183,17 @@ class AEMPackRegistry(AEMPackRegistryPort):
             current_schema = handler.transformed_model
         return current_data
 
-    async def _apply_db_updates(
-        self,
-        *,
-        transformed_map: dict[str, AEMPack],
-        dirty_map: dict[str, UUID4],
-        config: PersistedConfig,
-    ) -> None:
-        """Step 4: Apply database updates.
-
-        Upserts all transformed AEMPacks whose model has ``publish=True``.
-        Deletes any remaining entries in the dirty map (stale derived data
-        that were not re-created during traversal).
-        """
-        published_models = {m.name for m in config.models if m.publish}
-
-        for model_name, aem_pack in transformed_map.items():
-            if model_name in published_models:
-                await self._aem_pack_dao.upsert(aem_pack)
-                log.debug(
-                    "Upserted AEMPack '%s' for published model '%s'.",
-                    aem_pack.id,
-                    model_name,
-                )
-
-        for model_name, aem_pack_id in dirty_map.items():
-            await self._aem_pack_dao.delete(id_=aem_pack_id)
-            log.debug(
-                "Deleted stale AEMPack '%s' for model '%s'.",
-                aem_pack_id,
-                model_name,
-            )
+    def _create_aem_pack(
+        self, *, data: DataPack, model_name: str, original_id: UUID4
+    ) -> AEMPack:
+        """TODO"""
+        return AEMPack(
+            id=uuid4(),
+            model_name=model_name,
+            original_id=original_id,
+            data=data,
+            annotation={},
+        )
 
     async def upsert_aem_pack(self, aem_pack: AEMPack) -> None:
         """Upsert AEM Pack. Inserts a new AEMPack or updates an existing one.
