@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import UUID4
 
-from ets.event_schemas import AEMPack
+from ets.event_schemas import UnprocessedAEMPack
 
 
 class AEMPackRegistryPort(ABC):
@@ -49,20 +49,11 @@ class AEMPackRegistryPort(ABC):
             super().__init__(message)
 
     @abstractmethod
-    async def upsert_aem_pack(self, aem_pack: AEMPack) -> None:
-        """Upsert AEMPack. Inserts a new AEMPack or updates an existing one.
-
-        Args:
-            aem_pack (AEMPack): The AEMPack to process.
-
-        Raises:
-            ModelNotFoundError: If the model referenced doesn't exist in configuration.
-            DataPackValidationError: If the data doesn't conform to the model schema.
-            UpsertionError: If the database operation fails.
-        """
+    async def queue_unprocessed(self, aem_pack: UnprocessedAEMPack):
+        """TODO"""
 
     @abstractmethod
-    async def process_aem_pack(self, original: AEMPack):
+    async def process_aem_packs(self):
         """Transform an original AEMPack through the full user journey (steps 1-4).
 
         Steps 1-3 build the dirty map, initialize the transformed map, and traverse

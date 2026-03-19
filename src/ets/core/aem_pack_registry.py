@@ -15,7 +15,9 @@
 
 """This module contains functionalities for transforming models and data."""
 
+import asyncio
 import logging
+from typing import Any
 from uuid import uuid4
 
 from metldata import get_transformation_registry
@@ -25,12 +27,12 @@ from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
 from ets.core.models import PersistedConfig, Workflow
-from ets.event_schemas import AEMPack
+from ets.event_schemas import AEMPack, UnprocessedAEMPack
 from ets.ports.inbound.aem_pack_registry import (
     AEMPackRegistryPort,
 )
 from ets.ports.outbound.config_loader import ConfigLoaderPort
-from ets.ports.outbound.dao import AEMPackDao, ResourceNotFoundError
+from ets.ports.outbound.dao import AEMPackDao
 
 log = logging.getLogger(__name__)
 
@@ -38,25 +40,52 @@ log = logging.getLogger(__name__)
 class AEMPackRegistry(AEMPackRegistryPort):
     """Core service for managing AEMPack transformations."""
 
-    def __init__(self, *, aem_pack_dao: AEMPackDao, config_loader: ConfigLoaderPort):
+    def __init__(
+        self,
+        *,
+        aem_pack_dao: AEMPackDao,
+        config_loader: ConfigLoaderPort,
+        service_instance_id: str,
+    ):
         self._aem_pack_dao = aem_pack_dao
         self._config_loader = config_loader
+        self._service_instance_id = service_instance_id
         self._transformation_registry = get_transformation_registry()
 
-    async def process_aem_pack(self, original: AEMPack) -> None:
-        """Run steps 1-4 of the transformation user journey."""
-        config = await self._config_loader.load_config_from_db()
 
+    async def queue_unprocessed(self, aem_pack: UnprocessedAEMPack):
+        """TODO"""
+        
+
+    async def process_aem_packs(self) -> None:
+        """Derives AEM packs."""
+        config = await self._config_loader.load_config_from_db()
+        while True:
+            async for unprocessed_aem_pack in self._aem_pack_dao.find_all(
+                mapping={"original_id": None, "processed": False, "processor": None}
+            ):
+                unprocessed_aem_pack.processor = self._service_instance_id
+                await self._aem_pack_dao.update(unprocessed_aem_pack)
+                await self._main_loop(incoming=unprocessed_aem_pack, config=config)
+                # DB state might have changed in the meantime, fetch a fresh batch
+                break
+            else:
+                sleep_for = 60
+                log.info("Non new AEM found, sleeping for {60} seconds.")
+                await asyncio.sleep(sleep_for)
+
+    async def _main_loop(self, *, incoming: UnprocessedAEMPack, config: PersistedConfig):
+        """TODO"""
         dirty_map = {
             aem_pack.model_name: aem_pack.id
             async for aem_pack in self._aem_pack_dao.find_all(
-                mapping={"original_id": original.id}
+                mapping={"original_id": incoming.id}
             )
         }
-        transformed_map = {original.model_name: original}
+        transformed_map = {incoming.model_name: incoming}
 
         aem_packs_to_publish, dirty_map = self._traverse_graph(
-            original=original,
+            incoming=incoming,
             dirty_map=dirty_map,
             transformed_map=transformed_map,
             config=config,
@@ -82,14 +111,21 @@ class AEMPackRegistry(AEMPackRegistryPort):
                         f"Derived AEMPack with id {aem_pack_id} is no reachable from its previous original ID. Removing."
                     )
 
+        # check if another service instance might have already written the derived AEMs due to a race condition
+        current_db_aem = await self._aem_pack_dao.get_by_id(incoming.id)
+        if current_db_aem.processor != self._service_instance_id:
+            log.warning(
+                f"Another service instance has already written the derived AEMs to the database. Discarding changes for serivce instance ID {self._service_instance_id}."
+            )
+            return
         for aem_pack in aem_packs_to_publish:
-            log.info(f"Upserting newly derived AEM Pack {aem_pack.id}")
+            log.info(f"Upserting derived AEM Pack {aem_pack.id}")
             await self._aem_pack_dao.upsert(aem_pack)
 
     def _traverse_graph(
         self,
         *,
-        original: AEMPack,
+        incoming: AEMPack,
         dirty_map: dict[str, UUID4],
         transformed_map: dict[str, AEMPack],
         config: PersistedConfig,
@@ -100,12 +136,12 @@ class AEMPackRegistry(AEMPackRegistryPort):
         model_order = {model.name: model.order for model in config.models}
         workflows_by_name = {workflow.name: workflow for workflow in config.workflows}
 
-        current_model_name = original.model_name
+        current_model_name = incoming.model_name
         original_model = models_by_name.get(current_model_name)
         if not original_model:
             # Needs DLQ setup
             raise ValueError(
-                f"No model with name {current_model_name} registered for AEMPack with id {original.id}."
+                f"No model with name {current_model_name} registered for AEMPack with id {incoming.id}."
             )
 
         current_routes = sorted(
@@ -134,7 +170,8 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 transformed_aem_pack = self._create_aem_pack(
                     data=transformed_data,
                     model_name=route.output_model_name,
-                    original_id=original.id,
+                    original_id=incoming.id,
+                    annotation=incoming.annotation,
                 )
                 # TODO: needs to account for branching here
                 transformed_map[route.output_model_name] = transformed_aem_pack
@@ -184,39 +221,19 @@ class AEMPackRegistry(AEMPackRegistryPort):
         return current_data
 
     def _create_aem_pack(
-        self, *, data: DataPack, model_name: str, original_id: UUID4
+        self,
+        *,
+        aem_id: UUID4 | None = None,
+        model_name: str,
+        original_id: UUID4,
+        data: DataPack,
+        annotation: dict[str, Any],
     ) -> AEMPack:
         """TODO"""
         return AEMPack(
-            id=uuid4(),
+            id=aem_id or uuid4(),
             model_name=model_name,
             original_id=original_id,
             data=data,
-            annotation={},
+            annotation=annotation,
         )
-
-    async def upsert_aem_pack(self, aem_pack: AEMPack) -> None:
-        """Upsert AEM Pack. Inserts a new AEMPack or updates an existing one.
-
-        Args:
-            aem_pack (AEMPack): The AEMPack to process.
-        Raises:
-            ModelNotFoundError: If the model referenced doesn't exist in configuration.
-            DataPackValidationError: If the data doesn't conform to the model schema.
-            UpsertionError: If the database operation fails.
-        """
-        try:
-            await self._aem_pack_dao.get_by_id(aem_pack.id)
-            log.debug(
-                "Found an AEMPack with id '%s', updating entry.",
-                aem_pack.id,
-            )
-        except ResourceNotFoundError:
-            log.debug(
-                "No existing AEMPack found with id '%s', creating new entry.",
-                aem_pack.id,
-            )
-
-        await self._aem_pack_dao.upsert(aem_pack)
-
-        log.debug("AEMPack upserted with id '%s'.", aem_pack.id)

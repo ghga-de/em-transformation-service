@@ -64,22 +64,17 @@ async def prepare_aem_pack_registry(
 ) -> AsyncGenerator[AEMPackRegistryPort]:
     """Constructs and initializes core components and their outbound dependencies."""
     async with (
-        MongoDbDaoFactory.construct(config=config) as dao_factory,
+        prepare_config_loader(config=config) as config_loader,
         MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
     ):
         aem_pack_dao_factory = AEMPackDaoFactory(
             config=config, dao_publisher_factory=dao_pub_factory
         )
         aem_pack_dao = await aem_pack_dao_factory.get_aem_pack_dao()
-        config_loader = ConfigLoaderAdapter(
-            model_dao=await get_persisted_model_dao(dao_factory=dao_factory),
-            route_dao=await get_route_dao(dao_factory=dao_factory),
-            workflow_dao=await get_workflow_dao(dao_factory=dao_factory),
-        )
-
         yield AEMPackRegistry(
             aem_pack_dao=aem_pack_dao,
             config_loader=config_loader,
+            service_instance_id=config.service_instance_id,
         )
 
 

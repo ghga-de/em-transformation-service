@@ -19,7 +19,7 @@ import logging
 
 from hexkit.protocols.daosub import DaoSubscriberProtocol
 
-from ets.event_schemas import AEMPack, AEMPackEventConfig
+from ets.event_schemas import AEMPack, AEMPackEventConfig, UnprocessedAEMPack
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 
 log = logging.getLogger(__name__)
@@ -48,7 +48,8 @@ class EventSubTranslator(DaoSubscriberProtocol):
 
     async def changed(self, resource_id: str, update: AEMPack) -> None:
         """Consume a change event (created or updated) for the AEMPack."""
-        await self._aem_pack_registry.process_aem_pack(update)
+        unprocessed = UnprocessedAEMPack(**update.model_dump())
+        await self._aem_pack_registry.process_aem_packs(update)
 
     async def deleted(self, resource_id: str) -> None:
         """Consume a deletion event for an AEMPack."""

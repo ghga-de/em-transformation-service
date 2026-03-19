@@ -41,6 +41,3 @@ class Config(
         default=...,
         description="Path to the transformation config file used to populate the database.",
     )
-
-
-CONFIG = Config()  # type: ignore

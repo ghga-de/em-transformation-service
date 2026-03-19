@@ -19,7 +19,7 @@ import asyncio
 
 import typer
 
-from ets.main import consume_events
+from ets.main import consume_events, process_aems
 
 cli = typer.Typer()
 
@@ -28,3 +28,8 @@ cli = typer.Typer()
 def sync_consume_events(run_forever: bool = True):
     """Run an event consumer listening to the specified topic."""
     asyncio.run(consume_events(run_forever=run_forever))
+
+@cli.command(name="process-aems")
+def sync_process_aems():
+    """Run processing on incoming annotated experimental metadata that has been stored in the database."""
+    asyncio.run(process_aems())

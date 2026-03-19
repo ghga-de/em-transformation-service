@@ -129,7 +129,7 @@ def test_traverse_graph_produces_derived_packs_for_each_route():
         dirty_map: dict = {}
         transformed_map = registry._build_transformed_map(ORIGINAL_AEM_PACK)
         registry._traverse_graph(
-            original=ORIGINAL_AEM_PACK,
+            incoming=ORIGINAL_AEM_PACK,
             dirty_map=dirty_map,
             transformed_map=transformed_map,
             config=CHAINED_CONFIG,
@@ -150,7 +150,7 @@ def test_traverse_graph_sets_original_id_on_derived_packs():
         dirty_map: dict = {}
         transformed_map = registry._build_transformed_map(ORIGINAL_AEM_PACK)
         registry._traverse_graph(
-            original=ORIGINAL_AEM_PACK,
+            incoming=ORIGINAL_AEM_PACK,
             dirty_map=dirty_map,
             transformed_map=transformed_map,
             config=CHAINED_CONFIG,
@@ -170,7 +170,7 @@ def test_traverse_graph_assigns_new_ids_when_dirty_map_is_empty():
         dirty_map: dict = {}
         transformed_map = registry._build_transformed_map(ORIGINAL_AEM_PACK)
         registry._traverse_graph(
-            original=ORIGINAL_AEM_PACK,
+            incoming=ORIGINAL_AEM_PACK,
             dirty_map=dirty_map,
             transformed_map=transformed_map,
             config=CHAINED_CONFIG,
@@ -193,7 +193,7 @@ def test_traverse_graph_reuses_existing_ids_from_dirty_map():
         dirty_map: dict[str, UUID] = {"B": b_id, "C": c_id}
         transformed_map = registry._build_transformed_map(ORIGINAL_AEM_PACK)
         registry._traverse_graph(
-            original=ORIGINAL_AEM_PACK,
+            incoming=ORIGINAL_AEM_PACK,
             dirty_map=dirty_map,
             transformed_map=transformed_map,
             config=CHAINED_CONFIG,
@@ -214,7 +214,7 @@ def test_traverse_graph_removes_matched_entries_from_dirty_map():
         dirty_map: dict[str, UUID] = {"B": b_id}
         transformed_map = registry._build_transformed_map(ORIGINAL_AEM_PACK)
         registry._traverse_graph(
-            original=ORIGINAL_AEM_PACK,
+            incoming=ORIGINAL_AEM_PACK,
             dirty_map=dirty_map,
             transformed_map=transformed_map,
             config=CHAINED_CONFIG,
@@ -234,7 +234,7 @@ def test_traverse_graph_leaves_unmatched_dirty_entries_intact():
         dirty_map: dict[str, UUID] = {"B": stale_id, "stale_model": uuid4()}
         transformed_map = registry._build_transformed_map(ORIGINAL_AEM_PACK)
         registry._traverse_graph(
-            original=ORIGINAL_AEM_PACK,
+            incoming=ORIGINAL_AEM_PACK,
             dirty_map=dirty_map,
             transformed_map=transformed_map,
             config=CHAINED_CONFIG,
@@ -261,7 +261,7 @@ def test_traverse_graph_calls_apply_workflow_in_topological_order():
         dirty_map: dict = {}
         transformed_map = registry._build_transformed_map(ORIGINAL_AEM_PACK)
         registry._traverse_graph(
-            original=ORIGINAL_AEM_PACK,
+            incoming=ORIGINAL_AEM_PACK,
             dirty_map=dirty_map,
             transformed_map=transformed_map,
             config=CHAINED_CONFIG,
@@ -293,7 +293,7 @@ async def test_transform_aem_pack_first_time_populates_all_derived_models(
     (
         transformed_map,
         dirty_map,
-    ) = await joint_fixture.aem_pack_registry.process_aem_pack(ORIGINAL_AEM_PACK)
+    ) = await joint_fixture.aem_pack_registry.process_aem_packs(ORIGINAL_AEM_PACK)
 
     assert "A" in transformed_map
     assert "B" in transformed_map
@@ -313,7 +313,7 @@ async def test_transform_aem_pack_retransformation_reuses_existing_ids(
         await joint_fixture.daos.workflow_dao.upsert(workflow)
 
     # First pass — capture the IDs assigned.
-    first_transformed, _ = await joint_fixture.aem_pack_registry.process_aem_pack(
+    first_transformed, _ = await joint_fixture.aem_pack_registry.process_aem_packs(
         ORIGINAL_AEM_PACK
     )
     b_id_first = first_transformed["B"].id
@@ -328,7 +328,7 @@ async def test_transform_aem_pack_retransformation_reuses_existing_ids(
     (
         second_transformed,
         dirty_map,
-    ) = await joint_fixture.aem_pack_registry.process_aem_pack(ORIGINAL_AEM_PACK)
+    ) = await joint_fixture.aem_pack_registry.process_aem_packs(ORIGINAL_AEM_PACK)
 
     assert second_transformed["B"].id == b_id_first
     assert second_transformed["C"].id == c_id_first
