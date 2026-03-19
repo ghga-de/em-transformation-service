@@ -4,6 +4,6 @@ kafka_servers: ["kafka:9092"]
 mongo_dsn: "mongodb://mongodb:27017"
 db_name: "dev"
 kafka_enable_dlq: True
-aem_pack_publish_topic: aem_pack_publish
-aem_pack_upsert_topic: aem_pack_upsert
+aem_pack_topic: aem_pack_topic
+original_aem_pack_topic: original_aem_pack_topic
 input_config_path: tests/fixtures/input_configs/manager/valid/basic_config.yaml

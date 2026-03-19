@@ -22,8 +22,10 @@ import pytest_asyncio
 from hexkit.providers.akafka import KafkaEventSubscriber
 from hexkit.providers.akafka.testutils import KafkaFixture
 from hexkit.providers.mongodb.testutils import MongoDbFixture
+from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
 
 from ets.adapters.outbound.dao import (
+    AEMPackDaoFactory,
     get_persisted_model_dao,
     get_route_dao,
     get_workflow_dao,
@@ -70,32 +72,36 @@ async def joint_fixture(
     """A fixture that embeds all other fixtures for integration testing."""
     # merge configs from different sources with the default one:
     config = get_config(sources=[mongodb.config, kafka.config], kafka_enable_dlq=True)
-    aem_pack_dao = await get_aem_pack_dao(
-        dao_factory=mongodb.dao_factory,
-    )
     model_dao = await get_persisted_model_dao(dao_factory=mongodb.dao_factory)
     route_dao = await get_route_dao(dao_factory=mongodb.dao_factory)
     workflow_dao = await get_workflow_dao(dao_factory=mongodb.dao_factory)
-    daos = DAOs(
-        aem_pack_dao=aem_pack_dao,
-        model_dao=model_dao,
-        route_dao=route_dao,
-        workflow_dao=workflow_dao,
-    )
 
-    async with (
-        prepare_aem_pack_registry(config=config) as aem_pack_registry,
-        prepare_event_subscriber(
-            config=config, core_override=aem_pack_registry
-        ) as event_subscriber,
-        prepare_config_loader(config=config) as config_loader,
-    ):
-        yield JointFixture(
-            aem_pack_registry=aem_pack_registry,
-            daos=daos,
-            config=config,
-            event_subscriber=event_subscriber,
-            kafka=kafka,
-            loader=config_loader,
-            mongodb=mongodb,
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=config
+    ) as dao_pub_factory:
+        aem_pack_dao = await AEMPackDaoFactory(
+            config=config, dao_publisher_factory=dao_pub_factory
+        ).get_aem_pack_dao()
+        daos = DAOs(
+            aem_pack_dao=aem_pack_dao,
+            model_dao=model_dao,
+            route_dao=route_dao,
+            workflow_dao=workflow_dao,
         )
+
+        async with (
+            prepare_aem_pack_registry(config=config) as aem_pack_registry,
+            prepare_event_subscriber(
+                config=config, core_override=aem_pack_registry
+            ) as event_subscriber,
+            prepare_config_loader(config=config) as config_loader,
+        ):
+            yield JointFixture(
+                aem_pack_registry=aem_pack_registry,
+                daos=daos,
+                config=config,
+                event_subscriber=event_subscriber,
+                kafka=kafka,
+                loader=config_loader,
+                mongodb=mongodb,
+            )

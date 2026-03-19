@@ -275,7 +275,7 @@ class AEMPack(BaseModel):
         default=...,
         description="Additional information used in some workflows during derivation.",
     )
-    model_config = ConfigDict(title="aem_pack")
+    model_config = ConfigDict(frozen=True)
 
 
 class UnprocessedAEMPack(AEMPack):
@@ -289,4 +289,4 @@ class UnprocessedAEMPack(AEMPack):
         default=None,
         description="When processing was started. Needed to free stale claimed objects.",
     )
-    model_config = ConfigDict(title="unprocessed_aem_pack")
+    model_config = ConfigDict(frozen=True)
