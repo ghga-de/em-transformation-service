@@ -36,7 +36,7 @@ from ets.ports.inbound.aem_pack_registry import (
     AEMPackRegistryPort,
 )
 from ets.ports.outbound.config_loader import ConfigLoaderPort
-from ets.ports.outbound.dao import AEMPackDao, UnprocessedAEMPackDao
+from ets.ports.outbound.dao import AEMPackDao
 
 log = logging.getLogger(__name__)
 
@@ -49,13 +49,11 @@ class AEMPackRegistry(AEMPackRegistryPort):
         *,
         config: Config,
         aem_pack_dao: AEMPackDao,
-        unprocessed_aem_pack_dao: UnprocessedAEMPackDao,
         config_loader: ConfigLoaderPort,
         mongo_client: AsyncMongoClient,
     ):
         self._config = config
         self._aem_pack_dao = aem_pack_dao
-        self._unprocessed_aem_pack_dao = unprocessed_aem_pack_dao
         self._config_loader = config_loader
         self._mongo_client = mongo_client
         # Bypassing DAO as we need specific atomicity guarantees for the operations
@@ -194,16 +192,20 @@ class AEMPackRegistry(AEMPackRegistryPort):
                     )
                     await self._aem_pack_dao.delete(aem_pack_id)
 
-        # check if an update version of the original AEM might have arrived in the meantime
-        current_db_aem = await self._unprocessed_aem_pack_dao.get_by_id(incoming.id)
-        if current_db_aem.processor == self._config.dirty_marker:
+        # check if an updated version of the original AEM might have arrived in the meantime
+        freed = await self._unprocessed_aem_pack_collection.find_one_and_update(
+            filter={
+                "_id": str(incoming.id),
+                "processor": self._config.dirty_marker,
+            },
+            update={"$set": {"processor": None, "started_processing_at": None}},
+        )
+        if freed:
             log.warning(
-                f"A different version of the ingress AEM {incoming.id} has been received during processing. Discarding changes."
+                "A different version of the ingress AEM %s has been received"
+                " during processing. Discarding changes.",
+                incoming.id,
             )
-            # free for processing
-            current_db_aem.processor = None
-            current_db_aem.started_processing_at = None
-            await self._unprocessed_aem_pack_dao.upsert(current_db_aem)
             return
 
         for aem_pack in aem_packs_to_publish:
@@ -319,7 +321,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         data: DataPack,
         annotation: dict[str, Any],
     ) -> AEMPack:
-        """TODO"""
+        """Wrap DataPack in an AEMPack."""
         return AEMPack(
             id=aem_id or uuid4(),
             model_name=model_name,

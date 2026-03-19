@@ -32,7 +32,6 @@ from ets.adapters.outbound.dao import (
     AEMPackDaoFactory,
     get_persisted_model_dao,
     get_route_dao,
-    get_unprocessed_aem_pack_dao,
     get_workflow_dao,
 )
 from ets.config import Config
@@ -66,7 +65,6 @@ async def prepare_aem_pack_registry(
     """Constructs and initializes core components and their outbound dependencies."""
     async with (
         prepare_config_loader(config=config) as config_loader,
-        MongoDbDaoFactory.construct(config=config) as dao_factory,
         MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
         ConfiguredMongoClient(config=config) as mongo_client,
     ):
@@ -74,14 +72,10 @@ async def prepare_aem_pack_registry(
             config=config, dao_publisher_factory=dao_pub_factory
         )
         aem_pack_dao = await aem_pack_dao_factory.get_aem_pack_dao()
-        unprocessed_aem_pack_dao = await get_unprocessed_aem_pack_dao(
-            dao_factory=dao_factory
-        )
 
         yield AEMPackRegistry(
             config=config,
             aem_pack_dao=aem_pack_dao,
-            unprocessed_aem_pack_dao=unprocessed_aem_pack_dao,
             config_loader=config_loader,
             mongo_client=mongo_client,
         )
