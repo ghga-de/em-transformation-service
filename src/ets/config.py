@@ -22,7 +22,7 @@ from hexkit.log import LoggingConfig
 from hexkit.providers.mongokafka import MongoKafkaConfig
 from pydantic import Field
 
-from ets.adapters.inbound.event_sub import EventSubTranslatorConfig
+from ets.adapters.inbound.event_sub import AEMPackTranslatorConfig
 from ets.adapters.outbound.dao import AEMPackDaoConfig
 
 SERVICE_NAME: str = "ets"
@@ -30,7 +30,7 @@ SERVICE_NAME: str = "ets"
 
 @config_from_yaml(prefix=SERVICE_NAME)
 class Config(
-    LoggingConfig, MongoKafkaConfig, EventSubTranslatorConfig, AEMPackDaoConfig
+    LoggingConfig, MongoKafkaConfig, AEMPackTranslatorConfig, AEMPackDaoConfig
 ):
     """Config parameters and their defaults."""
 
@@ -40,4 +40,16 @@ class Config(
     input_config_path: Path = Field(
         default=...,
         description="Path to the transformation config file used to populate the database.",
+    )
+    dirty_marker: str = Field(
+        default="ingress",
+        description="Placeholder processor name used to mark dirty AEM packs during ingress.",
+    )
+    sleep_for: int = Field(
+        default=60,
+        description="Seconds to sleep when no unprocessed AEM packs are found.",
+    )
+    stale_after: int = Field(
+        default=120,
+        description="Seconds after which an unprocessed AEM pack is considered stale.",
     )

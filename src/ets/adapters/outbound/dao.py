@@ -34,6 +34,8 @@ from ets.ports.outbound.dao import (
 
 log = logging.getLogger(__name__)
 
+UNPROCESSED_AEM_PACK_COLLECTION = "unprocessed_aem_packs"
+
 
 async def get_persisted_model_dao(*, dao_factory: DaoFactoryProtocol) -> ModelDao:
     """Setup the Persisted Model DAO using the specified provider of the DaoFactoryProtocol."""
@@ -55,10 +57,15 @@ async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
         name="routes", dto_model=models.Route, id_field="name"
     )
 
-async def get_unprocessed_aem_pack_dao(*, dao_factory: DaoFactoryProtocol) -> UnprocessedAEMPackDao:
+
+async def get_unprocessed_aem_pack_dao(
+    *, dao_factory: DaoFactoryProtocol
+) -> UnprocessedAEMPackDao:
     """Setup the Route DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
-        name="unprocessed_aem_packs", dto_model=models.UnprocessedAEMPack, id_field="id"
+        name=UNPROCESSED_AEM_PACK_COLLECTION,
+        dto_model=models.UnprocessedAEMPack,
+        id_field="id",
     )
 
 
@@ -67,8 +74,8 @@ class AEMPackDaoConfig(BaseSettings):
 
     aem_pack_topic: str = Field(
         default=...,
-        description="Topic containing published FileUpload outbox events",
-        examples=["file-uploads", "file-upload-topic"],
+        description="Topic for events informing about derived AEMs.",
+        examples=["derived-aems"],
     )
 
 

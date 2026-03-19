@@ -79,11 +79,11 @@ async def prepare_aem_pack_registry(
         )
 
         yield AEMPackRegistry(
+            config=config,
             aem_pack_dao=aem_pack_dao,
             unprocessed_aem_pack_dao=unprocessed_aem_pack_dao,
             config_loader=config_loader,
             mongo_client=mongo_client,
-            service_instance_id=config.service_instance_id,
         )
 
 

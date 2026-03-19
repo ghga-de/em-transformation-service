@@ -18,16 +18,23 @@
 import logging
 
 from hexkit.protocols.daosub import DaoSubscriberProtocol
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 from ets.core.models import AEMPack, UnprocessedAEMPack
-from ets.event_schemas import AEMPackEventConfig
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 
 log = logging.getLogger(__name__)
 
 
-class EventSubTranslatorConfig(AEMPackEventConfig):
-    """Config for the event subscriber."""
+class AEMPackTranslatorConfig(BaseSettings):
+    """Config for the AEMPack event subscriber adapter."""
+
+    original_aem_pack_topic: str = Field(
+        default=...,
+        description="Topic informing about new ingress AEMs.",
+        examples=["original-aems"],
+    )
 
 
 class EventSubTranslator(DaoSubscriberProtocol):
@@ -39,18 +46,18 @@ class EventSubTranslator(DaoSubscriberProtocol):
 
     def __init__(
         self,
-        config: EventSubTranslatorConfig,
+        config: AEMPackTranslatorConfig,
         aem_pack_registry: AEMPackRegistryPort,
     ):
         """Initialize with config parameters and core dependencies."""
-        self.event_topic = config.aem_pack_upsert_topic
+        self.event_topic = config.original_aem_pack_topic
         self._aem_pack_registry = aem_pack_registry
         self._config = config
 
     async def changed(self, resource_id: str, update: AEMPack) -> None:
         """Consume a change event (created or updated) for the AEMPack."""
         unprocessed = UnprocessedAEMPack(**update.model_dump())
-        await self._aem_pack_registry.process_aem_packs(update)
+        await self._aem_pack_registry.queue_unprocessed(unprocessed)
 
     async def deleted(self, resource_id: str) -> None:
         """Consume a deletion event for an AEMPack."""

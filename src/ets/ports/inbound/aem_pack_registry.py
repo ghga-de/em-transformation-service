@@ -50,25 +50,8 @@ class AEMPackRegistryPort(ABC):
 
     @abstractmethod
     async def queue_unprocessed(self, aem_pack: UnprocessedAEMPack):
-        """TODO"""
-
-         
+        """Put new AEMs from event subscriber into the processing queue."""
 
     @abstractmethod
     async def process_aem_packs(self):
-        """Transform an original AEMPack through the full user journey (steps 1-4).
-
-        Steps 1-3 build the dirty map, initialize the transformed map, and traverse
-        the DAG in topological order applying each route's workflow.
-        Step 4 upserts all transformed AEMPacks whose model has ``publish=True``
-        and deletes any stale entries remaining in the dirty map.
-
-        Args:
-            original: The incoming original AEMPack to transform.
-
-        Returns:
-            A tuple of (transformed_map, dirty_map):
-            - transformed_map: mapping from model name to the newly produced AEMPack.
-            - dirty_map: mapping from model name to IDs of stale AEMPacks that were
-              deleted from the database in step 4.
-        """
+        """Derives AEM packs from incoming AEM."""
