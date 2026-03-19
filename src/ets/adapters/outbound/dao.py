@@ -23,17 +23,16 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 from ets.core import models
-from ets.event_schemas import AEMPack
+from ets.core.models import AEMPack
 from ets.ports.outbound.dao import (
     AEMPackEventPublisherPort,
     ModelDao,
     RouteDao,
+    UnprocessedAEMPackDao,
     WorkflowDao,
 )
 
 log = logging.getLogger(__name__)
-
-AEM_PACK_COLLECTION = "aem_packs"
 
 
 async def get_persisted_model_dao(*, dao_factory: DaoFactoryProtocol) -> ModelDao:
@@ -54,6 +53,12 @@ async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
     """Setup the Route DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
         name="routes", dto_model=models.Route, id_field="name"
+    )
+
+async def get_unprocessed_aem_pack_dao(*, dao_factory: DaoFactoryProtocol) -> UnprocessedAEMPackDao:
+    """Setup the Route DAO using the specified provider of the DaoFactoryProtocol."""
+    return await dao_factory.get_dao(
+        name="unprocessed_aem_packs", dto_model=models.UnprocessedAEMPack, id_field="id"
     )
 
 
@@ -82,7 +87,7 @@ class AEMPackDaoFactory(AEMPackEventPublisherPort):
     async def get_aem_pack_dao(self) -> DaoPublisher[AEMPack]:
         """Construct an outbox DAO for AEMPack objects."""
         return await self._dao_publisher_factory.get_dao(
-            name=AEM_PACK_COLLECTION,
+            name="aem_packs",
             id_field="id",
             dto_model=AEMPack,
             dto_to_event=lambda x: x.model_dump(mode="json"),

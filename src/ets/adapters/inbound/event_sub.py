@@ -19,7 +19,8 @@ import logging
 
 from hexkit.protocols.daosub import DaoSubscriberProtocol
 
-from ets.event_schemas import AEMPack, AEMPackEventConfig, UnprocessedAEMPack
+from ets.core.models import AEMPack, UnprocessedAEMPack
+from ets.event_schemas import AEMPackEventConfig
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 
 log = logging.getLogger(__name__)

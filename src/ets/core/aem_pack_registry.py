@@ -16,25 +16,32 @@
 """This module contains functionalities for transforming models and data."""
 
 import asyncio
+import contextlib
 import logging
 from typing import Any
 from uuid import uuid4
 
+from hexkit.protocols.dao import ResourceNotFoundError
+from hexkit.utils import now_utc_ms_prec
 from metldata import get_transformation_registry
 from metldata.transform.handling import TransformationHandler
 from pydantic import UUID4
+from pymongo import AsyncMongoClient
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.core.models import PersistedConfig, Workflow
-from ets.event_schemas import AEMPack, UnprocessedAEMPack
+from ets.core.models import AEMPack, PersistedConfig, UnprocessedAEMPack, Workflow
 from ets.ports.inbound.aem_pack_registry import (
     AEMPackRegistryPort,
 )
 from ets.ports.outbound.config_loader import ConfigLoaderPort
-from ets.ports.outbound.dao import AEMPackDao
+from ets.ports.outbound.dao import AEMPackDao, UnprocessedAEMPackDao
 
 log = logging.getLogger(__name__)
+
+
+INGRESS_PROCESSOR = "ingress"
+SLEEP_FOR = 60
 
 
 class AEMPackRegistry(AEMPackRegistryPort):
@@ -44,24 +51,35 @@ class AEMPackRegistry(AEMPackRegistryPort):
         self,
         *,
         aem_pack_dao: AEMPackDao,
+        unprocessed_aem_pack_dao: UnprocessedAEMPackDao,
         config_loader: ConfigLoaderPort,
+        mongo_client: AsyncMongoClient,
         service_instance_id: str,
     ):
         self._aem_pack_dao = aem_pack_dao
+        self._unprocessed_aem_pack_dao = unprocessed_aem_pack_dao
         self._config_loader = config_loader
+        self._mongo_client = mongo_client
         self._service_instance_id = service_instance_id
         self._transformation_registry = get_transformation_registry()
 
-
     async def queue_unprocessed(self, aem_pack: UnprocessedAEMPack):
         """TODO"""
-        
+        with contextlib.suppress(ResourceNotFoundError):
+            existing = await self._unprocessed_aem_pack_dao.get_by_id(aem_pack.id)
+            if existing.processor:
+                # mark as dirty by setting placeholder processor
+                # this will block processing until the current iteration is finished and marks it as freed
+                aem_pack.processor = INGRESS_PROCESSOR
+                aem_pack.started_processing_at = now_utc_ms_prec()
+        if aem_pack != existing:
+            await self._unprocessed_aem_pack_dao.upsert(aem_pack)
 
     async def process_aem_packs(self) -> None:
         """Derives AEM packs."""
         config = await self._config_loader.load_config_from_db()
         while True:
-            async for unprocessed_aem_pack in self._aem_pack_dao.find_all(
+            async for unprocessed_aem_pack in self._unprocessed_aem_pack_dao.find_all(
                 mapping={"original_id": None, "processed": False, "processor": None}
             ):
                 unprocessed_aem_pack.processor = self._service_instance_id
@@ -70,11 +88,12 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 # DB state might have changed in the meantime, fetch a fresh batch
                 break
             else:
-                sleep_for = 60
-                log.info("Non new AEM found, sleeping for {60} seconds.")
-                await asyncio.sleep(sleep_for)
+                log.info(f"Non new AEM found, sleeping for {SLEEP_FOR} seconds.")
+                await asyncio.sleep(SLEEP_FOR)
 
-    async def _main_loop(self, *, incoming: UnprocessedAEMPack, config: PersistedConfig):
+    async def _main_loop(
+        self, *, incoming: UnprocessedAEMPack, config: PersistedConfig
+    ):
         """TODO"""
         dirty_map = {
             aem_pack.model_name: aem_pack.id
@@ -82,7 +101,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 mapping={"original_id": incoming.id}
             )
         }
-        transformed_map = {incoming.model_name: incoming}
+        transformed_map: dict[str, AEMPack | UnprocessedAEMPack] = {
+            incoming.model_name: incoming
+        }
 
         aem_packs_to_publish, dirty_map = self._traverse_graph(
             incoming=incoming,
@@ -112,12 +133,20 @@ class AEMPackRegistry(AEMPackRegistryPort):
                     )
 
         # check if another service instance might have already written the derived AEMs due to a race condition
-        current_db_aem = await self._aem_pack_dao.get_by_id(incoming.id)
+        current_db_aem = await self._unprocessed_aem_pack_dao.get_by_id(incoming.id)
         if current_db_aem.processor != self._service_instance_id:
             log.warning(
-                f"Another service instance has already written the derived AEMs to the database. Discarding changes for serivce instance ID {self._service_instance_id}."
+                f"Another service instance has already written the derived AEMs for {incoming.id} to the database. Discarding changes for serivce instance ID {self._service_instance_id}."
             )
             return
+        elif current_db_aem.processor == INGRESS_PROCESSOR:
+            log.warning(f"A different version of the ingress AEM {incoming.id} has been received during processing. Discarding changes.")
+            # free for processing
+            current_db_aem.processor = None
+            current_db_aem.started_processing_at = None
+            await self._unprocessed_aem_pack_dao.upsert(current_db_aem)
+            return
+
         for aem_pack in aem_packs_to_publish:
             log.info(f"Upserting derived AEM Pack {aem_pack.id}")
             await self._aem_pack_dao.upsert(aem_pack)
@@ -125,24 +154,26 @@ class AEMPackRegistry(AEMPackRegistryPort):
     def _traverse_graph(
         self,
         *,
-        incoming: AEMPack,
+        incoming: UnprocessedAEMPack,
         dirty_map: dict[str, UUID4],
-        transformed_map: dict[str, AEMPack],
+        transformed_map: dict[str, AEMPack | UnprocessedAEMPack],
         config: PersistedConfig,
-    ) -> tuple[list[AEMPack], dict[str, UUID4]]:
+    ) -> tuple[list[AEMPack | UnprocessedAEMPack], dict[str, UUID4]]:
         """Traverse the transformation graph in topological order, applying workflows to produce transformed AEMPacks."""
-        aem_packs_to_publish = []
+        aem_packs_to_publish: list[AEMPack | UnprocessedAEMPack] = []
         models_by_name = {model.name: model for model in config.models}
         model_order = {model.name: model.order for model in config.models}
         workflows_by_name = {workflow.name: workflow for workflow in config.workflows}
 
         current_model_name = incoming.model_name
-        original_model = models_by_name.get(current_model_name)
-        if not original_model:
+        ingress_model = models_by_name.get(current_model_name)
+        if not ingress_model:
             # Needs DLQ setup
             raise ValueError(
                 f"No model with name {current_model_name} registered for AEMPack with id {incoming.id}."
             )
+        if ingress_model.publish:
+            aem_packs_to_publish.append(incoming)
 
         current_routes = sorted(
             [

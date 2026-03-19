@@ -14,11 +14,8 @@
 # limitations under the License.
 """Models for KafkaEventSubscriber"""
 
-from datetime import datetime
-
-from pydantic import UUID4, BaseModel, ConfigDict, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings
-from schemapack.spec.datapack import DataPack
 
 
 class AEMPackEventConfig(BaseSettings):
@@ -29,45 +26,3 @@ class AEMPackEventConfig(BaseSettings):
         description="Name of the topic used for events indicating that an original"
         " AEMPack is registered for transformation",
     )
-
-
-class AEMPack(BaseModel):
-    """This event is triggered when a new AEMPack is created or an existing one is
-    updated.
-    """
-
-    id: UUID4 = Field(
-        default=...,
-        description="Unique identifier of the EMPack.",
-    )
-    model_name: str = Field(
-        default=...,
-        description="Unique name of the model the EMPack conforms to.",
-    )
-    original_id: UUID4 | None = Field(
-        default=None,
-        description="ID of the original incoming EMPack it was derived from. None if it is an original EMPack.",
-    )
-    data: DataPack = Field(
-        default=...,
-        description="The data conforming to a corresponding Schemapack stored in the model denoted by model_name.",
-    )
-    annotation: dict = Field(
-        default=...,
-        description="Additional information used in some workflows during derivation.",
-    )
-    model_config = ConfigDict(title="aem_pack")
-
-
-class UnprocessedAEMPack(AEMPack):
-    """Variant of the AEMPack for the processing queue."""
-
-    processor: str | None = Field(
-        default=None,
-        description="ID of the service instance that is currently processing this AEMPack.",
-    )
-    started_processing_at: datetime | None = Field(
-        default=None,
-        description="When processing was started. Needed to free stale claimed objects.",
-    )
-    model_config = ConfigDict(title="unprocessed_aem_pack")

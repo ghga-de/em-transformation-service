@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import UUID4
 
-from ets.event_schemas import UnprocessedAEMPack
+from ets.core.models import UnprocessedAEMPack
 
 
 class AEMPackRegistryPort(ABC):
@@ -51,6 +51,8 @@ class AEMPackRegistryPort(ABC):
     @abstractmethod
     async def queue_unprocessed(self, aem_pack: UnprocessedAEMPack):
         """TODO"""
+
+         
 
     @abstractmethod
     async def process_aem_packs(self):
