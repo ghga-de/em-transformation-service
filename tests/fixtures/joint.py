@@ -17,6 +17,7 @@
 
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from typing import cast
 
 import pytest_asyncio
 from hexkit.providers.akafka import KafkaEventSubscriber
@@ -31,12 +32,12 @@ from ets.adapters.outbound.dao import (
     get_workflow_dao,
 )
 from ets.config import Config
+from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.inject import (
     prepare_aem_pack_registry,
     prepare_config_loader,
     prepare_event_subscriber,
 )
-from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
 from tests.fixtures.config import get_config
@@ -56,7 +57,7 @@ class DAOs:
 class JointFixture:
     """Returned by the `joint_fixture`."""
 
-    aem_pack_registry: AEMPackRegistryPort
+    aem_pack_registry: AEMPackRegistry
     config: Config
     daos: DAOs
     event_subscriber: KafkaEventSubscriber
@@ -97,7 +98,7 @@ async def joint_fixture(
             prepare_config_loader(config=config) as config_loader,
         ):
             yield JointFixture(
-                aem_pack_registry=aem_pack_registry,
+                aem_pack_registry=cast(AEMPackRegistry, aem_pack_registry),
                 daos=daos,
                 config=config,
                 event_subscriber=event_subscriber,

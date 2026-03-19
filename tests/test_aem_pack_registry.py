@@ -22,11 +22,13 @@ from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
+from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.models import (
     AEMPack,
     Model,
     PersistedConfig,
     Route,
+    UnprocessedAEMPack,
     Workflow,
 )
 from tests.fixtures.joint import JointFixture
@@ -358,7 +360,7 @@ class TestAEMPackRegistry:
         }
         transformed_map = {ingress_model.name: incoming}
 
-        aem_packs_to_publish, remaining_dirty = (
+        _aem_packs_to_publish, remaining_dirty = (
             joint_fixture.aem_pack_registry._traverse_graph(
                 incoming=incoming,
                 dirty_map=dirty_map,
@@ -530,3 +532,194 @@ class TestAEMPackRegistry:
         assert derived_model_1.name not in remaining_dirty
         assert derived_model_2.name not in remaining_dirty
         assert len(aem_packs_to_publish) == 0
+
+    async def test_traverse_graph_reuses_dirty_map_ids(
+        self,
+        joint_fixture: JointFixture,
+        ingress_model: Model,
+        derived_model_1: Model,
+        derived_model_2: Model,
+        test_workflow: Workflow,
+        test_workflow_2: Workflow,
+    ):
+        """Test that existing IDs from the dirty map are reused for derived packs."""
+        route_1 = Route(
+            input_model_name=ingress_model.name,
+            workflow_name=test_workflow.name,
+            output_model_name=derived_model_1.name,
+        )
+        route_2 = Route(
+            input_model_name=ingress_model.name,
+            workflow_name=test_workflow_2.name,
+            output_model_name=derived_model_2.name,
+        )
+        config = PersistedConfig(
+            models=[ingress_model, derived_model_1, derived_model_2],
+            routes=[route_1, route_2],
+            workflows=[test_workflow, test_workflow_2],
+        )
+
+        incoming = AEMPack(
+            id=uuid4(),
+            model_name=ingress_model.name,
+            original_id=None,
+            data=TEST_DATAPACK_V1,
+            annotation={},
+        )
+
+        existing_id_1 = uuid4()
+        existing_id_2 = uuid4()
+        dirty_map: dict[str, UUID4] = {
+            derived_model_1.name: existing_id_1,
+            derived_model_2.name: existing_id_2,
+        }
+        transformed_map = {ingress_model.name: incoming}
+
+        _aem_packs_to_publish, _ = joint_fixture.aem_pack_registry._traverse_graph(
+            incoming=incoming,
+            dirty_map=dirty_map,
+            transformed_map=transformed_map,
+            config=config,
+        )
+
+        # Collect all produced packs (they won't be in aem_packs_to_publish because publish=False,
+        # so we re-run and capture via a publish=True model to verify IDs)
+        # Instead, run again but make models publishable
+        derived_model_1_pub = Model(
+            name="DerivedModel1",
+            description="",
+            is_ingress=False,
+            version=None,
+            schema_=TEST_SCHEMA_V1,
+            order=1,
+            publish=True,
+        )
+        derived_model_2_pub = Model(
+            name="DerivedModel2",
+            description="",
+            is_ingress=False,
+            version=None,
+            schema_=TEST_SCHEMA_V1,
+            order=2,
+            publish=True,
+        )
+        config_pub = PersistedConfig(
+            models=[ingress_model, derived_model_1_pub, derived_model_2_pub],
+            routes=[route_1, route_2],
+            workflows=[test_workflow, test_workflow_2],
+        )
+
+        dirty_map_2: dict[str, UUID4] = {
+            derived_model_1.name: existing_id_1,
+            derived_model_2.name: existing_id_2,
+        }
+        transformed_map_2 = {ingress_model.name: incoming}
+
+        published, _ = joint_fixture.aem_pack_registry._traverse_graph(
+            incoming=incoming,
+            dirty_map=dirty_map_2,
+            transformed_map=transformed_map_2,
+            config=config_pub,
+        )
+
+        published_ids = {p.id for p in published}
+        assert existing_id_1 in published_ids
+        assert existing_id_2 in published_ids
+
+    async def test_traverse_graph_generates_new_id_when_no_dirty_entry(
+        self,
+        joint_fixture: JointFixture,
+        ingress_model: Model,
+        derived_model_1: Model,
+        test_workflow: Workflow,
+    ):
+        """Test that a new UUID is generated when there is no dirty map entry."""
+        derived_model_1_pub = Model(
+            name="DerivedModel1",
+            description="",
+            is_ingress=False,
+            version=None,
+            schema_=TEST_SCHEMA_V1,
+            order=1,
+            publish=True,
+        )
+        route = Route(
+            input_model_name=ingress_model.name,
+            workflow_name=test_workflow.name,
+            output_model_name=derived_model_1_pub.name,
+        )
+        config = PersistedConfig(
+            models=[ingress_model, derived_model_1_pub],
+            routes=[route],
+            workflows=[test_workflow],
+        )
+
+        incoming = AEMPack(
+            id=uuid4(),
+            model_name=ingress_model.name,
+            original_id=None,
+            data=TEST_DATAPACK_V1,
+            annotation={},
+        )
+
+        dirty_map: dict[str, UUID4] = {}
+        transformed_map = {ingress_model.name: incoming}
+
+        published, _ = joint_fixture.aem_pack_registry._traverse_graph(
+            incoming=incoming,
+            dirty_map=dirty_map,
+            transformed_map=transformed_map,
+            config=config,
+        )
+
+        assert len(published) == 1
+        derived = next(iter(published))
+        assert derived.id != incoming.id  # new ID generated, not reusing incoming
+
+    async def test_queue_unprocessed_round_trips_data(
+        self,
+        joint_fixture: JointFixture,
+    ):
+        """Test that queue_unprocessed stores data that can be read back and deserialized."""
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        aem_id = uuid4()
+        aem_pack = UnprocessedAEMPack(
+            id=aem_id,
+            model_name="TestModel",
+            original_id=None,
+            data=TEST_DATAPACK_V1,
+            annotation={"key": "value"},
+        )
+
+        await registry.queue_unprocessed(aem_pack)
+
+        raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
+        assert raw is not None
+        assert raw["model_name"] == "TestModel"
+        assert raw["annotation"] == {"key": "value"}
+
+        # The stored data must be deserializable back to a DataPack
+        restored_data = DataPack.model_validate(raw["data"])
+        assert restored_data == TEST_DATAPACK_V1
+
+    async def test_queue_unprocessed_sets_no_processor_on_new_doc(
+        self,
+        joint_fixture: JointFixture,
+    ):
+        """Test that a freshly queued doc has processor=None."""
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        aem_id = uuid4()
+        aem_pack = UnprocessedAEMPack(
+            id=aem_id,
+            model_name="TestModel",
+            original_id=None,
+            data=TEST_DATAPACK_V1,
+            annotation={},
+        )
+
+        await registry.queue_unprocessed(aem_pack)
+
+        raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
+        assert raw is not None
+        assert raw["processor"] is None
+        assert raw["started_processing_at"] is None

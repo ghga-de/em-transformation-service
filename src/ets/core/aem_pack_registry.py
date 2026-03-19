@@ -231,9 +231,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
         dirty_map: dict[str, UUID4],
         transformed_map: dict[str, AEMPack],
         config: PersistedConfig,
-    ) -> tuple[set[AEMPack], dict[str, UUID4]]:
+    ) -> tuple[list[AEMPack], dict[str, UUID4]]:
         """Traverse the transformation graph in topological order, applying workflows to produce transformed AEMPacks."""
-        aem_packs_to_publish: set[AEMPack] = set()
+        aem_packs_to_publish: list[AEMPack] = []
         models_by_name = {model.name: model for model in config.models}
         model_order = {model.name: model.order for model in config.models}
         workflows_by_name = {workflow.name: workflow for workflow in config.workflows}
@@ -250,7 +250,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
             current_model = models_by_name[current_model_name]
 
             if current_model.publish:
-                aem_packs_to_publish.add(current_aem_pack)
+                aem_packs_to_publish.append(current_aem_pack)
 
             current_routes = sorted(
                 [r for r in config.routes if r.input_model_name == current_model_name],
