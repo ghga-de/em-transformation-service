@@ -219,45 +219,37 @@ class AEMPackRegistry(AEMPackRegistryPort):
         dirty_map: dict[str, UUID4],
         transformed_map: dict[str, AEMPack],
         config: PersistedConfig,
-    ) -> tuple[list[AEMPack], dict[str, UUID4]]:
+    ) -> tuple[set[AEMPack], dict[str, UUID4]]:
         """Traverse the transformation graph in topological order, applying workflows to produce transformed AEMPacks."""
-        aem_packs_to_publish: list[AEMPack | UnprocessedAEMPack] = []
+        aem_packs_to_publish: set[AEMPack] = set()
         models_by_name = {model.name: model for model in config.models}
         model_order = {model.name: model.order for model in config.models}
         workflows_by_name = {workflow.name: workflow for workflow in config.workflows}
 
-        current_model_name = incoming.model_name
-        ingress_model = models_by_name.get(current_model_name)
-        if not ingress_model:
+        if not models_by_name.get(incoming.model_name):
             # Needs DLQ setup
             raise ValueError(
-                f"No model with name {current_model_name} registered for AEMPack with id {incoming.id}."
+                f"No model with name {incoming.model_name} registered for AEMPack with id {incoming.id}."
             )
-        if ingress_model.publish:
-            aem_packs_to_publish.append(incoming)
-
-        current_routes = sorted(
-            [
-                route
-                for route in config.routes
-                if route.input_model_name == current_model_name
-            ],
-            key=lambda route: model_order[route.output_model_name],
-        )
 
         while transformed_map:
-            for route in current_routes:
-                current_aem_pack = transformed_map[current_model_name]
-                current_model = models_by_name[current_model_name]
-                current_workflow = workflows_by_name[route.workflow_name]
-                if not current_aem_pack:
-                    raise ValueError("Invalid state, TODO")
+            current_model_name = next(iter(transformed_map))
+            current_aem_pack = transformed_map[current_model_name]
+            current_model = models_by_name[current_model_name]
 
+            if current_model.publish:
+                aem_packs_to_publish.add(current_aem_pack)
+
+            current_routes = sorted(
+                [r for r in config.routes if r.input_model_name == current_model_name],
+                key=lambda r: model_order[r.output_model_name],
+            )
+            for route in current_routes:
                 transformed_data = self._apply_workflow_to_data(
                     data=current_aem_pack.data,
                     annotation={},
                     input_schema=current_model.schema_,
-                    workflow=current_workflow,
+                    workflow=workflows_by_name[route.workflow_name],
                 )
                 transformed_aem_pack = self._create_aem_pack(
                     data=transformed_data,
@@ -265,27 +257,11 @@ class AEMPackRegistry(AEMPackRegistryPort):
                     original_id=incoming.id,
                     annotation=incoming.annotation,
                 )
-                # TODO: needs to account for branching here
                 transformed_map[route.output_model_name] = transformed_aem_pack
-                model = models_by_name[transformed_aem_pack.model_name]
-                if model.publish:
-                    aem_packs_to_publish.append(transformed_aem_pack)
 
-            # processed, no longer dirty
+            # processed, no longer dirty or in queue
             dirty_map.pop(current_model_name, None)
-            # processed, no longer in queue
             transformed_map.pop(current_model_name)
-            # continue with next item in transformation map based on insertion order
-            current_aem_pack = next(iter(transformed_map.values()))
-            current_model_name = current_aem_pack.model_name
-            current_routes = sorted(
-                [
-                    route
-                    for route in config.routes
-                    if route.input_model_name == current_model_name
-                ],
-                key=lambda route: model_order[route.output_model_name],
-            )
 
         return aem_packs_to_publish, dirty_map
 
