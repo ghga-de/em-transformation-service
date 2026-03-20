@@ -61,10 +61,12 @@ class TestConfigChanges:
         assert len(derived_v1) == 2
 
         # Remove route B→C from config (C becomes unreachable)
-        route_bc = next(r for r in config.routes if r.output_model_name == "C")
+        route_bc = next(
+            route for route in config.routes if route.output_model_name == "C"
+        )
         new_config = PersistedConfig(
-            models=[m for m in config.models if m.name != "C"],
-            routes=[r for r in config.routes if r.name != route_bc.name],
+            models=[model for model in config.models if model.name != "C"],
+            routes=[route for route in config.routes if route.name != route_bc.name],
             workflows=config.workflows,
         )
 

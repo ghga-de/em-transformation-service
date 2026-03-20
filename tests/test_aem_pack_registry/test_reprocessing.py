@@ -55,7 +55,7 @@ class TestReprocessing:
         derived_v1 = await collect_derived_packs(
             joint_fixture.daos.aem_pack_dao, aem_id
         )
-        ids_v1 = {p.model_name: p.id for p in derived_v1}
+        ids_v1 = {pack.model_name: pack.id for pack in derived_v1}
 
         # Second processing with updated annotation
         ingress_v2 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "2"})
@@ -67,15 +67,15 @@ class TestReprocessing:
         derived_v2 = await collect_derived_packs(
             joint_fixture.daos.aem_pack_dao, aem_id
         )
-        ids_v2 = {p.model_name: p.id for p in derived_v2}
+        ids_v2 = {pack.model_name: pack.id for pack in derived_v2}
 
         # IDs reused across runs
         assert ids_v1["B"] == ids_v2["B"]
         assert ids_v1["C"] == ids_v2["C"]
 
         # Annotations updated
-        for p in derived_v2:
-            assert p.annotation == {"v": "2"}
+        for pack in derived_v2:
+            assert pack.annotation == {"v": "2"}
 
     async def test_first_processing_generates_fresh_ids(
         self, joint_fixture: JointFixture
@@ -97,6 +97,6 @@ class TestReprocessing:
         derived = await collect_derived_packs(
             joint_fixture.daos.aem_pack_dao, ingress.id
         )
-        all_ids = {p.id for p in derived}
+        all_ids = {pack.id for pack in derived}
         all_ids.add(ingress.id)
         assert len(all_ids) == 3  # ingress ID + B ID + C ID, all distinct

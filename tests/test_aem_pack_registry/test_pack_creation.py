@@ -72,7 +72,7 @@ class TestPackCreation:
     ):
         """Test applying a workflow to transform data; empty resources are left unchanged."""
         workflow = aem_pack_config.workflows[0]
-        ingress = next(m for m in aem_pack_config.models if m.is_ingress)
+        ingress = next(model for model in aem_pack_config.models if model.is_ingress)
 
         result_data = joint_fixture.aem_pack_registry._apply_workflow_to_data(
             data=TEST_DATAPACK_V1,

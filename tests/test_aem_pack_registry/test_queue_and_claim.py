@@ -159,7 +159,7 @@ class TestQueueAndClaim:
             joint_fixture.daos.aem_pack_dao, ingress.id
         )
         assert len(derived) == 2
-        assert {p.model_name for p in derived} == {"B", "C"}
+        assert {pack.model_name for pack in derived} == {"B", "C"}
 
     async def test_dirty_marker_discards_on_concurrent_update(
         self, joint_fixture: JointFixture

@@ -33,26 +33,25 @@ class TestGraphTraversal:
     @pytest.mark.parametrize(
         "aem_pack_config, dirty_names",
         [
-            pytest.param(
-                AEM_PACK_REGISTRY_CONFIGS["single_route"],
-                {"DerivedModel1"},
-                id="single_route",
-            ),
-            pytest.param(
+            (AEM_PACK_REGISTRY_CONFIGS["single_route"], {"DerivedModel1"}),
+            (
                 AEM_PACK_REGISTRY_CONFIGS["single_route"],
                 {"IngressModel", "DerivedModel1"},
-                id="single_route_with_ingress",
             ),
-            pytest.param(
+            (
                 AEM_PACK_REGISTRY_CONFIGS["forking_routes"],
                 {"DerivedModel1", "DerivedModel2"},
-                id="forking_routes",
             ),
-            pytest.param(
+            (
                 AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
                 {"DerivedModel1", "DerivedModel3"},
-                id="chained_routes",
             ),
+        ],
+        ids=[
+            "single_route",
+            "single_route_with_ingress",
+            "forking_routes",
+            "chained_routes",
         ],
         indirect=["aem_pack_config"],
     )
@@ -63,7 +62,7 @@ class TestGraphTraversal:
         dirty_names: set[str],
     ):
         """Traversal with various graph topologies clears all dirty map entries; no packs published when publish=False."""
-        ingress = next(m for m in aem_pack_config.models if m.is_ingress)
+        ingress = next(model for model in aem_pack_config.models if model.is_ingress)
         incoming = AEMPack(
             id=uuid4(),
             model_name=ingress.name,
@@ -98,12 +97,12 @@ class TestGraphTraversal:
         aem_pack_config: PersistedConfig,
     ):
         """Test that routes are processed respecting topological order."""
-        models_by_name = {m.name: m for m in aem_pack_config.models}
+        models_by_name = {model.name: model for model in aem_pack_config.models}
         # Swap orders so DerivedModel2 (order=1) is processed before DerivedModel1 (order=2)
         models_by_name["DerivedModel2"].order = 1
         models_by_name["DerivedModel1"].order = 2
 
-        ingress = next(m for m in aem_pack_config.models if m.is_ingress)
+        ingress = next(model for model in aem_pack_config.models if model.is_ingress)
         incoming = AEMPack(
             id=uuid4(),
             model_name=ingress.name,
@@ -148,7 +147,7 @@ class TestGraphTraversal:
         aem_pack_config: PersistedConfig,
     ):
         """Test that existing IDs from the dirty map are reused for derived packs."""
-        ingress = next(m for m in aem_pack_config.models if m.is_ingress)
+        ingress = next(model for model in aem_pack_config.models if model.is_ingress)
         incoming = AEMPack(
             id=uuid4(),
             model_name=ingress.name,
@@ -171,7 +170,7 @@ class TestGraphTraversal:
             config=aem_pack_config,
         )
 
-        published_ids = {p.id for p in published}
+        published_ids = {pack.id for pack in published}
         assert existing_id_1 in published_ids
         assert existing_id_2 in published_ids
 
@@ -187,7 +186,7 @@ class TestGraphTraversal:
         aem_pack_config: PersistedConfig,
     ):
         """Test that a new UUID is generated when there is no dirty map entry."""
-        ingress = next(m for m in aem_pack_config.models if m.is_ingress)
+        ingress = next(model for model in aem_pack_config.models if model.is_ingress)
         incoming = AEMPack(
             id=uuid4(),
             model_name=ingress.name,
@@ -210,17 +209,10 @@ class TestGraphTraversal:
     @pytest.mark.parametrize(
         "aem_pack_config, ingress_name",
         [
-            pytest.param(
-                (AEM_PACK_REGISTRY_CONFIGS["bottleneck"], {"D1", "D2"}),
-                "I1",
-                id="bottleneck_from_I1",
-            ),
-            pytest.param(
-                (AEM_PACK_REGISTRY_CONFIGS["bottleneck"], {"D1", "D2"}),
-                "I2",
-                id="bottleneck_from_I2",
-            ),
+            ((AEM_PACK_REGISTRY_CONFIGS["bottleneck"], {"D1", "D2"}), "I1"),
+            ((AEM_PACK_REGISTRY_CONFIGS["bottleneck"], {"D1", "D2"}), "I2"),
         ],
+        ids=["bottleneck_from_I1", "bottleneck_from_I2"],
         indirect=["aem_pack_config"],
     )
     async def test_bottleneck_topology(
@@ -259,10 +251,10 @@ class TestGraphTraversal:
         assert "D2" not in remaining_dirty
 
         # D1 and D2 published (publish=True), B not published (publish=False)
-        assert {p.model_name for p in published} == {"D1", "D2"}
+        assert {pack.model_name for pack in published} == {"D1", "D2"}
 
         # Existing dirty map IDs reused
-        published_ids = {p.id for p in published}
+        published_ids = {pack.id for pack in published}
         assert existing_d1 in published_ids
         assert existing_d2 in published_ids
 

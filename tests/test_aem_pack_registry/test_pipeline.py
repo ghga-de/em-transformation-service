@@ -77,7 +77,7 @@ class TestPipeline:
             joint_fixture.daos.aem_pack_dao, ingress.id
         )
         assert len(derived) == len(expected_names)
-        assert {p.model_name for p in derived} == expected_names
+        assert {pack.model_name for pack in derived} == expected_names
         for pack in derived:
             assert pack.original_id == ingress.id
             assert pack.annotation == annotation
@@ -108,7 +108,7 @@ class TestPipeline:
             joint_fixture.daos.aem_pack_dao, ingress.id
         )
         assert len(derived) == 2
-        names = {p.model_name for p in derived}
+        names = {pack.model_name for pack in derived}
         assert names == {"DerivedModel1", "DerivedModel2"}
         for pack in derived:
             assert pack.original_id == ingress.id
@@ -137,7 +137,7 @@ class TestPipeline:
             joint_fixture.daos.aem_pack_dao, ingress.id
         )
         assert len(derived) == 2
-        assert {p.model_name for p in derived} == {"D1", "D2"}
+        assert {pack.model_name for pack in derived} == {"D1", "D2"}
         for pack in derived:
             assert pack.original_id == ingress.id
             assert pack.annotation == {"src": ingress_name}
@@ -216,14 +216,14 @@ class TestPipeline:
 
         assert len(derived_1) == 2
         assert len(derived_2) == 2
-        assert {p.model_name for p in derived_1} == {"B", "C"}
-        assert {p.model_name for p in derived_2} == {"B", "C"}
+        assert {pack.model_name for pack in derived_1} == {"B", "C"}
+        assert {pack.model_name for pack in derived_2} == {"B", "C"}
 
         # All IDs distinct across both sets
-        all_ids = {p.id for p in derived_1 + derived_2}
+        all_ids = {pack.id for pack in derived_1 + derived_2}
         assert len(all_ids) == 4
 
-        for p in derived_1:
-            assert p.annotation == {"pack": "1"}
-        for p in derived_2:
-            assert p.annotation == {"pack": "2"}
+        for pack in derived_1:
+            assert pack.annotation == {"pack": "1"}
+        for pack in derived_2:
+            assert pack.annotation == {"pack": "2"}
