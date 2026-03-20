@@ -306,7 +306,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         for step in workflow.workflow.operations:
             transformation_def = self._transformation_registry[step.name]
             typed_config = transformation_def.config_cls.model_validate(step.args)
-            handler = TransformationHandler(
+            handler: TransformationHandler = TransformationHandler(
                 transformation_definition=transformation_def,
                 transformation_config=typed_config,
                 input_model=current_schema,
