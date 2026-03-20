@@ -142,11 +142,9 @@ async def populate_db_config(
 
     for model in config.models:
         await daos.model_dao.insert(model)
-
-    validated = load_model_derivation_config(config_yaml_path)
-    for route in validated.routes:
+    for route in config.routes:
         await daos.route_dao.insert(route)
-    for workflow in validated.workflows:
+    for workflow in config.workflows:
         await daos.workflow_dao.insert(workflow)
 
     return config
