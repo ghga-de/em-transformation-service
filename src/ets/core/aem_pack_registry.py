@@ -66,7 +66,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         self._aem_pack_dao = aem_pack_dao
         self._config_loader = config_loader
         self._mongo_client = mongo_client
-        # Bypassing DAO as we need specific atomicity guarantees for the operations
+        # Bypassing DAO, as we need specific atomicity guarantees for the operations
         # DAO based code would need to deal with possible race conditions
         self._unprocessed_aem_pack_collection = mongo_client[config.db_name][
             UNPROCESSED_AEM_PACK_COLLECTION
@@ -167,6 +167,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         self, *, incoming: UnprocessedAEMPack, config: PersistedConfig
     ):
         """Perform transformation on the whole subgraph matching the incoming AEMs ingress model."""
+        # Convert to normal AEMPack to be type consistent within _traverse_graph
         incoming_aem = AEMPack(
             **incoming.model_dump(exclude={"processor", "started_processing_at"})
         )
@@ -176,7 +177,6 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 mapping={"original_id": incoming_aem.id}
             )
         }
-
         transformed_map: dict[str, AEMPack] = {incoming_aem.model_name: incoming_aem}
 
         aem_packs_to_publish, dirty_map = self._traverse_graph(
@@ -189,9 +189,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
         if dirty_map:
             # Check if there are corresponding models remaining or if they have been removed from the config.
 
-            # AEMPacks without matching models can be a result of configuration and need to be deleted, as they've become unreachable.
+            # AEMPacks without matching models can be a result of configuration change and need to be deleted, as they've become unreachable.
             # Extant AEMPacks with existing models point to the AEMPack moving to a different subgraph with a different original ID.
-            # In this case it also needs to be removed an recreated
+            # In this case it also needs to be removed an recreated by separately iterating over its own ingress AEM
             models_by_name = {model.name: model for model in config.models}
             for model_name, aem_pack_id in dirty_map.items():
                 if not models_by_name.get(model_name):
@@ -254,10 +254,8 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 f"No model with name {incoming.model_name} registered for AEMPack with id {incoming.id}."
             )
 
-        # Relies on Python 3.7+ dict insertion-order guarantee: the incoming
-        # model is processed first, then derived models in the order they were
-        # appended by the sorted route loop below.  Avoid copying or re-sorting
-        # this dict, as that would break the traversal order.
+        # Relies on dict insertion-order guarantee.
+        # Avoid copying or re-sorting this dict, as that would break the traversal order.
         while transformed_map:
             current_model_name = next(iter(transformed_map))
             current_aem_pack = transformed_map[current_model_name]
