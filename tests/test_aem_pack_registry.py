@@ -15,14 +15,19 @@
 
 """Tests for the AEMPackRegistry core service."""
 
+from datetime import timedelta
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from hexkit.correlation import set_new_correlation_id
+from hexkit.utils import now_utc_ms_prec
 from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
 from ets.core.aem_pack_registry import AEMPackRegistry
+from ets.core.model_derivation import ModelDeriver
 from ets.core.models import (
     AEMPack,
     Model,
@@ -31,7 +36,11 @@ from ets.core.models import (
     UnprocessedAEMPack,
     Workflow,
 )
-from tests.fixtures.joint import JointFixture
+from tests.fixtures.examples import (
+    VALID_MODEL_DERIVATION_CONFIGS,
+    load_model_derivation_config,
+)
+from tests.fixtures.joint import DAOs, JointFixture
 
 # Test schemas
 TEST_SCHEMA_V1 = SchemaPack.model_validate(
@@ -723,3 +732,638 @@ class TestAEMPackRegistry:
         assert raw is not None
         assert raw["processor"] is None
         assert raw["started_processing_at"] is None
+
+
+# ------------ Helper Functions for Integration Tests ------------ #
+
+
+async def populate_db_config(
+    daos: DAOs,
+    config_yaml_path: Path,
+    publish_models: set[str] | None = None,
+) -> PersistedConfig:
+    """Load a valid model derivation YAML, derive schemas, and populate the DB.
+
+    Returns the PersistedConfig matching what load_config_from_db() would return.
+    """
+    validated = load_model_derivation_config(config_yaml_path)
+    deriver = ModelDeriver(config=validated)
+    models = deriver.derive_models()
+
+    if publish_models:
+        models = [
+            m.model_copy(update={"publish": True}) if m.name in publish_models else m
+            for m in models
+        ]
+
+    for model in models:
+        await daos.model_dao.insert(model)
+    for route in validated.routes:
+        await daos.route_dao.insert(route)
+    for workflow in validated.workflows:
+        await daos.workflow_dao.insert(workflow)
+
+    return PersistedConfig(
+        models=models, routes=validated.routes, workflows=validated.workflows
+    )
+
+
+def make_ingress_pack(
+    model_name: str,
+    *,
+    aem_id: UUID4 | None = None,
+    annotation: dict | None = None,
+) -> UnprocessedAEMPack:
+    """Create an UnprocessedAEMPack for the given ingress model."""
+    return UnprocessedAEMPack(
+        id=aem_id or uuid4(),
+        model_name=model_name,
+        original_id=None,
+        data=TEST_DATAPACK_V1,
+        annotation=annotation or {},
+    )
+
+
+async def collect_derived_packs(
+    aem_pack_dao,
+    original_id: UUID4,
+) -> list[AEMPack]:
+    """Collect all derived AEMPacks for a given original_id from the DAO."""
+    return [
+        pack
+        async for pack in aem_pack_dao.find_all(mapping={"original_id": original_id})
+    ]
+
+
+async def queue_and_claim(
+    registry: AEMPackRegistry,
+    pack: UnprocessedAEMPack,
+    service_instance_id: str,
+) -> UnprocessedAEMPack:
+    """Queue an unprocessed pack and atomically claim it for processing.
+
+    Mirrors the claim step performed by process_aem_packs().
+    """
+    await registry.queue_unprocessed(pack)
+    doc = await registry._unprocessed_aem_pack_collection.find_one_and_update(
+        filter={"_id": pack.id, "processor": None},
+        update={
+            "$set": {
+                "processor": service_instance_id,
+                "started_processing_at": now_utc_ms_prec(),
+            }
+        },
+        return_document=True,
+    )
+    assert doc is not None, f"Failed to claim unprocessed pack {pack.id}"
+    doc["id"] = doc.pop("_id")
+    doc["data"] = DataPack.model_validate(doc["data"])
+    return UnprocessedAEMPack(**doc)
+
+
+async def process_pack(
+    registry: AEMPackRegistry,
+    incoming: UnprocessedAEMPack,
+    config: PersistedConfig,
+) -> None:
+    """Call _process_next_aem_pack with a correlation ID set (required by the outbox DAO)."""
+    async with set_new_correlation_id():
+        await registry._process_next_aem_pack(incoming=incoming, config=config)
+
+
+# ------------ Integration Tests ------------ #
+
+
+@pytest.mark.asyncio
+class TestAEMPackRegistryIntegration:
+    """Integration tests: event subscription → DB → processing → outbox publication."""
+
+    # --- Category 1: Full pipeline tests --- #
+
+    async def test_pipeline_chained_graph(self, joint_fixture: JointFixture):
+        """Queue an ingress AEM for a chained graph (A→B→C), process it, verify derived packs."""
+        config = await populate_db_config(
+            joint_fixture.daos,
+            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+            publish_models={"B", "C"},
+        )
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        ingress = make_ingress_pack("A", annotation={"source": "test"})
+
+        claimed = await queue_and_claim(
+            registry, ingress, joint_fixture.config.service_instance_id
+        )
+        await process_pack(registry, incoming=claimed, config=config)
+
+        derived = await collect_derived_packs(
+            joint_fixture.daos.aem_pack_dao, ingress.id
+        )
+        assert len(derived) == 2
+        names = {p.model_name for p in derived}
+        assert names == {"B", "C"}
+        for pack in derived:
+            assert pack.original_id == ingress.id
+            assert pack.annotation == {"source": "test"}
+            assert isinstance(pack.data, DataPack)
+
+        # Unprocessed doc should be cleaned up
+        raw = await registry._unprocessed_aem_pack_collection.find_one(
+            {"_id": ingress.id}
+        )
+        assert raw is None
+
+    async def test_pipeline_forking_graph(self, joint_fixture: JointFixture):
+        """Queue an ingress AEM for a forking graph (I→D1, I→D2), verify derived packs."""
+        # Build a forking graph inline using rename_id_property workflows
+        # (replace_resource_ids requires a BaseModel annotation — see source code issues)
+        wf_file_id = Workflow(
+            name="rename_to_file_id",
+            description="Rename id to file_id",
+            workflow={
+                "operations": [
+                    {
+                        "name": "rename_id_property",
+                        "description": "Rename alias to file_id",
+                        "args": {"class_name": "File", "id_property_name": "file_id"},
+                    }
+                ]
+            },
+        )
+        wf_resource_id = Workflow(
+            name="rename_to_resource_id",
+            description="Rename id to resource_id",
+            workflow={
+                "operations": [
+                    {
+                        "name": "rename_id_property",
+                        "description": "Rename alias to resource_id",
+                        "args": {
+                            "class_name": "File",
+                            "id_property_name": "resource_id",
+                        },
+                    }
+                ]
+            },
+        )
+        ingress_model = Model(
+            name="I",
+            description="Ingress",
+            is_ingress=True,
+            version="1.0.0",
+            schema_=TEST_SCHEMA_V1,
+            order=0,
+            publish=False,
+        )
+        d1 = Model(
+            name="D1",
+            description="Derived 1",
+            is_ingress=False,
+            version=None,
+            schema_=TEST_SCHEMA_V1,
+            order=1,
+            publish=True,
+        )
+        d2 = Model(
+            name="D2",
+            description="Derived 2",
+            is_ingress=False,
+            version=None,
+            schema_=TEST_SCHEMA_V1,
+            order=2,
+            publish=True,
+        )
+        route_1 = Route(
+            input_model_name="I",
+            workflow_name=wf_file_id.name,
+            output_model_name="D1",
+        )
+        route_2 = Route(
+            input_model_name="I",
+            workflow_name=wf_resource_id.name,
+            output_model_name="D2",
+        )
+        config = PersistedConfig(
+            models=[ingress_model, d1, d2],
+            routes=[route_1, route_2],
+            workflows=[wf_file_id, wf_resource_id],
+        )
+
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        ingress = make_ingress_pack("I")
+
+        claimed = await queue_and_claim(
+            registry, ingress, joint_fixture.config.service_instance_id
+        )
+        await process_pack(registry, incoming=claimed, config=config)
+
+        derived = await collect_derived_packs(
+            joint_fixture.daos.aem_pack_dao, ingress.id
+        )
+        assert len(derived) == 2
+        names = {p.model_name for p in derived}
+        assert names == {"D1", "D2"}
+        for pack in derived:
+            assert pack.original_id == ingress.id
+
+    async def test_pipeline_publish_filtering(self, joint_fixture: JointFixture):
+        """Only models with publish=True should appear in the aem_packs collection."""
+        config = await populate_db_config(
+            joint_fixture.daos,
+            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+            publish_models={"C"},
+        )
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        ingress = make_ingress_pack("A")
+
+        claimed = await queue_and_claim(
+            registry, ingress, joint_fixture.config.service_instance_id
+        )
+        await process_pack(registry, incoming=claimed, config=config)
+
+        derived = await collect_derived_packs(
+            joint_fixture.daos.aem_pack_dao, ingress.id
+        )
+        assert len(derived) == 1
+        assert derived[0].model_name == "C"
+
+    async def test_pipeline_ingress_with_no_routes(self, joint_fixture: JointFixture):
+        """An ingress model with no routes and publish=True publishes only itself."""
+        ingress_model = Model(
+            name="Isolated",
+            description="Isolated ingress model",
+            is_ingress=True,
+            version="1.0.0",
+            schema_=TEST_SCHEMA_V1,
+            order=0,
+            publish=True,
+        )
+        await joint_fixture.daos.model_dao.insert(ingress_model)
+        config = PersistedConfig(models=[ingress_model], routes=[], workflows=[])
+
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        ingress = make_ingress_pack("Isolated")
+
+        claimed = await queue_and_claim(
+            registry, ingress, joint_fixture.config.service_instance_id
+        )
+        await process_pack(registry, incoming=claimed, config=config)
+
+        # The ingress itself is published (publish=True) but has original_id=None,
+        # so it won't appear in a derived-pack query. Verify via get_by_id instead.
+        published = await joint_fixture.daos.aem_pack_dao.get_by_id(ingress.id)
+        assert published.model_name == "Isolated"
+        assert published.original_id is None
+
+        # Unprocessed doc deleted
+        raw = await registry._unprocessed_aem_pack_collection.find_one(
+            {"_id": ingress.id}
+        )
+        assert raw is None
+
+    async def test_pipeline_multiple_independent_ingress_packs(
+        self, joint_fixture: JointFixture
+    ):
+        """Two independent ingress packs for the same model produce separate derived packs."""
+        config = await populate_db_config(
+            joint_fixture.daos,
+            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+            publish_models={"B", "C"},
+        )
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+
+        ingress_1 = make_ingress_pack("A", annotation={"pack": "1"})
+        ingress_2 = make_ingress_pack("A", annotation={"pack": "2"})
+
+        claimed_1 = await queue_and_claim(
+            registry, ingress_1, joint_fixture.config.service_instance_id
+        )
+        await process_pack(registry, incoming=claimed_1, config=config)
+
+        claimed_2 = await queue_and_claim(
+            registry, ingress_2, joint_fixture.config.service_instance_id
+        )
+        await process_pack(registry, incoming=claimed_2, config=config)
+
+        derived_1 = await collect_derived_packs(
+            joint_fixture.daos.aem_pack_dao, ingress_1.id
+        )
+        derived_2 = await collect_derived_packs(
+            joint_fixture.daos.aem_pack_dao, ingress_2.id
+        )
+
+        assert len(derived_1) == 2
+        assert len(derived_2) == 2
+        assert {p.model_name for p in derived_1} == {"B", "C"}
+        assert {p.model_name for p in derived_2} == {"B", "C"}
+
+        # All IDs distinct across both sets
+        all_ids = {p.id for p in derived_1 + derived_2}
+        assert len(all_ids) == 4
+
+        for p in derived_1:
+            assert p.annotation == {"pack": "1"}
+        for p in derived_2:
+            assert p.annotation == {"pack": "2"}
+
+    # --- Category 2: Dirty marker / race condition tests --- #
+
+    async def test_dirty_marker_discards_on_concurrent_update(
+        self, joint_fixture: JointFixture
+    ):
+        """When queue_unprocessed is called while processing, dirty marker discards results."""
+        config = await populate_db_config(
+            joint_fixture.daos,
+            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+            publish_models={"B", "C"},
+        )
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        aem_id = uuid4()
+
+        # Queue v1 and claim
+        pack_v1 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "1"})
+        claimed = await queue_and_claim(
+            registry, pack_v1, joint_fixture.config.service_instance_id
+        )
+
+        # Simulate concurrent update: queue v2 with same ID while v1 is claimed
+        pack_v2 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "2"})
+        await registry.queue_unprocessed(pack_v2)
+
+        # Verify dirty marker was set
+        raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
+        assert raw["processor"] == joint_fixture.config.dirty_marker
+
+        # Process v1 — should detect dirty and discard results
+        await process_pack(registry, incoming=claimed, config=config)
+
+        # No derived packs published
+        derived = await collect_derived_packs(joint_fixture.daos.aem_pack_dao, aem_id)
+        assert len(derived) == 0
+
+        # Doc freed for reprocessing with v2's data
+        raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
+        assert raw is not None
+        assert raw["processor"] is None
+        assert raw["started_processing_at"] is None
+        assert raw["annotation"] == {"v": "2"}
+
+    async def test_double_queue_before_processing_stays_claimable(
+        self, joint_fixture: JointFixture
+    ):
+        """Queuing the same ID twice before any claim yields one doc with latest data."""
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        aem_id = uuid4()
+
+        pack_v1 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "1"})
+        await registry.queue_unprocessed(pack_v1)
+
+        pack_v2 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "2"})
+        await registry.queue_unprocessed(pack_v2)
+
+        raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
+        assert raw is not None
+        assert raw["processor"] is None
+        assert raw["started_processing_at"] is None
+        assert raw["annotation"] == {"v": "2"}
+
+        count = await registry._unprocessed_aem_pack_collection.count_documents(
+            {"_id": aem_id}
+        )
+        assert count == 1
+
+    async def test_stale_doc_can_be_reclaimed(self, joint_fixture: JointFixture):
+        """A doc stuck with a dead processor beyond stale_after can be reclaimed."""
+        config = await populate_db_config(
+            joint_fixture.daos,
+            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+            publish_models={"B", "C"},
+        )
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        ingress = make_ingress_pack("A")
+
+        # Queue and then mark as stale (old processor, expired timestamp)
+        await registry.queue_unprocessed(ingress)
+        stale_time = now_utc_ms_prec() - timedelta(
+            seconds=joint_fixture.config.stale_after + 10
+        )
+        await registry._unprocessed_aem_pack_collection.update_one(
+            {"_id": ingress.id},
+            {
+                "$set": {
+                    "processor": "dead_instance",
+                    "started_processing_at": stale_time,
+                }
+            },
+        )
+
+        # Fresh claim should NOT find this (processor != None)
+        fresh = await registry._unprocessed_aem_pack_collection.find_one_and_update(
+            filter={"original_id": None, "processor": None},
+            update={
+                "$set": {
+                    "processor": joint_fixture.config.service_instance_id,
+                    "started_processing_at": now_utc_ms_prec(),
+                }
+            },
+            return_document=True,
+        )
+        assert fresh is None
+
+        # Stale claim SHOULD find it
+        stale_doc = await registry._unprocessed_aem_pack_collection.find_one_and_update(
+            filter={
+                "original_id": None,
+                "started_processing_at": {
+                    "$lt": now_utc_ms_prec()
+                    - timedelta(seconds=joint_fixture.config.stale_after)
+                },
+            },
+            update={
+                "$set": {
+                    "processor": joint_fixture.config.service_instance_id,
+                    "started_processing_at": now_utc_ms_prec(),
+                }
+            },
+            sort=[("started_processing_at", 1)],
+            return_document=True,
+        )
+        assert stale_doc is not None
+        assert stale_doc["processor"] == joint_fixture.config.service_instance_id
+
+        # Process the reclaimed doc
+        stale_doc["id"] = stale_doc.pop("_id")
+        stale_doc["data"] = DataPack.model_validate(stale_doc["data"])
+        claimed = UnprocessedAEMPack(**stale_doc)
+        await process_pack(registry, incoming=claimed, config=config)
+
+        # Derived packs created successfully
+        derived = await collect_derived_packs(
+            joint_fixture.daos.aem_pack_dao, ingress.id
+        )
+        assert len(derived) == 2
+        assert {p.model_name for p in derived} == {"B", "C"}
+
+    # --- Category 3: Re-processing and ID reuse tests --- #
+
+    async def test_reprocessing_reuses_derived_pack_ids(
+        self, joint_fixture: JointFixture
+    ):
+        """Re-processing the same ingress pack reuses existing derived pack UUIDs."""
+        config = await populate_db_config(
+            joint_fixture.daos,
+            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+            publish_models={"B", "C"},
+        )
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        aem_id = uuid4()
+
+        # First processing
+        ingress_v1 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "1"})
+        claimed_v1 = await queue_and_claim(
+            registry, ingress_v1, joint_fixture.config.service_instance_id
+        )
+        await process_pack(registry, incoming=claimed_v1, config=config)
+
+        derived_v1 = await collect_derived_packs(
+            joint_fixture.daos.aem_pack_dao, aem_id
+        )
+        ids_v1 = {p.model_name: p.id for p in derived_v1}
+
+        # Second processing with updated annotation
+        ingress_v2 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "2"})
+        claimed_v2 = await queue_and_claim(
+            registry, ingress_v2, joint_fixture.config.service_instance_id
+        )
+        await process_pack(registry, incoming=claimed_v2, config=config)
+
+        derived_v2 = await collect_derived_packs(
+            joint_fixture.daos.aem_pack_dao, aem_id
+        )
+        ids_v2 = {p.model_name: p.id for p in derived_v2}
+
+        # IDs reused across runs
+        assert ids_v1["B"] == ids_v2["B"]
+        assert ids_v1["C"] == ids_v2["C"]
+
+        # Annotations updated
+        for p in derived_v2:
+            assert p.annotation == {"v": "2"}
+
+    async def test_first_processing_generates_fresh_ids(
+        self, joint_fixture: JointFixture
+    ):
+        """First processing generates unique UUIDs for all derived packs."""
+        config = await populate_db_config(
+            joint_fixture.daos,
+            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+            publish_models={"B", "C"},
+        )
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        ingress = make_ingress_pack("A")
+
+        claimed = await queue_and_claim(
+            registry, ingress, joint_fixture.config.service_instance_id
+        )
+        await process_pack(registry, incoming=claimed, config=config)
+
+        derived = await collect_derived_packs(
+            joint_fixture.daos.aem_pack_dao, ingress.id
+        )
+        all_ids = {p.id for p in derived}
+        all_ids.add(ingress.id)
+        assert len(all_ids) == 3  # ingress ID + B ID + C ID, all distinct
+
+    # --- Category 4: Config change / unreachable pack deletion --- #
+
+    async def test_unreachable_pack_deleted_after_route_removal(
+        self, joint_fixture: JointFixture
+    ):
+        """Removing a route causes previously derived packs to be deleted on re-processing."""
+        config = await populate_db_config(
+            joint_fixture.daos,
+            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+            publish_models={"B", "C"},
+        )
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        aem_id = uuid4()
+
+        # First processing: B and C derived
+        ingress = make_ingress_pack("A", aem_id=aem_id)
+        claimed = await queue_and_claim(
+            registry, ingress, joint_fixture.config.service_instance_id
+        )
+        await process_pack(registry, incoming=claimed, config=config)
+
+        derived_v1 = await collect_derived_packs(
+            joint_fixture.daos.aem_pack_dao, aem_id
+        )
+        assert len(derived_v1) == 2
+
+        # Remove route B→C from config (C becomes unreachable)
+        route_bc = next(r for r in config.routes if r.output_model_name == "C")
+        new_config = PersistedConfig(
+            models=[m for m in config.models if m.name != "C"],
+            routes=[r for r in config.routes if r.name != route_bc.name],
+            workflows=config.workflows,
+        )
+
+        # Re-process same ingress
+        ingress_v2 = make_ingress_pack("A", aem_id=aem_id)
+        claimed_v2 = await queue_and_claim(
+            registry, ingress_v2, joint_fixture.config.service_instance_id
+        )
+        await process_pack(registry, incoming=claimed_v2, config=new_config)
+
+        # C deleted (unreachable), B remains
+        derived_v2 = await collect_derived_packs(
+            joint_fixture.daos.aem_pack_dao, aem_id
+        )
+        assert len(derived_v2) == 1
+        assert derived_v2[0].model_name == "B"
+
+    # --- Category 5: Edge cases and error handling --- #
+
+    async def test_nonexistent_model_raises_error_in_pipeline(
+        self, joint_fixture: JointFixture
+    ):
+        """Processing an AEMPack for a model not in the config raises ValueError."""
+        config = await populate_db_config(
+            joint_fixture.daos,
+            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+        )
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        ingress = make_ingress_pack("NonExistent")
+
+        claimed = await queue_and_claim(
+            registry, ingress, joint_fixture.config.service_instance_id
+        )
+        with pytest.raises(ValueError, match="No model with name NonExistent"):
+            await process_pack(registry, incoming=claimed, config=config)
+
+    async def test_annotation_propagation_through_chain(
+        self, joint_fixture: JointFixture
+    ):
+        """Complex annotations propagate correctly through the transformation chain."""
+        config = await populate_db_config(
+            joint_fixture.daos,
+            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+            publish_models={"B", "C"},
+        )
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry  # type: ignore[assignment]
+        annotation = {
+            "workflow_hint": "test",
+            "nested": {"key": "val"},
+            "tags": [1, 2, 3],
+        }
+        ingress = make_ingress_pack("A", annotation=annotation)
+
+        claimed = await queue_and_claim(
+            registry, ingress, joint_fixture.config.service_instance_id
+        )
+        await process_pack(registry, incoming=claimed, config=config)
+
+        derived = await collect_derived_packs(
+            joint_fixture.daos.aem_pack_dao, ingress.id
+        )
+        for pack in derived:
+            assert pack.annotation == annotation

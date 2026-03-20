@@ -24,7 +24,7 @@ from uuid import uuid4
 from hexkit.utils import now_utc_ms_prec
 from metldata import get_transformation_registry
 from metldata.transform.handling import TransformationHandler
-from pydantic import UUID4
+from pydantic import UUID4, BaseModel, ConfigDict
 from pymongo import ASCENDING, AsyncMongoClient
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
@@ -39,6 +39,12 @@ from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.dao import AEMPackDao
 
 log = logging.getLogger(__name__)
+
+
+class _AnnotationModel(BaseModel):
+    """Wraps a plain annotation dict to satisfy the BaseModel-bound SubmissionAnnotation TypeVar."""
+
+    model_config = ConfigDict(extra="allow")
 
 
 class AEMPackRegistry(AEMPackRegistryPort):
@@ -244,6 +250,10 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 f"No model with name {incoming.model_name} registered for AEMPack with id {incoming.id}."
             )
 
+        # Relies on Python 3.7+ dict insertion-order guarantee: the incoming
+        # model is processed first, then derived models in the order they were
+        # appended by the sorted route loop below.  Avoid copying or re-sorting
+        # this dict, as that would break the traversal order.
         while transformed_map:
             current_model_name = next(iter(transformed_map))
             current_aem_pack = transformed_map[current_model_name]
@@ -297,7 +307,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 transformation_config=typed_config,
                 input_model=current_schema,
             )
-            current_data = handler.transform_data(current_data, annotation)
+            current_data = handler.transform_data(
+                current_data, _AnnotationModel.model_validate(annotation)
+            )
             current_schema = handler.transformed_model
         return current_data
 
