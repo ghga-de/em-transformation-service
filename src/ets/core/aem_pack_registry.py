@@ -21,6 +21,7 @@ from datetime import timedelta
 from typing import Any
 from uuid import uuid4
 
+from hexkit.correlation import set_correlation_id
 from hexkit.utils import now_utc_ms_prec
 from metldata import get_transformation_registry
 from metldata.transform.handling import TransformationHandler
@@ -169,7 +170,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
         """Perform transformation on the whole subgraph matching the incoming AEMs ingress model."""
         # Convert to normal AEMPack to be type consistent within _traverse_graph
         incoming_aem = AEMPack(
-            **incoming.model_dump(exclude={"processor", "started_processing_at"})
+            **incoming.model_dump(
+                exclude={"processor", "started_processing_at", "correlation_id"}
+            )
         )
         dirty_map = {
             aem_pack.model_name: aem_pack.id
@@ -186,43 +189,44 @@ class AEMPackRegistry(AEMPackRegistryPort):
             config=config,
         )
 
-        if dirty_map:
-            # Check if there are corresponding models remaining or if they have been removed from the config.
+        async with set_correlation_id(incoming.correlation_id):
+            if dirty_map:
+                # Check if there are corresponding models remaining or if they have been removed from the config.
 
-            # AEMPacks without matching models can be a result of configuration change and need to be deleted, as they've become unreachable.
-            # Extant AEMPacks with existing models point to the AEMPack moving to a different subgraph with a different original ID.
-            # In this case it also needs to be removed an recreated by separately iterating over its own ingress AEM
-            models_by_name = {model.name: model for model in config.models}
-            for model_name, aem_pack_id in dirty_map.items():
-                if not models_by_name.get(model_name):
-                    log.warning(
-                        f"Model with name {model_name} no longer exists in the config, previously derived AEMPack with id {aem_pack_id} is no longer valid. Removing."
-                    )
-                else:
-                    log.warning(
-                        f"Derived AEMPack with id {aem_pack_id} is no longer reachable from its previous original ID. Removing."
-                    )
-                await self._aem_pack_dao.delete(aem_pack_id)
+                # AEMPacks without matching models can be a result of configuration change and need to be deleted, as they've become unreachable.
+                # Extant AEMPacks with existing models point to the AEMPack moving to a different subgraph with a different original ID.
+                # In this case it also needs to be removed an recreated by separately iterating over its own ingress AEM
+                models_by_name = {model.name: model for model in config.models}
+                for model_name, aem_pack_id in dirty_map.items():
+                    if not models_by_name.get(model_name):
+                        log.warning(
+                            f"Model with name {model_name} no longer exists in the config, previously derived AEMPack with id {aem_pack_id} is no longer valid. Removing."
+                        )
+                    else:
+                        log.warning(
+                            f"Derived AEMPack with id {aem_pack_id} is no longer reachable from its previous original ID. Removing."
+                        )
+                    await self._aem_pack_dao.delete(aem_pack_id)
 
-        # check if an updated version of the original AEM might have arrived in the meantime
-        freed = await self._unprocessed_aem_pack_collection.find_one_and_update(
-            filter={
-                "_id": incoming_aem.id,
-                PROCESSOR_FIELD: self._config.dirty_marker,
-            },
-            update={"$set": {PROCESSOR_FIELD: None, STARTED_AT_FIELD: None}},
-        )
-        if freed:
-            log.warning(
-                "A different version of the ingress AEM %s has been received"
-                " during processing. Discarding changes.",
-                incoming_aem.id,
+            # check if an updated version of the original AEM might have arrived in the meantime
+            freed = await self._unprocessed_aem_pack_collection.find_one_and_update(
+                filter={
+                    "_id": incoming_aem.id,
+                    PROCESSOR_FIELD: self._config.dirty_marker,
+                },
+                update={"$set": {PROCESSOR_FIELD: None, STARTED_AT_FIELD: None}},
             )
-            return
+            if freed:
+                log.warning(
+                    "A different version of the ingress AEM %s has been received"
+                    " during processing. Discarding changes.",
+                    incoming_aem.id,
+                )
+                return
 
-        for aem_pack in aem_packs_to_publish:
-            log.info(f"Upserting derived AEM Pack {aem_pack.id}")
-            await self._aem_pack_dao.upsert(aem_pack)
+            for aem_pack in aem_packs_to_publish:
+                log.info(f"Upserting derived AEM Pack {aem_pack.id}")
+                await self._aem_pack_dao.upsert(aem_pack)
 
         # Remove the processed doc so the stale query cannot re-claim it.
         # If a concurrent queue_unprocessed already changed processor to dirty_marker,

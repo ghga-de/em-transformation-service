@@ -15,6 +15,8 @@
 
 """End-to-end pipeline tests: queue → claim → process → verify derived packs."""
 
+from uuid import uuid4
+
 import pytest
 from schemapack.spec.datapack import DataPack
 
@@ -227,3 +229,31 @@ class TestPipeline:
             assert pack.annotation == {"pack": "1"}
         for pack in derived_2:
             assert pack.annotation == {"pack": "2"}
+
+    async def test_correlation_id_propagated_to_derived_packs(
+        self, joint_fixture: JointFixture
+    ):
+        """Derived pack events carry the correlation ID of the original ingress event."""
+        config = await populate_db_config(
+            joint_fixture.daos,
+            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+            publish_models={"B", "C"},
+        )
+        registry: AEMPackRegistry = joint_fixture.aem_pack_registry
+        expected_correlation_id = uuid4()
+        ingress = make_ingress_pack("A", correlation_id=expected_correlation_id)
+
+        claimed = await queue_and_claim(
+            registry, ingress, joint_fixture.config.service_instance_id
+        )
+
+        async with joint_fixture.kafka.record_events(
+            in_topic=joint_fixture.config.aem_pack_topic, capture_headers=True
+        ) as recorder:
+            await process_pack(registry, incoming=claimed, config=config)
+
+        events = recorder.recorded_events
+        assert len(events) == 2  # B and C both published
+        for event in events:
+            assert event.headers is not None
+            assert event.headers["correlation_id"] == str(expected_correlation_id)

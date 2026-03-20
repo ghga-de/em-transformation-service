@@ -47,12 +47,14 @@ class TestQueueAndClaim:
         """queue_unprocessed creates a doc with correct fields, no processor, and deserializable data."""
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         aem_id = uuid4()
+        expected_correlation_id = uuid4()
         aem_pack = UnprocessedAEMPack(
             id=aem_id,
             model_name="TestModel",
             original_id=None,
             data=TEST_DATAPACK_V1,
             annotation={"key": "value"},
+            correlation_id=expected_correlation_id,
         )
 
         await registry.queue_unprocessed(aem_pack)
@@ -63,6 +65,7 @@ class TestQueueAndClaim:
         assert raw["annotation"] == {"key": "value"}
         assert raw["processor"] is None
         assert raw["started_processing_at"] is None
+        assert str(raw["correlation_id"]) == str(expected_correlation_id)
         assert DataPack.model_validate(raw["data"]) == TEST_DATAPACK_V1
 
     async def test_double_queue_before_processing_stays_claimable(

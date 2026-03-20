@@ -20,7 +20,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from hexkit.correlation import set_new_correlation_id
 from hexkit.utils import now_utc_ms_prec
 from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
@@ -155,6 +154,7 @@ def make_ingress_pack(
     *,
     aem_id: UUID4 | None = None,
     annotation: dict | None = None,
+    correlation_id: UUID4 | None = None,
 ) -> UnprocessedAEMPack:
     """Create an UnprocessedAEMPack for the given ingress model."""
     return UnprocessedAEMPack(
@@ -163,6 +163,7 @@ def make_ingress_pack(
         original_id=None,
         data=TEST_DATAPACK_V1,
         annotation=annotation or {},
+        correlation_id=correlation_id or uuid4(),
     )
 
 
@@ -208,6 +209,5 @@ async def process_pack(
     incoming: UnprocessedAEMPack,
     config: PersistedConfig,
 ) -> None:
-    """Call _process_next_aem_pack with a correlation ID set (required by the outbox DAO)."""
-    async with set_new_correlation_id():
-        await registry._process_next_aem_pack(incoming=incoming, config=config)
+    """Call _process_next_aem_pack, propagating the incoming pack's correlation ID."""
+    await registry._process_next_aem_pack(incoming=incoming, config=config)

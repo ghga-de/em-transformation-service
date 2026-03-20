@@ -281,6 +281,10 @@ class AEMPack(BaseModel):
 class UnprocessedAEMPack(AEMPack):
     """Variant of the AEMPack for the processing queue."""
 
+    correlation_id: UUID4 = Field(
+        default=...,
+        description="Correlation ID of the event that triggered ingestion of this AEMPack.",
+    )
     processor: str | None = Field(
         default=None,
         description="ID of the service instance that is currently processing this AEMPack.",
