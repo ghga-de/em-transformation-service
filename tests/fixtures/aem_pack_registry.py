@@ -15,6 +15,7 @@
 
 """Fixtures, test data, and helpers for AEMPackRegistry tests."""
 
+from collections.abc import Generator
 from pathlib import Path
 from uuid import uuid4
 
@@ -33,11 +34,8 @@ from ets.core.aem_pack_registry import (
 from ets.core.model_derivation import ModelDeriver
 from ets.core.models import (
     AEMPack,
-    Model,
     PersistedConfig,
-    Route,
     UnprocessedAEMPack,
-    Workflow,
 )
 from tests.fixtures.examples import load_model_derivation_config
 from tests.fixtures.joint import DAOs
@@ -77,232 +75,53 @@ TEST_DATAPACK_V1 = DataPack.model_validate(
 _SPECIFIED_AEM_ID = uuid4()
 
 # ---------------------------------------------------------------------------
+# Config loading helpers
+# ---------------------------------------------------------------------------
+
+
+def load_aem_pack_config(
+    path: Path,
+    publish_models: set[str] | None = None,
+) -> PersistedConfig:
+    """Load a YAML config, derive schemas, and return a PersistedConfig.
+
+    This is the file-based equivalent of the old builder helpers.  The YAML
+    defines the graph topology; ``ModelDeriver`` fills in derived schemas.
+    """
+    validated = load_model_derivation_config(path)
+    deriver = ModelDeriver(config=validated)
+    models = deriver.derive_models()
+
+    if publish_models:
+        models = [
+            m.model_copy(update={"publish": True}) if m.name in publish_models else m
+            for m in models
+        ]
+
+    return PersistedConfig(
+        models=models, routes=validated.routes, workflows=validated.workflows
+    )
+
+
+# ---------------------------------------------------------------------------
 # pytest fixtures
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture
-def ingress_model() -> Model:
-    """Create a test ingress model."""
-    return Model(
-        name="IngressModel",
-        description="Test ingress model",
-        is_ingress=True,
-        version="1.0.0",
-        schema_=TEST_SCHEMA_V1,
-        order=0,
-        publish=False,
-    )
+def aem_pack_config(request: pytest.FixtureRequest) -> Generator[PersistedConfig]:
+    """Load a PersistedConfig from a YAML path passed via ``indirect``.
 
-
-@pytest.fixture
-def derived_model_1() -> Model:
-    """Create a first derived model."""
-    return Model(
-        name="DerivedModel1",
-        description="First derived model",
-        is_ingress=False,
-        version=None,
-        schema_=TEST_SCHEMA_V1,
-        order=1,
-        publish=False,
-    )
-
-
-@pytest.fixture
-def derived_model_2() -> Model:
-    """Create a second derived model."""
-    return Model(
-        name="DerivedModel2",
-        description="Second derived model",
-        is_ingress=False,
-        version=None,
-        schema_=TEST_SCHEMA_V1,
-        order=2,
-        publish=False,
-    )
-
-
-@pytest.fixture
-def test_workflow() -> Workflow:
-    """Create a test workflow that renames the File id property to file_id."""
-    return Workflow(
-        name="rename_id_workflow",
-        description="Test workflow that renames id",
-        workflow={
-            "operations": [
-                {
-                    "name": "rename_id_property",
-                    "description": "Rename id from alias to file_id",
-                    "args": {"class_name": "File", "id_property_name": "file_id"},
-                }
-            ]
-        },
-    )
-
-
-@pytest.fixture
-def test_workflow_2() -> Workflow:
-    """Create a second test workflow that renames the File id property to resource_id."""
-    return Workflow(
-        name="rename_id_workflow_2",
-        description="Test workflow that renames id to resource_id",
-        workflow={
-            "operations": [
-                {
-                    "name": "rename_id_property",
-                    "description": "Rename id from alias to resource_id",
-                    "args": {"class_name": "File", "id_property_name": "resource_id"},
-                }
-            ]
-        },
-    )
-
-
-# ---------------------------------------------------------------------------
-# Builder helpers for traverse_graph parametrize cases
-# ---------------------------------------------------------------------------
-
-
-def _make_model(
-    name: str, *, is_ingress: bool = False, version: str | None = None, order: int = 0
-) -> Model:
-    return Model(
-        name=name,
-        is_ingress=is_ingress,
-        version=version,
-        schema_=TEST_SCHEMA_V1,
-        order=order,
-        publish=False,
-    )
-
-
-def _make_wf1() -> Workflow:
-    return Workflow(
-        name="rename_id_workflow",
-        description="Rename to file_id",
-        workflow={
-            "operations": [
-                {
-                    "name": "rename_id_property",
-                    "description": "Rename id from alias to file_id",
-                    "args": {"class_name": "File", "id_property_name": "file_id"},
-                }
-            ]
-        },
-    )
-
-
-def _make_wf2() -> Workflow:
-    return Workflow(
-        name="rename_id_workflow_2",
-        description="Rename to resource_id",
-        workflow={
-            "operations": [
-                {
-                    "name": "rename_id_property",
-                    "description": "Rename id from alias to resource_id",
-                    "args": {"class_name": "File", "id_property_name": "resource_id"},
-                }
-            ]
-        },
-    )
-
-
-def _build_single_route_case(include_ingress_in_dirty: bool = False):
-    wf = _make_wf1()
-    m_in = _make_model("IngressModel", is_ingress=True, version="1.0.0", order=0)
-    m_d1 = _make_model("DerivedModel1", order=1)
-    route = Route(
-        input_model_name="IngressModel",
-        workflow_name=wf.name,
-        output_model_name="DerivedModel1",
-    )
-    config = PersistedConfig(models=[m_in, m_d1], routes=[route], workflows=[wf])
-    incoming = AEMPack(
-        id=uuid4(),
-        model_name="IngressModel",
-        original_id=None,
-        data=TEST_DATAPACK_V1,
-        annotation={},
-    )
-    dirty_map: dict[str, UUID4] = {"DerivedModel1": uuid4()}
-    if include_ingress_in_dirty:
-        dirty_map["IngressModel"] = uuid4()
-    return config, incoming, dirty_map, ["IngressModel", "DerivedModel1"]
-
-
-def _build_forking_routes_case():
-    wf1, wf2 = _make_wf1(), _make_wf2()
-    m_in = _make_model("IngressModel", is_ingress=True, version="1.0.0", order=0)
-    m_d1 = _make_model("DerivedModel1", order=1)
-    m_d2 = _make_model("DerivedModel2", order=2)
-    routes = [
-        Route(
-            input_model_name="IngressModel",
-            workflow_name=wf1.name,
-            output_model_name="DerivedModel1",
-        ),
-        Route(
-            input_model_name="IngressModel",
-            workflow_name=wf2.name,
-            output_model_name="DerivedModel2",
-        ),
-    ]
-    config = PersistedConfig(
-        models=[m_in, m_d1, m_d2], routes=routes, workflows=[wf1, wf2]
-    )
-    incoming = AEMPack(
-        id=uuid4(),
-        model_name="IngressModel",
-        original_id=None,
-        data=TEST_DATAPACK_V1,
-        annotation={},
-    )
-    dirty_map: dict[str, UUID4] = {"DerivedModel1": uuid4(), "DerivedModel2": uuid4()}
-    return (
-        config,
-        incoming,
-        dirty_map,
-        ["IngressModel", "DerivedModel1", "DerivedModel2"],
-    )
-
-
-def _build_chained_routes_case():
-    wf1, wf2 = _make_wf1(), _make_wf2()
-    m_in = _make_model("IngressModel", is_ingress=True, version="1.0.0", order=0)
-    m_d1 = _make_model("DerivedModel1", order=1)
-    m_d2 = _make_model("DerivedModel2", order=2)
-    m_d3 = _make_model("DerivedModel3", order=3)
-    routes = [
-        Route(
-            input_model_name="IngressModel",
-            workflow_name=wf1.name,
-            output_model_name="DerivedModel1",
-        ),
-        Route(
-            input_model_name="DerivedModel1",
-            workflow_name=wf2.name,
-            output_model_name="DerivedModel2",
-        ),
-        Route(
-            input_model_name="DerivedModel2",
-            workflow_name=wf1.name,
-            output_model_name="DerivedModel3",
-        ),
-    ]
-    config = PersistedConfig(
-        models=[m_in, m_d1, m_d2, m_d3], routes=routes, workflows=[wf1, wf2]
-    )
-    incoming = AEMPack(
-        id=uuid4(),
-        model_name="IngressModel",
-        original_id=None,
-        data=TEST_DATAPACK_V1,
-        annotation={},
-    )
-    dirty_map: dict[str, UUID4] = {"DerivedModel1": uuid4(), "DerivedModel3": uuid4()}
-    return config, incoming, dirty_map, ["DerivedModel1", "DerivedModel3"]
+    Accepts either a bare ``Path`` or a ``(Path, set[str])`` tuple where the
+    second element specifies which models should have ``publish=True``.
+    """
+    param = request.param
+    if isinstance(param, tuple):
+        path, publish_models = param
+    else:
+        path = param
+        publish_models = None
+    yield load_aem_pack_config(path, publish_models=publish_models)
 
 
 # ---------------------------------------------------------------------------
@@ -319,26 +138,18 @@ async def populate_db_config(
 
     Returns the PersistedConfig matching what load_config_from_db() would return.
     """
-    validated = load_model_derivation_config(config_yaml_path)
-    deriver = ModelDeriver(config=validated)
-    models = deriver.derive_models()
+    config = load_aem_pack_config(config_yaml_path, publish_models=publish_models)
 
-    if publish_models:
-        models = [
-            m.model_copy(update={"publish": True}) if m.name in publish_models else m
-            for m in models
-        ]
-
-    for model in models:
+    for model in config.models:
         await daos.model_dao.insert(model)
+
+    validated = load_model_derivation_config(config_yaml_path)
     for route in validated.routes:
         await daos.route_dao.insert(route)
     for workflow in validated.workflows:
         await daos.workflow_dao.insert(workflow)
 
-    return PersistedConfig(
-        models=models, routes=validated.routes, workflows=validated.workflows
-    )
+    return config
 
 
 def make_ingress_pack(

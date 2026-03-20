@@ -28,13 +28,7 @@ from hexkit.providers.mongodb.testutils import (  # noqa: F401
 from schemapack.spec.datapack import DataPack
 
 from ets.core.models import AEMPack
-from tests.fixtures.aem_pack_registry import (  # noqa: F401
-    derived_model_1,
-    derived_model_2,
-    ingress_model,
-    test_workflow,
-    test_workflow_2,
-)
+from tests.fixtures.aem_pack_registry import aem_pack_config  # noqa: F401
 from tests.fixtures.joint import JointFixture, joint_fixture  # noqa: F401
 
 TEST_DATAPACK = DataPack.model_validate(

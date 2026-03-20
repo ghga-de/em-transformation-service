@@ -1,0 +1,74 @@
+# Forking routes: one ingress fans out to two derived models via different workflows.
+#
+# Graph:
+#     IngressModel → DerivedModel1   (rename to file_id)
+#     IngressModel → DerivedModel2   (rename to resource_id)
+
+models:
+  - name: IngressModel
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: DerivedModel1
+    is_ingress: false
+    version: null
+    publish: false
+    order: 1
+    schema_: null
+
+  - name: DerivedModel2
+    is_ingress: false
+    version: null
+    publish: false
+    order: 2
+    schema_: null
+
+workflows:
+  - name: rename_id_workflow
+    description: Rename id from alias to file_id
+    workflow:
+      operations:
+        - name: rename_id_property
+          description: Rename id from alias to file_id
+          args:
+            class_name: File
+            id_property_name: file_id
+
+  - name: rename_id_workflow_2
+    description: Rename id from alias to resource_id
+    workflow:
+      operations:
+        - name: rename_id_property
+          description: Rename id from alias to resource_id
+          args:
+            class_name: File
+            id_property_name: resource_id
+
+routes:
+  - input_model_name: IngressModel
+    workflow_name: rename_id_workflow
+    output_model_name: DerivedModel1
+
+  - input_model_name: IngressModel
+    workflow_name: rename_id_workflow_2
+    output_model_name: DerivedModel2

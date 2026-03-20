@@ -1,0 +1,114 @@
+# Bottleneck graph: two ingress models converge on a single bottleneck node,
+# which then fans out to two derived models.
+#
+# Graph:
+#     I1 → B → D1
+#     I2 ↗   ↘ D2
+
+models:
+  - name: I1
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: I2
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: B
+    is_ingress: false
+    version: null
+    publish: false
+    order: 1
+    schema_: null
+
+  - name: D1
+    is_ingress: false
+    version: null
+    publish: false
+    order: 2
+    schema_: null
+
+  - name: D2
+    is_ingress: false
+    version: null
+    publish: false
+    order: 3
+    schema_: null
+
+workflows:
+  - name: rename_to_file_id
+    description: Rename id from alias to file_id
+    workflow:
+      operations:
+        - name: rename_id_property
+          description: Rename id from alias to file_id
+          args:
+            class_name: File
+            id_property_name: file_id
+
+  - name: rename_to_resource_id
+    description: Rename id from file_id to resource_id
+    workflow:
+      operations:
+        - name: rename_id_property
+          description: Rename id from file_id to resource_id
+          args:
+            class_name: File
+            id_property_name: resource_id
+
+routes:
+  - input_model_name: I1
+    workflow_name: rename_to_file_id
+    output_model_name: B
+
+  - input_model_name: I2
+    workflow_name: rename_to_file_id
+    output_model_name: B
+
+  - input_model_name: B
+    workflow_name: rename_to_resource_id
+    output_model_name: D1
+
+  - input_model_name: B
+    workflow_name: rename_to_resource_id
+    output_model_name: D2
