@@ -25,7 +25,11 @@ from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.core.aem_pack_registry import AEMPackRegistry
+from ets.core.aem_pack_registry import (
+    PROCESSOR_FIELD,
+    STARTED_AT_FIELD,
+    AEMPackRegistry,
+)
 from ets.core.model_derivation import ModelDeriver
 from ets.core.models import (
     AEMPack,
@@ -375,11 +379,11 @@ async def queue_and_claim(
     """
     await registry.queue_unprocessed(pack)
     doc = await registry._unprocessed_aem_pack_collection.find_one_and_update(
-        filter={"_id": pack.id, "processor": None},
+        filter={"_id": pack.id, PROCESSOR_FIELD: None},
         update={
             "$set": {
-                "processor": service_instance_id,
-                "started_processing_at": now_utc_ms_prec(),
+                PROCESSOR_FIELD: service_instance_id,
+                STARTED_AT_FIELD: now_utc_ms_prec(),
             }
         },
         return_document=True,

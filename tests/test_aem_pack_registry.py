@@ -243,11 +243,6 @@ class TestAEMPackRegistry:
             workflow_name=test_workflow_2.name,
             output_model_name=derived_model_2.name,
         )
-        config = PersistedConfig(
-            models=[ingress_model, derived_model_1, derived_model_2],
-            routes=[route_1, route_2],
-            workflows=[test_workflow, test_workflow_2],
-        )
 
         incoming = AEMPack(
             id=uuid4(),
@@ -265,16 +260,6 @@ class TestAEMPackRegistry:
         }
         transformed_map = {ingress_model.name: incoming}
 
-        _aem_packs_to_publish, _ = joint_fixture.aem_pack_registry._traverse_graph(
-            incoming=incoming,
-            dirty_map=dirty_map,
-            transformed_map=transformed_map,
-            config=config,
-        )
-
-        # Collect all produced packs (they won't be in aem_packs_to_publish because publish=False,
-        # so we re-run and capture via a publish=True model to verify IDs)
-        # Instead, run again but make models publishable
         derived_model_1_pub = Model(
             name="DerivedModel1",
             description="",
@@ -293,23 +278,17 @@ class TestAEMPackRegistry:
             order=2,
             publish=True,
         )
-        config_pub = PersistedConfig(
+        config = PersistedConfig(
             models=[ingress_model, derived_model_1_pub, derived_model_2_pub],
             routes=[route_1, route_2],
             workflows=[test_workflow, test_workflow_2],
         )
 
-        dirty_map_2: dict[str, UUID4] = {
-            derived_model_1.name: existing_id_1,
-            derived_model_2.name: existing_id_2,
-        }
-        transformed_map_2 = {ingress_model.name: incoming}
-
         published, _ = joint_fixture.aem_pack_registry._traverse_graph(
             incoming=incoming,
-            dirty_map=dirty_map_2,
-            transformed_map=transformed_map_2,
-            config=config_pub,
+            dirty_map=dirty_map,
+            transformed_map=transformed_map,
+            config=config,
         )
 
         published_ids = {p.id for p in published}

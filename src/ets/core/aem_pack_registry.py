@@ -40,6 +40,10 @@ from ets.ports.outbound.dao import AEMPackDao
 
 log = logging.getLogger(__name__)
 
+PROCESSOR_FIELD = "processor"
+STARTED_AT_FIELD = "started_processing_at"
+ORIGINAL_ID_FIELD = "original_id"
+
 
 class _AnnotationModel(BaseModel):
     """Wraps a plain annotation dict to satisfy the BaseModel-bound SubmissionAnnotation TypeVar."""
@@ -85,16 +89,16 @@ class AEMPackRegistry(AEMPackRegistryPort):
                         # mark as dirty by setting placeholder processor
                         # this will block processing until the current iteration
                         # is finished and marks it as freed
-                        "processor": {
+                        PROCESSOR_FIELD: {
                             "$cond": {
-                                "if": "$processor",
+                                "if": f"${PROCESSOR_FIELD}",
                                 "then": self._config.dirty_marker,
                                 "else": None,
                             }
                         },
-                        "started_processing_at": {
+                        STARTED_AT_FIELD: {
                             "$cond": {
-                                "if": "$processor",
+                                "if": f"${PROCESSOR_FIELD}",
                                 "then": now_utc_ms_prec(),
                                 "else": None,
                             }
@@ -113,11 +117,11 @@ class AEMPackRegistry(AEMPackRegistryPort):
             # Try to fetch fresh AEM first
             unprocessed_aem_pack = (
                 await self._unprocessed_aem_pack_collection.find_one_and_update(
-                    filter={"original_id": None, "processor": None},
+                    filter={ORIGINAL_ID_FIELD: None, PROCESSOR_FIELD: None},
                     update={
                         "$set": {
-                            "processor": self._config.service_instance_id,
-                            "started_processing_at": now_utc_ms_prec(),
+                            PROCESSOR_FIELD: self._config.service_instance_id,
+                            STARTED_AT_FIELD: now_utc_ms_prec(),
                         }
                     },
                     return_document=True,
@@ -128,19 +132,19 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 unprocessed_aem_pack = (
                     await self._unprocessed_aem_pack_collection.find_one_and_update(
                         filter={
-                            "original_id": None,
-                            "started_processing_at": {
+                            ORIGINAL_ID_FIELD: None,
+                            STARTED_AT_FIELD: {
                                 "$lt": now_utc_ms_prec()
                                 - timedelta(seconds=self._config.stale_after)
                             },
                         },
                         update={
                             "$set": {
-                                "processor": self._config.service_instance_id,
-                                "started_processing_at": now_utc_ms_prec(),
+                                PROCESSOR_FIELD: self._config.service_instance_id,
+                                STARTED_AT_FIELD: now_utc_ms_prec(),
                             }
                         },
-                        sort=[("started_processing_at", ASCENDING)],
+                        sort=[(STARTED_AT_FIELD, ASCENDING)],
                         return_document=True,
                     )
                 )
@@ -204,9 +208,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
         freed = await self._unprocessed_aem_pack_collection.find_one_and_update(
             filter={
                 "_id": incoming_aem.id,
-                "processor": self._config.dirty_marker,
+                PROCESSOR_FIELD: self._config.dirty_marker,
             },
-            update={"$set": {"processor": None, "started_processing_at": None}},
+            update={"$set": {PROCESSOR_FIELD: None, STARTED_AT_FIELD: None}},
         )
         if freed:
             log.warning(
@@ -226,7 +230,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         await self._unprocessed_aem_pack_collection.delete_one(
             {
                 "_id": incoming_aem.id,
-                "processor": self._config.service_instance_id,
+                PROCESSOR_FIELD: self._config.service_instance_id,
             }
         )
 

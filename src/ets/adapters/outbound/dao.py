@@ -61,7 +61,7 @@ async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
 async def get_unprocessed_aem_pack_dao(
     *, dao_factory: DaoFactoryProtocol
 ) -> UnprocessedAEMPackDao:
-    """Setup the Route DAO using the specified provider of the DaoFactoryProtocol."""
+    """Setup the Unprocessed AEM Pack DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
         name=UNPROCESSED_AEM_PACK_COLLECTION,
         dto_model=models.UnprocessedAEMPack,
