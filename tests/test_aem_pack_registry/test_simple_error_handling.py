@@ -39,10 +39,10 @@ async def test_nonexistent_model_raises_error_in_pipeline(joint_fixture: JointFi
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     ingress = make_ingress_pack("NonExistent")
 
-    claimed = await queue_and_claim(
+    unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
     with pytest.raises(ValueError, match="No model with name NonExistent"):
-        await process_pack(registry=registry, incoming=claimed, config=config)
+        await process_pack(registry=registry, incoming=unprocessed, config=config)

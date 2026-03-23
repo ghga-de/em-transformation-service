@@ -136,7 +136,7 @@ async def test_dirty_marker_discards_on_concurrent_update(joint_fixture: JointFi
 
     # Queue v1 and claim
     pack_v1 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
-    claimed = await queue_and_claim(
+    unprocessed = await queue_and_claim(
         registry=registry,
         pack=pack_v1,
         service_instance_id=joint_fixture.config.service_instance_id,
@@ -152,7 +152,7 @@ async def test_dirty_marker_discards_on_concurrent_update(joint_fixture: JointFi
     assert raw["processor"] == joint_fixture.config.dirty_marker
 
     # Process v1 — should detect dirty and discard results
-    await process_pack(registry=registry, incoming=claimed, config=config)
+    await process_pack(registry=registry, incoming=unprocessed, config=config)
 
     # No derived packs published
     derived = await collect_derived_packs(
