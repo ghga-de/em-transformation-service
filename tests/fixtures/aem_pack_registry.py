@@ -32,18 +32,16 @@ from ets.core.aem_pack_registry import (
 )
 from ets.core.model_derivation import ModelDeriver
 from ets.core.models import (
-    AEMPack,
     PersistedConfig,
     UnprocessedAEMPack,
 )
 from tests.fixtures.examples import load_model_derivation_config
 from tests.fixtures.joint import DAOs
 
-# ---------------------------------------------------------------------------
-# Test data
-# ---------------------------------------------------------------------------
+# Fixed UUID used in parametrized tests
+EXPECTED_AEM_ID = uuid4()
 
-TEST_SCHEMA_V1 = SchemaPack.model_validate(
+TEST_SCHEMA = SchemaPack.model_validate(
     {
         "schemapack": "4.0.0",
         "classes": {
@@ -67,44 +65,22 @@ TEST_SCHEMA_V1 = SchemaPack.model_validate(
 )
 
 TEST_DATAPACK = DataPack.model_validate(
-    {"datapack": "3.0.0", "resources": {"File": {}}}
+    {
+        "datapack": "3.0.0",
+        "resources": {
+            "File": {
+                "test_alias": {
+                    "content": {
+                        "checksum": "abc123",
+                        "filename": "test.fastq",
+                        "format": "FASTQ",
+                        "size": 1024,
+                    }
+                }
+            }
+        },
+    }
 )
-
-# Fixed UUID used in parametrized test_create_aem_pack[specified_id]
-EXPECTED_AEM_ID = uuid4()
-
-# ---------------------------------------------------------------------------
-# Config loading helpers
-# ---------------------------------------------------------------------------
-
-
-def load_aem_pack_config(
-    path: Path,
-    publish_models: set[str] | None = None,
-) -> PersistedConfig:
-    """Load a YAML config, derive schemas, and return a PersistedConfig.
-
-    This is the file-based equivalent of the old builder helpers.  The YAML
-    defines the graph topology; ``ModelDeriver`` fills in derived schemas.
-    """
-    validated = load_model_derivation_config(path)
-    deriver = ModelDeriver(config=validated)
-    models = deriver.derive_models()
-
-    if publish_models:
-        models = [
-            m.model_copy(update={"publish": True}) if m.name in publish_models else m
-            for m in models
-        ]
-
-    return PersistedConfig(
-        models=models, routes=validated.routes, workflows=validated.workflows
-    )
-
-
-# ---------------------------------------------------------------------------
-# pytest fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -123,9 +99,26 @@ def aem_pack_config(request: pytest.FixtureRequest) -> Generator[PersistedConfig
     yield load_aem_pack_config(path, publish_models=publish_models)
 
 
-# ---------------------------------------------------------------------------
-# Integration test helpers
-# ---------------------------------------------------------------------------
+def load_aem_pack_config(
+    path: Path,
+    publish_models: set[str] | None = None,
+) -> PersistedConfig:
+    """Load a YAML config, derive schemas, and return a PersistedConfig."""
+    validated = load_model_derivation_config(path)
+    deriver = ModelDeriver(config=validated)
+    models = deriver.derive_models()
+
+    if publish_models:
+        models = [
+            model.model_copy(update={"publish": True})
+            if model.name in publish_models
+            else model
+            for model in models
+        ]
+
+    return PersistedConfig(
+        models=models, routes=validated.routes, workflows=validated.workflows
+    )
 
 
 async def populate_db_config(
@@ -167,17 +160,6 @@ def make_ingress_pack(
     )
 
 
-async def collect_derived_packs(
-    aem_pack_dao,
-    original_id: UUID4,
-) -> list[AEMPack]:
-    """Collect all derived AEMPacks for a given original_id from the DAO."""
-    return [
-        pack
-        async for pack in aem_pack_dao.find_all(mapping={"original_id": original_id})
-    ]
-
-
 async def queue_and_claim(
     registry: AEMPackRegistry,
     pack: UnprocessedAEMPack,
@@ -202,12 +184,3 @@ async def queue_and_claim(
     doc["id"] = doc.pop("_id")
     doc["data"] = DataPack.model_validate(doc["data"])
     return UnprocessedAEMPack(**doc)
-
-
-async def process_pack(
-    registry: AEMPackRegistry,
-    incoming: UnprocessedAEMPack,
-    config: PersistedConfig,
-) -> None:
-    """Call _process_next_aem_pack, propagating the incoming pack's correlation ID."""
-    await registry._process_next_aem_pack(incoming=incoming, config=config)

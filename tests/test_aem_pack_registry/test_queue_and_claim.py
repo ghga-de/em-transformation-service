@@ -26,10 +26,8 @@ from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.models import UnprocessedAEMPack
 from tests.fixtures.aem_pack_registry import (
     TEST_DATAPACK,
-    collect_derived_packs,
     make_ingress_pack,
     populate_db_config,
-    process_pack,
     queue_and_claim,
 )
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
@@ -152,12 +150,15 @@ async def test_dirty_marker_discards_on_concurrent_update(joint_fixture: JointFi
     assert raw["processor"] == joint_fixture.config.dirty_marker
 
     # Process v1 — should detect dirty and discard results
-    await process_pack(registry=registry, incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
 
     # No derived packs published
-    derived = await collect_derived_packs(
-        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
-    )
+    derived = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": aem_id}
+        )
+    ]
     assert len(derived) == 0
 
     # Doc freed for reprocessing with v2's data

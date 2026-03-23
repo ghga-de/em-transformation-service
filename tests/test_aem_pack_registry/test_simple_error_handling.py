@@ -21,7 +21,6 @@ from ets.core.aem_pack_registry import AEMPackRegistry
 from tests.fixtures.aem_pack_registry import (
     make_ingress_pack,
     populate_db_config,
-    process_pack,
     queue_and_claim,
 )
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
@@ -45,4 +44,4 @@ async def test_nonexistent_model_raises_error_in_pipeline(joint_fixture: JointFi
         service_instance_id=joint_fixture.config.service_instance_id,
     )
     with pytest.raises(ValueError, match="No model with name NonExistent"):
-        await process_pack(registry=registry, incoming=unprocessed, config=config)
+        await registry._process_next_aem_pack(incoming=unprocessed, config=config)

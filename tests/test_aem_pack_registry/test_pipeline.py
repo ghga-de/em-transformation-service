@@ -23,11 +23,9 @@ from schemapack.spec.datapack import DataPack
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.models import Model, PersistedConfig
 from tests.fixtures.aem_pack_registry import (
-    TEST_SCHEMA_V1,
-    collect_derived_packs,
+    TEST_SCHEMA,
     make_ingress_pack,
     populate_db_config,
-    process_pack,
     queue_and_claim,
 )
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
@@ -51,11 +49,14 @@ async def test_chained_routes(joint_fixture: JointFixture):
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
 
-    derived_and_published = await collect_derived_packs(
-        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=ingress.id
-    )
+    derived_and_published = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": ingress.id}
+        )
+    ]
     assert len(derived_and_published) == 1
     assert derived_and_published[0].model_name == "DerivedModel3"
     assert derived_and_published[0].original_id == ingress.id
@@ -80,11 +81,14 @@ async def test_forking_graph(joint_fixture: JointFixture):
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
 
-    derived_and_published = await collect_derived_packs(
-        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=ingress.id
-    )
+    derived_and_published = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": ingress.id}
+        )
+    ]
     assert len(derived_and_published) == 2
     names = {pack.model_name for pack in derived_and_published}
     assert names == {"DerivedModel1", "DerivedModel2"}
@@ -112,11 +116,14 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
 
-    derived_and_published = await collect_derived_packs(
-        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=ingress.id
-    )
+    derived_and_published = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": ingress.id}
+        )
+    ]
     assert len(derived_and_published) == 2
     assert {pack.model_name for pack in derived_and_published} == {
         "DerivedModel1",
@@ -138,7 +145,7 @@ async def test_ingress_with_no_routes(joint_fixture: JointFixture):
         description="Isolated ingress model",
         is_ingress=True,
         version="1.0.0",
-        schema_=TEST_SCHEMA_V1,
+        schema_=TEST_SCHEMA,
         order=0,
         publish=True,
     )
@@ -153,7 +160,7 @@ async def test_ingress_with_no_routes(joint_fixture: JointFixture):
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
 
     # The ingress itself is published (publish=True) but has original_id=None,
     # so it won't appear in a derived-pack query. Verify via get_by_id instead.
@@ -183,21 +190,27 @@ async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):
         pack=ingress_1,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=claimed_1, config=config)
+    await registry._process_next_aem_pack(incoming=claimed_1, config=config)
 
     claimed_2 = await queue_and_claim(
         registry=registry,
         pack=ingress_2,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=claimed_2, config=config)
+    await registry._process_next_aem_pack(incoming=claimed_2, config=config)
 
-    derived_1 = await collect_derived_packs(
-        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=ingress_1.id
-    )
-    derived_2 = await collect_derived_packs(
-        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=ingress_2.id
-    )
+    derived_1 = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": ingress_1.id}
+        )
+    ]
+    derived_2 = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": ingress_2.id}
+        )
+    ]
 
     assert len(derived_1) == 3
     assert len(derived_2) == 3
@@ -239,7 +252,7 @@ async def test_correlation_id_propagated_to_derived_packs(joint_fixture: JointFi
     async with joint_fixture.kafka.record_events(
         in_topic=joint_fixture.config.derived_aem_pack_topic, capture_headers=True
     ) as recorder:
-        await process_pack(registry=registry, incoming=unprocessed, config=config)
+        await registry._process_next_aem_pack(incoming=unprocessed, config=config)
 
     events = recorder.recorded_events
     assert len(events) == 3  # All 3 derived models published

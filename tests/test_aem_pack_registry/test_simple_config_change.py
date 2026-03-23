@@ -20,10 +20,8 @@ from uuid import uuid4
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.models import PersistedConfig
 from tests.fixtures.aem_pack_registry import (
-    collect_derived_packs,
     make_ingress_pack,
     populate_db_config,
-    process_pack,
     queue_and_claim,
 )
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
@@ -49,11 +47,14 @@ async def test_unreachable_pack_deleted_after_route_removal(
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
 
-    derived = await collect_derived_packs(
-        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
-    )
+    derived = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": aem_id}
+        )
+    ]
     assert len(derived) == 3
 
     # Remove route DerivedModel2→DerivedModel3 from config
@@ -74,12 +75,15 @@ async def test_unreachable_pack_deleted_after_route_removal(
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=unprocessed, config=new_config)
+    await registry._process_next_aem_pack(incoming=unprocessed, config=new_config)
 
     # DerivedModel3 deleted (unreachable), DerivedModel1 and DerivedModel2 remain
-    derived = await collect_derived_packs(
-        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
-    )
+    derived = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": aem_id}
+        )
+    ]
     assert len(derived) == 2
     assert {pack.model_name for pack in derived} == {
         "DerivedModel1",

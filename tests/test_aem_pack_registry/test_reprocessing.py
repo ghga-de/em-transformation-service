@@ -21,10 +21,8 @@ import pytest
 
 from ets.core.aem_pack_registry import AEMPackRegistry
 from tests.fixtures.aem_pack_registry import (
-    collect_derived_packs,
     make_ingress_pack,
     populate_db_config,
-    process_pack,
     queue_and_claim,
 )
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
@@ -50,11 +48,14 @@ async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
 
-    derived = await collect_derived_packs(
-        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
-    )
+    derived = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": aem_id}
+        )
+    ]
     derived_pack_names = {pack.model_name: pack.id for pack in derived}
 
     # Second processing
@@ -64,11 +65,14 @@ async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
 
-    derived = await collect_derived_packs(
-        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
-    )
+    derived = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": aem_id}
+        )
+    ]
     re_derived_pack_names = {pack.model_name: pack.id for pack in derived}
 
     # Ensure IDs are reused across runs
@@ -96,11 +100,14 @@ async def test_first_processing_generates_fresh_ids(joint_fixture: JointFixture)
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
 
-    derived = await collect_derived_packs(
-        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=ingress.id
-    )
+    derived = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": ingress.id}
+        )
+    ]
     all_ids = {pack.id for pack in derived}
     all_ids.add(ingress.id)
     assert len(all_ids) == 4
