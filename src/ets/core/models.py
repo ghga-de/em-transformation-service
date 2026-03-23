@@ -251,9 +251,7 @@ class PersistedConfig(BaseModel):
 
 
 class AEMPack(BaseModel):
-    """This event is triggered when a new AEMPack is created or an existing one is
-    updated.
-    """
+    """Model for derived AEMPacks."""
 
     id: UUID4 = Field(
         default=...,
@@ -289,7 +287,7 @@ class AEMPack(BaseModel):
         return json.loads(v.model_dump_json())
 
 
-class UnprocessedAEMPack(AEMPack):
+class IncomingAEMPack(AEMPack):
     """Variant of the AEMPack for the processing queue."""
 
     correlation_id: UUID4 = Field(
@@ -303,5 +301,9 @@ class UnprocessedAEMPack(AEMPack):
     started_processing_at: datetime | None = Field(
         default=None,
         description="When processing was started. Needed to free stale claimed objects.",
+    )
+    processed_at: datetime | None = Field(
+        default=None,
+        description="When this AEMPack was successfully processed. None if not yet processed.",
     )
     model_config = ConfigDict(frozen=True)

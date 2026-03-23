@@ -21,7 +21,7 @@ from hexkit.protocols.dao import Dao, ResourceNotFoundError
 from hexkit.protocols.daopub import DaoPublisher
 
 from ets.core import models
-from ets.core.models import AEMPack, UnprocessedAEMPack
+from ets.core.models import AEMPack, IncomingAEMPack
 
 __all__ = ["ResourceNotFoundError"]
 
@@ -30,7 +30,7 @@ ModelDao = Dao[models.Model]
 WorkflowDao = Dao[models.Workflow]
 RouteDao = Dao[models.Route]
 AEMPackDao = Dao[AEMPack]
-UnprocessedAEMPackDao = Dao[UnprocessedAEMPack]
+UnprocessedAEMPackDao = Dao[IncomingAEMPack]
 
 
 class AEMPackEventPublisherPort(ABC):

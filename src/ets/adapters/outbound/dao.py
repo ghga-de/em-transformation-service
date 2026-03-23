@@ -64,7 +64,7 @@ async def get_unprocessed_aem_pack_dao(
     """Setup the Unprocessed AEM Pack DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
         name=UNPROCESSED_AEM_PACK_COLLECTION,
-        dto_model=models.UnprocessedAEMPack,
+        dto_model=models.IncomingAEMPack,
         id_field="id",
     )
 

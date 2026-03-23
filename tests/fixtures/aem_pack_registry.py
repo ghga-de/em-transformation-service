@@ -32,8 +32,8 @@ from ets.core.aem_pack_registry import (
 )
 from ets.core.model_derivation import ModelDeriver
 from ets.core.models import (
+    IncomingAEMPack,
     PersistedConfig,
-    UnprocessedAEMPack,
 )
 from tests.fixtures.examples import load_model_derivation_config
 from tests.fixtures.joint import DAOs
@@ -148,9 +148,9 @@ def make_ingress_pack(
     aem_id: UUID4 | None = None,
     annotation: dict | None = None,
     correlation_id: UUID4 | None = None,
-) -> UnprocessedAEMPack:
+) -> IncomingAEMPack:
     """Create an UnprocessedAEMPack for the given ingress model."""
-    return UnprocessedAEMPack(
+    return IncomingAEMPack(
         id=aem_id or uuid4(),
         model_name=model_name,
         original_id=None,
@@ -162,9 +162,9 @@ def make_ingress_pack(
 
 async def queue_and_claim(
     registry: AEMPackRegistry,
-    pack: UnprocessedAEMPack,
+    pack: IncomingAEMPack,
     service_instance_id: str,
-) -> UnprocessedAEMPack:
+) -> IncomingAEMPack:
     """Queue an unprocessed pack and atomically claim it for processing.
 
     Mirrors the claim step performed by process_aem_packs().
@@ -183,4 +183,4 @@ async def queue_and_claim(
     assert doc is not None, f"Failed to claim unprocessed pack {pack.id}"
     doc["id"] = doc.pop("_id")
     doc["data"] = DataPack.model_validate(doc["data"])
-    return UnprocessedAEMPack(**doc)
+    return IncomingAEMPack(**doc)

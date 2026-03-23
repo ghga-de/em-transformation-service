@@ -18,6 +18,7 @@
 import asyncio
 import logging
 from datetime import timedelta
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -25,7 +26,7 @@ from hexkit.utils import now_utc_ms_prec
 from schemapack.spec.datapack import DataPack
 
 from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.models import UnprocessedAEMPack
+from ets.core.models import IncomingAEMPack
 from tests.fixtures.aem_pack_registry import (
     TEST_DATAPACK,
     make_ingress_pack,
@@ -43,7 +44,7 @@ async def test_queue_creates_correct_document(joint_fixture: JointFixture):
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
     expected_correlation_id = uuid4()
-    aem_pack = UnprocessedAEMPack(
+    aem_pack = IncomingAEMPack(
         id=aem_id,
         model_name="TestModel",
         original_id=None,
@@ -60,6 +61,7 @@ async def test_queue_creates_correct_document(joint_fixture: JointFixture):
     assert raw["annotation"] == {}
     assert raw["processor"] is None
     assert raw["started_processing_at"] is None
+    assert raw["processed_at"] is None
     assert str(raw["correlation_id"]) == str(expected_correlation_id)
     assert DataPack.model_validate(raw["data"]) == TEST_DATAPACK
 
@@ -81,6 +83,7 @@ async def test_double_queue_before_processing_stays_claimable(
     assert raw is not None
     assert raw["processor"] is None
     assert raw["started_processing_at"] is None
+    assert raw["processed_at"] is None
     assert raw["annotation"] == {}
 
     count = await registry._unprocessed_aem_pack_collection.count_documents(
@@ -89,7 +92,7 @@ async def test_double_queue_before_processing_stays_claimable(
     assert count == 1
 
 
-async def test_stale_doc_can_be_reclaimed(joint_fixture: JointFixture, monkeypatch):
+async def test_stale_doc_can_be_reclaimed(joint_fixture: JointFixture):
     """Ensure a doc stuck with a dead processor beyond stale_after can be reclaimed."""
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     ingress = make_ingress_pack("IngressModel")
@@ -109,39 +112,39 @@ async def test_stale_doc_can_be_reclaimed(joint_fixture: JointFixture, monkeypat
     )
 
     # Check the stale pack is passed by intercepting the call and skipping processing
-    claimed: list[UnprocessedAEMPack] = []
+    claimed: list[IncomingAEMPack] = []
 
     async def capture_and_stop(*, incoming, config):
         claimed.append(incoming)
         raise RuntimeError("STOP, testing time!")
 
-    monkeypatch.setattr(registry, "_process_next_aem_pack", capture_and_stop)
-
-    with pytest.raises(RuntimeError):
+    with (
+        patch.object(registry, "_process_next_aem_pack", capture_and_stop),
+        pytest.raises(RuntimeError),
+    ):
         await registry.process_aem_packs()
 
     assert len(claimed) == 1
     assert claimed[0].id == ingress.id
 
 
-async def test_fresh_pack_claimed_on_first_query(
-    joint_fixture: JointFixture, monkeypatch
-):
+async def test_fresh_pack_claimed_on_first_query(joint_fixture: JointFixture):
     """Ensure process_aem_packs claims a fresh (unprocessed) pack via the first query."""
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     ingress = make_ingress_pack("IngressModel")
 
     await registry.queue_unprocessed(ingress)
 
-    claimed: list[UnprocessedAEMPack] = []
+    claimed: list[IncomingAEMPack] = []
 
     async def capture_and_stop(*, incoming, config):
         claimed.append(incoming)
         raise RuntimeError("STOP, testing time!")
 
-    monkeypatch.setattr(registry, "_process_next_aem_pack", capture_and_stop)
-
-    with pytest.raises(RuntimeError):
+    with (
+        patch.object(registry, "_process_next_aem_pack", capture_and_stop),
+        pytest.raises(RuntimeError),
+    ):
         await registry.process_aem_packs()
 
     assert len(claimed) == 1
@@ -150,20 +153,16 @@ async def test_fresh_pack_claimed_on_first_query(
 
 async def test_idle_path_logs_and_sleeps(
     joint_fixture: JointFixture,
-    monkeypatch,
     caplog: pytest.LogCaptureFixture,
 ):
     """Ensure process_aem_packs logs and sleeps when no packs are queued."""
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
 
-    async def stop_on_sleep(*args, **kwargs):
-        raise RuntimeError("STOP, testing time!")
-
-    monkeypatch.setattr(asyncio, "sleep", stop_on_sleep)
-
-    with caplog.at_level(logging.INFO, logger="ets.core.aem_pack_registry"):
-        with pytest.raises(RuntimeError):
-            await registry.process_aem_packs()
+    with (
+        caplog.at_level(logging.INFO, logger="ets.core.aem_pack_registry"),
+        pytest.raises(asyncio.TimeoutError),
+    ):
+        await asyncio.wait_for(registry.process_aem_packs(), timeout=0.5)
 
     assert any("No new AEM found" in record.message for record in caplog.records)
 

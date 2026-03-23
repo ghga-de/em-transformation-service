@@ -62,8 +62,11 @@ async def test_chained_routes(joint_fixture: JointFixture):
     assert derived_and_published[0].original_id == ingress.id
     assert isinstance(derived_and_published[0].data, DataPack)
 
+    # Unprocessed doc preserved and marked as processed
     raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": ingress.id})
-    assert raw is None
+    assert raw is not None
+    assert raw["processed_at"] is not None
+    assert raw["processor"] is None
 
 
 async def test_forking_graph(joint_fixture: JointFixture):
@@ -133,9 +136,11 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
         assert pack.original_id == ingress.id
         assert isinstance(pack.data, DataPack)
 
-    # Unprocessed doc cleaned up
+    # Unprocessed doc preserved and marked as processed
     raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": ingress.id})
-    assert raw is None
+    assert raw is not None
+    assert raw["processed_at"] is not None
+    assert raw["processor"] is None
 
 
 async def test_ingress_with_no_routes(joint_fixture: JointFixture):
@@ -168,9 +173,11 @@ async def test_ingress_with_no_routes(joint_fixture: JointFixture):
     assert published.model_name == "Isolated"
     assert published.original_id is None
 
-    # Unprocessed doc deleted
+    # Unprocessed doc preserved and marked as processed
     raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": ingress.id})
-    assert raw is None
+    assert raw is not None
+    assert raw["processed_at"] is not None
+    assert raw["processor"] is None
 
 
 async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):
