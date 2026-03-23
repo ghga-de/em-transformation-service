@@ -17,6 +17,8 @@
 
 from uuid import uuid4
 
+import pytest
+
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.models import PersistedConfig
 from tests.fixtures.aem_pack_registry import (
@@ -26,6 +28,8 @@ from tests.fixtures.aem_pack_registry import (
 )
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
+
+pytestmark = pytest.mark.asyncio
 
 
 async def test_unreachable_pack_deleted_after_route_removal(

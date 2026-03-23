@@ -277,6 +277,17 @@ class AEMPack(BaseModel):
     )
     model_config = ConfigDict(frozen=True)
 
+    @field_validator("data", mode="before")
+    @classmethod
+    def _deserialize_data(cls, v: Mapping[str, Any] | DataPack) -> DataPack:
+        if isinstance(v, DataPack):
+            return v
+        return DataPack.model_validate(v)
+
+    @field_serializer("data")
+    def _serialize_data(self, v: DataPack) -> dict[str, Any]:
+        return json.loads(v.model_dump_json())
+
 
 class UnprocessedAEMPack(AEMPack):
     """Variant of the AEMPack for the processing queue."""

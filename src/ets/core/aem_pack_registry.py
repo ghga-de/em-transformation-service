@@ -152,9 +152,6 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
             if unprocessed_aem_pack:
                 unprocessed_aem_pack["id"] = unprocessed_aem_pack.pop("_id")
-                unprocessed_aem_pack["data"] = DataPack.model_validate(
-                    unprocessed_aem_pack["data"]
-                )
                 await self._process_next_aem_pack(
                     incoming=UnprocessedAEMPack(**unprocessed_aem_pack), config=config
                 )

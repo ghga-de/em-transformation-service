@@ -97,7 +97,7 @@ class AEMPackDaoFactory(AEMPackEventPublisherPort):
             name="aem_packs",
             id_field="id",
             dto_model=AEMPack,
-            dto_to_event=lambda x: x.model_dump(mode="json"),
+            dto_to_event=lambda aem: aem.model_dump(mode="json"),
             event_topic=self._aem_pack_topic,
             autopublish=True,
         )
