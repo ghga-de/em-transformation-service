@@ -15,6 +15,7 @@
 
 """Tests for behavior when the config changes between processing runs."""
 
+import logging
 from uuid import uuid4
 
 import pytest
@@ -93,3 +94,80 @@ async def test_unreachable_pack_deleted_after_route_removal(
         "DerivedModel1",
         "DerivedModel2",
     }
+
+
+async def test_orphaned_pack_cleaned_up_when_model_still_exists(
+    joint_fixture: JointFixture,
+    caplog: pytest.LogCaptureFixture,
+):
+    """When a route is removed but the model remains in the config, the previously
+    derived pack is deleted with a 'no longer reachable' warning.
+    """
+    config = await populate_db_config(
+        daos=joint_fixture.daos,
+        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+        publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
+    )
+    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
+    aem_id = uuid4()
+
+    # Initial processing: derive all 3 packs
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    unprocessed = await queue_and_claim(
+        registry=registry,
+        pack=ingress,
+        service_instance_id=joint_fixture.config.service_instance_id,
+    )
+    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
+
+    derived = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": aem_id}
+        )
+    ]
+    assert len(derived) == 3
+    orphaned_pack = next(pack for pack in derived if pack.model_name == "DerivedModel3")
+
+    # Remove route DerivedModel2 -> DerivedModel3 but keep DerivedModel3 as a model
+    # Contrived example, as the corresponding model would be removed in normal processing
+    new_config = PersistedConfig(
+        models=config.models,
+        routes=[
+            route
+            for route in config.routes
+            if route.output_model_name != "DerivedModel3"
+        ],
+        workflows=config.workflows,
+    )
+
+    # Re-process same ingress with modified config
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    unprocessed = await queue_and_claim(
+        registry=registry,
+        pack=ingress,
+        service_instance_id=joint_fixture.config.service_instance_id,
+    )
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        await registry._process_next_aem_pack(incoming=unprocessed, config=new_config)
+
+    # DerivedModel3 pack deleted, DerivedModel1 and DerivedModel2 remain
+    derived = [
+        pack
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": aem_id}
+        )
+    ]
+    assert len(derived) == 2
+    assert {pack.model_name for pack in derived} == {
+        "DerivedModel1",
+        "DerivedModel2",
+    }
+
+    # Correct warning logged (not the "no longer exists" variant)
+    assert any(
+        "no longer reachable from its previous original ID" in record.message
+        and str(orphaned_pack.id) in record.message
+        for record in caplog.records
+    )
