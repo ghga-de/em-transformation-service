@@ -48,7 +48,7 @@ class TestConfigChanges:
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         aem_id = uuid4()
 
-        # First processing: DerivedModel1, DerivedModel2, DerivedModel3 derived
+        # Derive all models first
         ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
         claimed = await queue_and_claim(
             registry=registry,

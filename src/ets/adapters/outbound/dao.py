@@ -72,7 +72,7 @@ async def get_unprocessed_aem_pack_dao(
 class AEMPackDaoConfig(BaseSettings):
     """Config for the AEMPack event publisher adapter."""
 
-    aem_pack_topic: str = Field(
+    derived_aem_pack_topic: str = Field(
         default=...,
         description="Topic for events informing about derived AEMs.",
         examples=["derived-aems"],
@@ -88,7 +88,7 @@ class AEMPackDaoFactory(AEMPackEventPublisherPort):
         config: AEMPackDaoConfig,
         dao_publisher_factory: DaoPublisherFactoryProtocol,
     ):
-        self._aem_pack_topic = config.aem_pack_topic
+        self._aem_pack_topic = config.derived_aem_pack_topic
         self._dao_publisher_factory = dao_publisher_factory
 
     async def get_aem_pack_dao(self) -> DaoPublisher[AEMPack]:

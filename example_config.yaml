@@ -1,6 +1,6 @@
-aem_pack_publish_topic: aem_pack_publish
-aem_pack_upsert_topic: aem_pack_upsert
 db_name: dev
+derived_aem_pack_topic: derived-aems
+dirty_marker: ingress
 generate_correlation_id: true
 input_config_path: input_dummy.yaml
 kafka_compression_type: null
@@ -21,5 +21,8 @@ log_level: INFO
 log_traceback: true
 mongo_dsn: '**********'
 mongo_timeout: null
+original_aem_pack_topic: original-aems
 service_instance_id: '1'
 service_name: ets
+sleep_for: 60
+stale_after: 120

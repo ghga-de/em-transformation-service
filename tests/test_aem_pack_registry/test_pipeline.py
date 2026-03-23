@@ -268,7 +268,7 @@ class TestPipeline:
         )
 
         async with joint_fixture.kafka.record_events(
-            in_topic=joint_fixture.config.aem_pack_topic, capture_headers=True
+            in_topic=joint_fixture.config.derived_aem_pack_topic, capture_headers=True
         ) as recorder:
             await process_pack(registry=registry, incoming=claimed, config=config)
 
