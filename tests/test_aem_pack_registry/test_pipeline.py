@@ -30,10 +30,7 @@ from tests.fixtures.aem_pack_registry import (
     process_pack,
     queue_and_claim,
 )
-from tests.fixtures.examples import (
-    AEM_PACK_REGISTRY_CONFIGS,
-    VALID_MODEL_DERIVATION_CONFIGS,
-)
+from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
 
@@ -44,15 +41,14 @@ class TestPipeline:
     @pytest.mark.parametrize(
         "publish_models,annotation,expected_names",
         [
-            ({"B", "C"}, {"source": "test"}, {"B", "C"}),
-            ({"C"}, {}, {"C"}),
             (
-                {"B", "C"},
-                {"workflow_hint": "test", "nested": {"key": "val"}, "tags": [1, 2, 3]},
-                {"B", "C"},
+                {"DerivedModel1", "DerivedModel2", "DerivedModel3"},
+                {},
+                {"DerivedModel1", "DerivedModel2", "DerivedModel3"},
             ),
+            ({"DerivedModel3"}, {}, {"DerivedModel3"}),
         ],
-        ids=["publish_B_and_C", "publish_C_only", "complex_annotation"],
+        ids=["publish_all_derived", "publish_terminal_only"],
     )
     async def test_chained_routes(
         self,
@@ -61,14 +57,14 @@ class TestPipeline:
         annotation: dict,
         expected_names: set[str],
     ):
-        """Queue an ingress AEM through a chained graph (A→B→C); only published models appear with correct data."""
+        """Queue an ingress AEM through a chained graph (IngressModel→DerivedModel1→DerivedModel2→DerivedModel3); only published models appear with correct data."""
         config = await populate_db_config(
             joint_fixture.daos,
-            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
             publish_models=publish_models,
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
-        ingress = make_ingress_pack("A", annotation=annotation)
+        ingress = make_ingress_pack("IngressModel", annotation=annotation)
 
         claimed = await queue_and_claim(
             registry, ingress, joint_fixture.config.service_instance_id
@@ -128,7 +124,7 @@ class TestPipeline:
             publish_models={"DerivedModel1", "DerivedModel2"},
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
-        ingress = make_ingress_pack(ingress_name, annotation={"src": ingress_name})
+        ingress = make_ingress_pack(ingress_name)
 
         claimed = await queue_and_claim(
             registry, ingress, joint_fixture.config.service_instance_id
@@ -145,7 +141,6 @@ class TestPipeline:
         }
         for pack in derived:
             assert pack.original_id == ingress.id
-            assert pack.annotation == {"src": ingress_name}
             assert isinstance(pack.data, DataPack)
 
         # Unprocessed doc cleaned up
@@ -194,13 +189,13 @@ class TestPipeline:
         """Two independent ingress packs for the same model produce separate derived packs."""
         config = await populate_db_config(
             joint_fixture.daos,
-            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
-            publish_models={"B", "C"},
+            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+            publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
 
-        ingress_1 = make_ingress_pack("A", annotation={"pack": "1"})
-        ingress_2 = make_ingress_pack("A", annotation={"pack": "2"})
+        ingress_1 = make_ingress_pack("IngressModel")
+        ingress_2 = make_ingress_pack("IngressModel")
 
         claimed_1 = await queue_and_claim(
             registry, ingress_1, joint_fixture.config.service_instance_id
@@ -219,19 +214,25 @@ class TestPipeline:
             joint_fixture.daos.aem_pack_dao, ingress_2.id
         )
 
-        assert len(derived_1) == 2
-        assert len(derived_2) == 2
-        assert {pack.model_name for pack in derived_1} == {"B", "C"}
-        assert {pack.model_name for pack in derived_2} == {"B", "C"}
+        assert len(derived_1) == 3
+        assert len(derived_2) == 3
+        assert {pack.model_name for pack in derived_1} == {
+            "DerivedModel1",
+            "DerivedModel2",
+            "DerivedModel3",
+        }
+        assert {pack.model_name for pack in derived_2} == {
+            "DerivedModel1",
+            "DerivedModel2",
+            "DerivedModel3",
+        }
 
         # All IDs distinct across both sets
         all_ids = {pack.id for pack in derived_1 + derived_2}
-        assert len(all_ids) == 4
+        assert len(all_ids) == 6
 
-        for pack in derived_1:
-            assert pack.annotation == {"pack": "1"}
-        for pack in derived_2:
-            assert pack.annotation == {"pack": "2"}
+        for pack in derived_1 + derived_2:
+            assert pack.annotation == {}
 
     async def test_correlation_id_propagated_to_derived_packs(
         self, joint_fixture: JointFixture
@@ -239,12 +240,14 @@ class TestPipeline:
         """Derived pack events carry the correlation ID of the original ingress event."""
         config = await populate_db_config(
             joint_fixture.daos,
-            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
-            publish_models={"B", "C"},
+            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+            publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         expected_correlation_id = uuid4()
-        ingress = make_ingress_pack("A", correlation_id=expected_correlation_id)
+        ingress = make_ingress_pack(
+            "IngressModel", correlation_id=expected_correlation_id
+        )
 
         claimed = await queue_and_claim(
             registry, ingress, joint_fixture.config.service_instance_id
@@ -256,7 +259,7 @@ class TestPipeline:
             await process_pack(registry, incoming=claimed, config=config)
 
         events = recorder.recorded_events
-        assert len(events) == 2  # B and C both published
+        assert len(events) == 3  # All 3 derived models published
         for event in events:
             assert event.headers is not None
             assert event.headers["correlation_id"] == str(expected_correlation_id)

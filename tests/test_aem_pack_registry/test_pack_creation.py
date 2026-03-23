@@ -41,7 +41,7 @@ class TestPackCreation:
         """Test creating an AEM pack wrapper, with and without a pre-specified ID."""
         model_name = "TestModel"
         original_id = uuid4()
-        annotation = {"key": "value"}
+        annotation: dict = {}
 
         aem_pack = joint_fixture.aem_pack_registry._create_aem_pack(
             aem_id=aem_id,

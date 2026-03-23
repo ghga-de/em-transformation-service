@@ -24,7 +24,7 @@ from tests.fixtures.aem_pack_registry import (
     process_pack,
     queue_and_claim,
 )
-from tests.fixtures.examples import VALID_MODEL_DERIVATION_CONFIGS
+from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
 
@@ -38,7 +38,7 @@ class TestErrorHandling:
         """Processing an AEMPack for a model not in the config raises ValueError."""
         config = await populate_db_config(
             joint_fixture.daos,
-            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
+            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         ingress = make_ingress_pack("NonExistent")

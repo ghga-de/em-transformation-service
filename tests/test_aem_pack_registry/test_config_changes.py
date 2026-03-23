@@ -28,7 +28,7 @@ from tests.fixtures.aem_pack_registry import (
     process_pack,
     queue_and_claim,
 )
-from tests.fixtures.examples import VALID_MODEL_DERIVATION_CONFIGS
+from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
 
@@ -42,14 +42,14 @@ class TestConfigChanges:
         """Removing a route causes previously derived packs to be deleted on re-processing."""
         config = await populate_db_config(
             joint_fixture.daos,
-            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
-            publish_models={"B", "C"},
+            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+            publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         aem_id = uuid4()
 
-        # First processing: B and C derived
-        ingress = make_ingress_pack("A", aem_id=aem_id)
+        # First processing: DerivedModel1, DerivedModel2, DerivedModel3 derived
+        ingress = make_ingress_pack("IngressModel", aem_id=aem_id)
         claimed = await queue_and_claim(
             registry, ingress, joint_fixture.config.service_instance_id
         )
@@ -58,28 +58,35 @@ class TestConfigChanges:
         derived_v1 = await collect_derived_packs(
             joint_fixture.daos.aem_pack_dao, aem_id
         )
-        assert len(derived_v1) == 2
+        assert len(derived_v1) == 3
 
-        # Remove route B→C from config (C becomes unreachable)
-        route_bc = next(
-            route for route in config.routes if route.output_model_name == "C"
+        # Remove route DerivedModel2→DerivedModel3 from config (DerivedModel3 becomes unreachable)
+        route_to_remove = next(
+            route
+            for route in config.routes
+            if route.output_model_name == "DerivedModel3"
         )
         new_config = PersistedConfig(
-            models=[model for model in config.models if model.name != "C"],
-            routes=[route for route in config.routes if route.name != route_bc.name],
+            models=[model for model in config.models if model.name != "DerivedModel3"],
+            routes=[
+                route for route in config.routes if route.name != route_to_remove.name
+            ],
             workflows=config.workflows,
         )
 
         # Re-process same ingress
-        ingress_v2 = make_ingress_pack("A", aem_id=aem_id)
+        ingress_v2 = make_ingress_pack("IngressModel", aem_id=aem_id)
         claimed_v2 = await queue_and_claim(
             registry, ingress_v2, joint_fixture.config.service_instance_id
         )
         await process_pack(registry, incoming=claimed_v2, config=new_config)
 
-        # C deleted (unreachable), B remains
+        # DerivedModel3 deleted (unreachable), DerivedModel1 and DerivedModel2 remain
         derived_v2 = await collect_derived_packs(
             joint_fixture.daos.aem_pack_dao, aem_id
         )
-        assert len(derived_v2) == 1
-        assert derived_v2[0].model_name == "B"
+        assert len(derived_v2) == 2
+        assert {pack.model_name for pack in derived_v2} == {
+            "DerivedModel1",
+            "DerivedModel2",
+        }

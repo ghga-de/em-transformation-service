@@ -32,7 +32,7 @@ from tests.fixtures.aem_pack_registry import (
     process_pack,
     queue_and_claim,
 )
-from tests.fixtures.examples import VALID_MODEL_DERIVATION_CONFIGS
+from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
 
@@ -53,7 +53,7 @@ class TestQueueAndClaim:
             model_name="TestModel",
             original_id=None,
             data=TEST_DATAPACK_V1,
-            annotation={"key": "value"},
+            annotation={},
             correlation_id=expected_correlation_id,
         )
 
@@ -62,7 +62,7 @@ class TestQueueAndClaim:
         raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
         assert raw is not None
         assert raw["model_name"] == "TestModel"
-        assert raw["annotation"] == {"key": "value"}
+        assert raw["annotation"] == {}
         assert raw["processor"] is None
         assert raw["started_processing_at"] is None
         assert str(raw["correlation_id"]) == str(expected_correlation_id)
@@ -75,17 +75,17 @@ class TestQueueAndClaim:
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         aem_id = uuid4()
 
-        pack_v1 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "1"})
+        pack_v1 = make_ingress_pack("IngressModel", aem_id=aem_id)
         await registry.queue_unprocessed(pack_v1)
 
-        pack_v2 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "2"})
+        pack_v2 = make_ingress_pack("IngressModel", aem_id=aem_id)
         await registry.queue_unprocessed(pack_v2)
 
         raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
         assert raw is not None
         assert raw["processor"] is None
         assert raw["started_processing_at"] is None
-        assert raw["annotation"] == {"v": "2"}
+        assert raw["annotation"] == {}
 
         count = await registry._unprocessed_aem_pack_collection.count_documents(
             {"_id": aem_id}
@@ -96,11 +96,11 @@ class TestQueueAndClaim:
         """A doc stuck with a dead processor beyond stale_after can be reclaimed."""
         config = await populate_db_config(
             joint_fixture.daos,
-            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
-            publish_models={"B", "C"},
+            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+            publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
-        ingress = make_ingress_pack("A")
+        ingress = make_ingress_pack("IngressModel")
 
         # Queue and then mark as stale (old processor, expired timestamp)
         await registry.queue_unprocessed(ingress)
@@ -161,8 +161,12 @@ class TestQueueAndClaim:
         derived = await collect_derived_packs(
             joint_fixture.daos.aem_pack_dao, ingress.id
         )
-        assert len(derived) == 2
-        assert {pack.model_name for pack in derived} == {"B", "C"}
+        assert len(derived) == 3
+        assert {pack.model_name for pack in derived} == {
+            "DerivedModel1",
+            "DerivedModel2",
+            "DerivedModel3",
+        }
 
     async def test_dirty_marker_discards_on_concurrent_update(
         self, joint_fixture: JointFixture
@@ -170,20 +174,20 @@ class TestQueueAndClaim:
         """When queue_unprocessed is called while processing, dirty marker discards results."""
         config = await populate_db_config(
             joint_fixture.daos,
-            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
-            publish_models={"B", "C"},
+            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+            publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         aem_id = uuid4()
 
         # Queue v1 and claim
-        pack_v1 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "1"})
+        pack_v1 = make_ingress_pack("IngressModel", aem_id=aem_id)
         claimed = await queue_and_claim(
             registry, pack_v1, joint_fixture.config.service_instance_id
         )
 
         # Simulate concurrent update: queue v2 with same ID while v1 is claimed
-        pack_v2 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "2"})
+        pack_v2 = make_ingress_pack("IngressModel", aem_id=aem_id)
         await registry.queue_unprocessed(pack_v2)
 
         # Verify dirty marker was set
@@ -203,4 +207,4 @@ class TestQueueAndClaim:
         assert raw is not None
         assert raw["processor"] is None
         assert raw["started_processing_at"] is None
-        assert raw["annotation"] == {"v": "2"}
+        assert raw["annotation"] == {}

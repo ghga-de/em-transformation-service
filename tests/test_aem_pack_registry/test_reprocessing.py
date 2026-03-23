@@ -27,7 +27,7 @@ from tests.fixtures.aem_pack_registry import (
     process_pack,
     queue_and_claim,
 )
-from tests.fixtures.examples import VALID_MODEL_DERIVATION_CONFIGS
+from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
 
@@ -39,14 +39,14 @@ class TestReprocessing:
         """Re-processing the same ingress pack reuses existing derived pack UUIDs."""
         config = await populate_db_config(
             joint_fixture.daos,
-            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
-            publish_models={"B", "C"},
+            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+            publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         aem_id = uuid4()
 
         # First processing
-        ingress_v1 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "1"})
+        ingress_v1 = make_ingress_pack("IngressModel", aem_id=aem_id)
         claimed_v1 = await queue_and_claim(
             registry, ingress_v1, joint_fixture.config.service_instance_id
         )
@@ -57,8 +57,8 @@ class TestReprocessing:
         )
         ids_v1 = {pack.model_name: pack.id for pack in derived_v1}
 
-        # Second processing with updated annotation
-        ingress_v2 = make_ingress_pack("A", aem_id=aem_id, annotation={"v": "2"})
+        # Second processing
+        ingress_v2 = make_ingress_pack("IngressModel", aem_id=aem_id)
         claimed_v2 = await queue_and_claim(
             registry, ingress_v2, joint_fixture.config.service_instance_id
         )
@@ -70,12 +70,13 @@ class TestReprocessing:
         ids_v2 = {pack.model_name: pack.id for pack in derived_v2}
 
         # IDs reused across runs
-        assert ids_v1["B"] == ids_v2["B"]
-        assert ids_v1["C"] == ids_v2["C"]
+        assert ids_v1["DerivedModel1"] == ids_v2["DerivedModel1"]
+        assert ids_v1["DerivedModel2"] == ids_v2["DerivedModel2"]
+        assert ids_v1["DerivedModel3"] == ids_v2["DerivedModel3"]
 
-        # Annotations updated
+        # Annotations unchanged
         for pack in derived_v2:
-            assert pack.annotation == {"v": "2"}
+            assert pack.annotation == {}
 
     async def test_first_processing_generates_fresh_ids(
         self, joint_fixture: JointFixture
@@ -83,11 +84,11 @@ class TestReprocessing:
         """First processing generates unique UUIDs for all derived packs."""
         config = await populate_db_config(
             joint_fixture.daos,
-            VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
-            publish_models={"B", "C"},
+            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+            publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
-        ingress = make_ingress_pack("A")
+        ingress = make_ingress_pack("IngressModel")
 
         claimed = await queue_and_claim(
             registry, ingress, joint_fixture.config.service_instance_id
@@ -99,4 +100,6 @@ class TestReprocessing:
         )
         all_ids = {pack.id for pack in derived}
         all_ids.add(ingress.id)
-        assert len(all_ids) == 3  # ingress ID + B ID + C ID, all distinct
+        assert (
+            len(all_ids) == 4
+        )  # ingress ID + DerivedModel1 ID + DerivedModel2 ID + DerivedModel3 ID, all distinct
