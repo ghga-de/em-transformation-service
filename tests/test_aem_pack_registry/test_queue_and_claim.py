@@ -75,10 +75,10 @@ class TestQueueAndClaim:
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         aem_id = uuid4()
 
-        pack_v1 = make_ingress_pack("IngressModel", aem_id=aem_id)
+        pack_v1 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
         await registry.queue_unprocessed(pack_v1)
 
-        pack_v2 = make_ingress_pack("IngressModel", aem_id=aem_id)
+        pack_v2 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
         await registry.queue_unprocessed(pack_v2)
 
         raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
@@ -95,8 +95,8 @@ class TestQueueAndClaim:
     async def test_stale_doc_can_be_reclaimed(self, joint_fixture: JointFixture):
         """A doc stuck with a dead processor beyond stale_after can be reclaimed."""
         config = await populate_db_config(
-            joint_fixture.daos,
-            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+            daos=joint_fixture.daos,
+            config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
             publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
@@ -155,11 +155,11 @@ class TestQueueAndClaim:
         stale_doc["id"] = stale_doc.pop("_id")
         stale_doc["data"] = DataPack.model_validate(stale_doc["data"])
         claimed = UnprocessedAEMPack(**stale_doc)
-        await process_pack(registry, incoming=claimed, config=config)
+        await process_pack(registry=registry, incoming=claimed, config=config)
 
         # Derived packs created successfully
         derived = await collect_derived_packs(
-            joint_fixture.daos.aem_pack_dao, ingress.id
+            aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=ingress.id
         )
         assert len(derived) == 3
         assert {pack.model_name for pack in derived} == {
@@ -173,21 +173,23 @@ class TestQueueAndClaim:
     ):
         """When queue_unprocessed is called while processing, dirty marker discards results."""
         config = await populate_db_config(
-            joint_fixture.daos,
-            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+            daos=joint_fixture.daos,
+            config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
             publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         aem_id = uuid4()
 
         # Queue v1 and claim
-        pack_v1 = make_ingress_pack("IngressModel", aem_id=aem_id)
+        pack_v1 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
         claimed = await queue_and_claim(
-            registry, pack_v1, joint_fixture.config.service_instance_id
+            registry=registry,
+            pack=pack_v1,
+            service_instance_id=joint_fixture.config.service_instance_id,
         )
 
         # Simulate concurrent update: queue v2 with same ID while v1 is claimed
-        pack_v2 = make_ingress_pack("IngressModel", aem_id=aem_id)
+        pack_v2 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
         await registry.queue_unprocessed(pack_v2)
 
         # Verify dirty marker was set
@@ -196,10 +198,12 @@ class TestQueueAndClaim:
         assert raw["processor"] == joint_fixture.config.dirty_marker
 
         # Process v1 — should detect dirty and discard results
-        await process_pack(registry, incoming=claimed, config=config)
+        await process_pack(registry=registry, incoming=claimed, config=config)
 
         # No derived packs published
-        derived = await collect_derived_packs(joint_fixture.daos.aem_pack_dao, aem_id)
+        derived = await collect_derived_packs(
+            aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
+        )
         assert len(derived) == 0
 
         # Doc freed for reprocessing with v2's data

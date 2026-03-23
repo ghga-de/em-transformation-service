@@ -29,9 +29,10 @@ async def consume_events(run_forever: bool = True):
     async with prepare_event_subscriber(config=config) as event_subscriber:
         await event_subscriber.run(forever=run_forever)
 
+
 async def process_aems():
     """Run processing on incoming annotated experimental metadata that has been stored in the database."""
-    config = Config() # type: ignore[call-arg]
+    config = Config()  # type: ignore[call-arg]
     configure_logging(config=config)
 
     async with prepare_aem_pack_registry(config=config) as aem_pack_registry:

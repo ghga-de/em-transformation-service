@@ -41,22 +41,24 @@ class TestConfigChanges:
     ):
         """Removing a route causes previously derived packs to be deleted on re-processing."""
         config = await populate_db_config(
-            joint_fixture.daos,
-            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+            daos=joint_fixture.daos,
+            config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
             publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         aem_id = uuid4()
 
         # First processing: DerivedModel1, DerivedModel2, DerivedModel3 derived
-        ingress = make_ingress_pack("IngressModel", aem_id=aem_id)
+        ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
         claimed = await queue_and_claim(
-            registry, ingress, joint_fixture.config.service_instance_id
+            registry=registry,
+            pack=ingress,
+            service_instance_id=joint_fixture.config.service_instance_id,
         )
-        await process_pack(registry, incoming=claimed, config=config)
+        await process_pack(registry=registry, incoming=claimed, config=config)
 
         derived_v1 = await collect_derived_packs(
-            joint_fixture.daos.aem_pack_dao, aem_id
+            aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
         )
         assert len(derived_v1) == 3
 
@@ -75,15 +77,17 @@ class TestConfigChanges:
         )
 
         # Re-process same ingress
-        ingress_v2 = make_ingress_pack("IngressModel", aem_id=aem_id)
+        ingress_v2 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
         claimed_v2 = await queue_and_claim(
-            registry, ingress_v2, joint_fixture.config.service_instance_id
+            registry=registry,
+            pack=ingress_v2,
+            service_instance_id=joint_fixture.config.service_instance_id,
         )
-        await process_pack(registry, incoming=claimed_v2, config=new_config)
+        await process_pack(registry=registry, incoming=claimed_v2, config=new_config)
 
         # DerivedModel3 deleted (unreachable), DerivedModel1 and DerivedModel2 remain
         derived_v2 = await collect_derived_packs(
-            joint_fixture.daos.aem_pack_dao, aem_id
+            aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
         )
         assert len(derived_v2) == 2
         assert {pack.model_name for pack in derived_v2} == {

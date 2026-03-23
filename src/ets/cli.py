@@ -29,6 +29,7 @@ def sync_consume_events(run_forever: bool = True):
     """Run an event consumer listening to the specified topic."""
     asyncio.run(consume_events(run_forever=run_forever))
 
+
 @cli.command(name="process-aems")
 def sync_process_aems():
     """Run processing on incoming annotated experimental metadata that has been stored in the database."""

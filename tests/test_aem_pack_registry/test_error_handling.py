@@ -37,14 +37,16 @@ class TestErrorHandling:
     ):
         """Processing an AEMPack for a model not in the config raises ValueError."""
         config = await populate_db_config(
-            joint_fixture.daos,
-            AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+            daos=joint_fixture.daos,
+            config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         ingress = make_ingress_pack("NonExistent")
 
         claimed = await queue_and_claim(
-            registry, ingress, joint_fixture.config.service_instance_id
+            registry=registry,
+            pack=ingress,
+            service_instance_id=joint_fixture.config.service_instance_id,
         )
         with pytest.raises(ValueError, match="No model with name NonExistent"):
-            await process_pack(registry, incoming=claimed, config=config)
+            await process_pack(registry=registry, incoming=claimed, config=config)

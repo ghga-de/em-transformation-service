@@ -32,6 +32,7 @@ RouteDao = Dao[models.Route]
 AEMPackDao = Dao[AEMPack]
 UnprocessedAEMPackDao = Dao[UnprocessedAEMPack]
 
+
 class AEMPackEventPublisherPort(ABC):
     """Port for publishing AEMPack lifecycle events to downstream consumers."""
 
