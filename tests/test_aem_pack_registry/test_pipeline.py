@@ -117,15 +117,15 @@ class TestPipeline:
 
     @pytest.mark.parametrize(
         "ingress_name",
-        ["I1", "I2"],
-        ids=["bottleneck_from_I1", "bottleneck_from_I2"],
+        ["IngressModel1", "IngressModel2"],
+        ids=["bottleneck_from_IngressModel1", "bottleneck_from_IngressModel2"],
     )
     async def test_bottleneck(self, joint_fixture: JointFixture, ingress_name: str):
-        """Process an AEMPack through a bottleneck graph (I1→B→D1,D2 / I2→B→D1,D2) for each ingress."""
+        """Process an AEMPack through a bottleneck graph (IngressModel1→BottleneckModel→DerivedModel1,DerivedModel2 / IngressModel2→BottleneckModel→DerivedModel1,DerivedModel2) for each ingress."""
         config = await populate_db_config(
             joint_fixture.daos,
             AEM_PACK_REGISTRY_CONFIGS["bottleneck"],
-            publish_models={"D1", "D2"},
+            publish_models={"DerivedModel1", "DerivedModel2"},
         )
         registry: AEMPackRegistry = joint_fixture.aem_pack_registry
         ingress = make_ingress_pack(ingress_name, annotation={"src": ingress_name})
@@ -139,7 +139,10 @@ class TestPipeline:
             joint_fixture.daos.aem_pack_dao, ingress.id
         )
         assert len(derived) == 2
-        assert {pack.model_name for pack in derived} == {"D1", "D2"}
+        assert {pack.model_name for pack in derived} == {
+            "DerivedModel1",
+            "DerivedModel2",
+        }
         for pack in derived:
             assert pack.original_id == ingress.id
             assert pack.annotation == {"src": ingress_name}

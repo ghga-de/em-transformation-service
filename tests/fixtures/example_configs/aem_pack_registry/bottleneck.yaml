@@ -2,11 +2,11 @@
 # which then fans out to two derived models.
 #
 # Graph:
-#     I1 → B → D1
-#     I2 ↗   ↘ D2
+#     IngressModel1 → BottleneckModel → DerivedModel1
+#     IngressModel2 ↗                 ↘ DerivedModel2
 
 models:
-  - name: I1
+  - name: IngressModel1
     is_ingress: true
     version: "1.0.0"
     publish: false
@@ -30,7 +30,7 @@ models:
             "type": "object"
           }
 
-  - name: I2
+  - name: IngressModel2
     is_ingress: true
     version: "1.0.0"
     publish: false
@@ -54,21 +54,21 @@ models:
             "type": "object"
           }
 
-  - name: B
+  - name: BottleneckModel
     is_ingress: false
     version: null
     publish: false
     order: 1
     schema_: null
 
-  - name: D1
+  - name: DerivedModel1
     is_ingress: false
     version: null
     publish: false
     order: 2
     schema_: null
 
-  - name: D2
+  - name: DerivedModel2
     is_ingress: false
     version: null
     publish: false
@@ -77,38 +77,38 @@ models:
 
 workflows:
   - name: rename_to_file_id
-    description: Rename id from alias to file_id
+    description: Renames the id property to file_id
     workflow:
       operations:
         - name: rename_id_property
-          description: Rename id from alias to file_id
+          description: Rename the id property to file_id
           args:
             class_name: File
             id_property_name: file_id
 
   - name: rename_to_resource_id
-    description: Rename id from file_id to resource_id
+    description: Rename the id property to resource_id
     workflow:
       operations:
         - name: rename_id_property
-          description: Rename id from file_id to resource_id
+          description: Rename the id property to resource_id
           args:
             class_name: File
             id_property_name: resource_id
 
 routes:
-  - input_model_name: I1
+  - input_model_name: IngressModel1
     workflow_name: rename_to_file_id
-    output_model_name: B
+    output_model_name: BottleneckModel
 
-  - input_model_name: I2
+  - input_model_name: IngressModel2
     workflow_name: rename_to_file_id
-    output_model_name: B
+    output_model_name: BottleneckModel
 
-  - input_model_name: B
+  - input_model_name: BottleneckModel
     workflow_name: rename_to_resource_id
-    output_model_name: D1
+    output_model_name: DerivedModel1
 
-  - input_model_name: B
+  - input_model_name: BottleneckModel
     workflow_name: rename_to_resource_id
-    output_model_name: D2
+    output_model_name: DerivedModel2

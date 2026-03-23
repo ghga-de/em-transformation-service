@@ -1,5 +1,5 @@
 # Chained routes: IngressModel → DerivedModel1 → DerivedModel2 → DerivedModel3,
-# alternating between two rename_id_property workflows.
+# alternating between rename_to_file_id and rename_to_resource_id workflows.
 #
 # Graph:
 #     IngressModel → DerivedModel1 → DerivedModel2 → DerivedModel3
@@ -51,35 +51,35 @@ models:
     schema_: null
 
 workflows:
-  - name: rename_id_workflow
-    description: Rename id from alias to file_id
+  - name: rename_to_file_id
+    description: Rename the id property to file_id
     workflow:
       operations:
         - name: rename_id_property
-          description: Rename id from alias to file_id
+          description: Rename the id property to file_id
           args:
             class_name: File
             id_property_name: file_id
 
-  - name: rename_id_workflow_2
-    description: Rename id from alias to resource_id
+  - name: rename_to_resource_id
+    description: Rename the id property to resource_id
     workflow:
       operations:
         - name: rename_id_property
-          description: Rename id from alias to resource_id
+          description: Rename the id property to resource_id
           args:
             class_name: File
             id_property_name: resource_id
 
 routes:
   - input_model_name: IngressModel
-    workflow_name: rename_id_workflow
+    workflow_name: rename_to_file_id
     output_model_name: DerivedModel1
 
   - input_model_name: DerivedModel1
-    workflow_name: rename_id_workflow_2
+    workflow_name: rename_to_resource_id
     output_model_name: DerivedModel2
 
   - input_model_name: DerivedModel2
-    workflow_name: rename_id_workflow
+    workflow_name: rename_to_file_id
     output_model_name: DerivedModel3

@@ -209,10 +209,22 @@ class TestGraphTraversal:
     @pytest.mark.parametrize(
         "aem_pack_config, ingress_name",
         [
-            ((AEM_PACK_REGISTRY_CONFIGS["bottleneck"], {"D1", "D2"}), "I1"),
-            ((AEM_PACK_REGISTRY_CONFIGS["bottleneck"], {"D1", "D2"}), "I2"),
+            (
+                (
+                    AEM_PACK_REGISTRY_CONFIGS["bottleneck"],
+                    {"DerivedModel1", "DerivedModel2"},
+                ),
+                "IngressModel1",
+            ),
+            (
+                (
+                    AEM_PACK_REGISTRY_CONFIGS["bottleneck"],
+                    {"DerivedModel1", "DerivedModel2"},
+                ),
+                "IngressModel2",
+            ),
         ],
-        ids=["bottleneck_from_I1", "bottleneck_from_I2"],
+        ids=["bottleneck_from_IngressModel1", "bottleneck_from_IngressModel2"],
         indirect=["aem_pack_config"],
     )
     async def test_bottleneck_topology(
@@ -229,13 +241,13 @@ class TestGraphTraversal:
             data=TEST_DATAPACK_V1,
             annotation={},
         )
-        existing_b = uuid4()
+        existing_bottleneck = uuid4()
         existing_d1 = uuid4()
         existing_d2 = uuid4()
         dirty_map: dict[str, UUID4] = {
-            "B": existing_b,
-            "D1": existing_d1,
-            "D2": existing_d2,
+            "BottleneckModel": existing_bottleneck,
+            "DerivedModel1": existing_d1,
+            "DerivedModel2": existing_d2,
         }
 
         published, remaining_dirty = joint_fixture.aem_pack_registry._traverse_graph(
@@ -246,12 +258,15 @@ class TestGraphTraversal:
         )
 
         # All downstream dirty entries cleared
-        assert "B" not in remaining_dirty
-        assert "D1" not in remaining_dirty
-        assert "D2" not in remaining_dirty
+        assert "BottleneckModel" not in remaining_dirty
+        assert "DerivedModel1" not in remaining_dirty
+        assert "DerivedModel2" not in remaining_dirty
 
-        # D1 and D2 published (publish=True), B not published (publish=False)
-        assert {pack.model_name for pack in published} == {"D1", "D2"}
+        # DerivedModel1 and DerivedModel2 published (publish=True), BottleneckModel not published (publish=False)
+        assert {pack.model_name for pack in published} == {
+            "DerivedModel1",
+            "DerivedModel2",
+        }
 
         # Existing dirty map IDs reused
         published_ids = {pack.id for pack in published}
