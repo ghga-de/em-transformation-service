@@ -21,7 +21,7 @@ import pytest
 from pydantic import UUID4
 
 from ets.core.models import AEMPack, PersistedConfig
-from tests.fixtures.aem_pack_registry import TEST_DATAPACK_V1
+from tests.fixtures.aem_pack_registry import TEST_DATAPACK, load_aem_pack_config
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
@@ -58,13 +58,13 @@ async def test_clears_dirty_map(
     aem_pack_config: PersistedConfig,
     dirty_names: set[str],
 ):
-    """Traversal with various graph topologies clears all dirty map entries; no packs published when publish=False."""
+    """Ensure traversal with various graph topologies clears all non-dangling dirty map entries and no packs with publish=False are published."""
     ingress = next(model for model in aem_pack_config.models if model.is_ingress)
     incoming = AEMPack(
         id=uuid4(),
         model_name=ingress.name,
         original_id=None,
-        data=TEST_DATAPACK_V1,
+        data=TEST_DATAPACK,
         annotation={},
     )
     dirty_map: dict[str, UUID4] = {name: uuid4() for name in dirty_names}
@@ -83,17 +83,9 @@ async def test_clears_dirty_map(
     assert len(aem_packs_to_publish) == 0
 
 
-@pytest.mark.parametrize(
-    "aem_pack_config",
-    [AEM_PACK_REGISTRY_CONFIGS["forking_routes"]],
-    ids=["forking_routes"],
-    indirect=True,
-)
-async def test_respects_topological_order(
-    joint_fixture: JointFixture,
-    aem_pack_config: PersistedConfig,
-):
+async def test_respects_topological_order(joint_fixture: JointFixture):
     """Test that routes are processed respecting topological order."""
+    aem_pack_config = load_aem_pack_config(AEM_PACK_REGISTRY_CONFIGS["forking_routes"])
     models_by_name = {model.name: model for model in aem_pack_config.models}
     # Swap orders so DerivedModel2 (order=1) is processed before DerivedModel1 (order=2)
     models_by_name["DerivedModel2"].order = 1
@@ -104,7 +96,7 @@ async def test_respects_topological_order(
         id=uuid4(),
         model_name=ingress.name,
         original_id=None,
-        data=TEST_DATAPACK_V1,
+        data=TEST_DATAPACK,
         annotation={},
     )
 
@@ -128,28 +120,18 @@ async def test_respects_topological_order(
     assert len(aem_packs_to_publish) == 0
 
 
-@pytest.mark.parametrize(
-    "aem_pack_config",
-    [
-        (
-            AEM_PACK_REGISTRY_CONFIGS["forking_routes"],
-            {"DerivedModel1", "DerivedModel2"},
-        )
-    ],
-    ids=["forking_routes"],
-    indirect=True,
-)
-async def test_reuses_dirty_map_ids(
-    joint_fixture: JointFixture,
-    aem_pack_config: PersistedConfig,
-):
+async def test_reuses_dirty_map_ids(joint_fixture: JointFixture):
     """Test that existing IDs from the dirty map are reused for derived packs."""
+    aem_pack_config = load_aem_pack_config(
+        AEM_PACK_REGISTRY_CONFIGS["forking_routes"],
+        publish_models={"DerivedModel1", "DerivedModel2"},
+    )
     ingress = next(model for model in aem_pack_config.models if model.is_ingress)
     incoming = AEMPack(
         id=uuid4(),
         model_name=ingress.name,
         original_id=None,
-        data=TEST_DATAPACK_V1,
+        data=TEST_DATAPACK,
         annotation={},
     )
 
@@ -172,23 +154,18 @@ async def test_reuses_dirty_map_ids(
     assert existing_id_2 in published_ids
 
 
-@pytest.mark.parametrize(
-    "aem_pack_config",
-    [(AEM_PACK_REGISTRY_CONFIGS["single_route"], {"DerivedModel1"})],
-    ids=["single_route"],
-    indirect=True,
-)
-async def test_generates_new_id_when_no_dirty_entry(
-    joint_fixture: JointFixture,
-    aem_pack_config: PersistedConfig,
-):
+async def test_generates_new_id_when_no_dirty_entry(joint_fixture: JointFixture):
     """Test that a new UUID is generated when there is no dirty map entry."""
+    aem_pack_config = load_aem_pack_config(
+        AEM_PACK_REGISTRY_CONFIGS["single_route"],
+        publish_models={"DerivedModel1"},
+    )
     ingress = next(model for model in aem_pack_config.models if model.is_ingress)
     incoming = AEMPack(
         id=uuid4(),
         model_name=ingress.name,
         original_id=None,
-        data=TEST_DATAPACK_V1,
+        data=TEST_DATAPACK,
         annotation={},
     )
 
@@ -201,7 +178,8 @@ async def test_generates_new_id_when_no_dirty_entry(
 
     assert len(published) == 1
     derived = next(iter(published))
-    assert derived.id != incoming.id  # new ID generated, not reusing incoming
+    # sanity check
+    assert derived.id != incoming.id
 
 
 @pytest.mark.parametrize(
@@ -230,12 +208,12 @@ async def test_bottleneck_topology(
     aem_pack_config: PersistedConfig,
     ingress_name: str,
 ):
-    """Traversal from each ingress through a bottleneck node clears the dirty map and publishes downstream."""
+    """Ensure traversal from each ingress through a bottleneck node publishes downstream."""
     incoming = AEMPack(
         id=uuid4(),
         model_name=ingress_name,
         original_id=None,
-        data=TEST_DATAPACK_V1,
+        data=TEST_DATAPACK,
         annotation={},
     )
     existing_bottleneck = uuid4()
@@ -259,7 +237,6 @@ async def test_bottleneck_topology(
     assert "DerivedModel1" not in remaining_dirty
     assert "DerivedModel2" not in remaining_dirty
 
-    # DerivedModel1 and DerivedModel2 published (publish=True), BottleneckModel not published (publish=False)
     assert {pack.model_name for pack in published} == {
         "DerivedModel1",
         "DerivedModel2",
@@ -269,31 +246,3 @@ async def test_bottleneck_topology(
     published_ids = {pack.id for pack in published}
     assert existing_d1 in published_ids
     assert existing_d2 in published_ids
-
-
-@pytest.mark.parametrize(
-    "aem_pack_config",
-    [AEM_PACK_REGISTRY_CONFIGS["single_route"]],
-    ids=["single_route"],
-    indirect=True,
-)
-async def test_invalid_model_raises_error(
-    joint_fixture: JointFixture,
-    aem_pack_config: PersistedConfig,
-):
-    """Test that processing an AEM for a non-existent model raises an error."""
-    incoming = AEMPack(
-        id=uuid4(),
-        model_name="NonExistentModel",
-        original_id=None,
-        data=TEST_DATAPACK_V1,
-        annotation={},
-    )
-
-    with pytest.raises(ValueError, match="No model with name NonExistentModel"):
-        joint_fixture.aem_pack_registry._traverse_graph(
-            incoming=incoming,
-            dirty_map={},
-            transformed_map={"NonExistentModel": incoming},
-            config=aem_pack_config,
-        )

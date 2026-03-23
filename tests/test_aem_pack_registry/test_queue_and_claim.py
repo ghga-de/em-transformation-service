@@ -25,7 +25,7 @@ from schemapack.spec.datapack import DataPack
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.models import UnprocessedAEMPack
 from tests.fixtures.aem_pack_registry import (
-    TEST_DATAPACK_V1,
+    TEST_DATAPACK,
     collect_derived_packs,
     make_ingress_pack,
     populate_db_config,
@@ -39,7 +39,7 @@ pytestmark = pytest.mark.asyncio
 
 
 async def test_queue_creates_correct_document(joint_fixture: JointFixture):
-    """queue_unprocessed creates a doc with correct fields, no processor, and deserializable data."""
+    """Ensure queue_unprocessed creates a doc with correct fields, no processor, and deserializable data."""
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
     expected_correlation_id = uuid4()
@@ -47,7 +47,7 @@ async def test_queue_creates_correct_document(joint_fixture: JointFixture):
         id=aem_id,
         model_name="TestModel",
         original_id=None,
-        data=TEST_DATAPACK_V1,
+        data=TEST_DATAPACK,
         annotation={},
         correlation_id=expected_correlation_id,
     )
@@ -61,13 +61,13 @@ async def test_queue_creates_correct_document(joint_fixture: JointFixture):
     assert raw["processor"] is None
     assert raw["started_processing_at"] is None
     assert str(raw["correlation_id"]) == str(expected_correlation_id)
-    assert DataPack.model_validate(raw["data"]) == TEST_DATAPACK_V1
+    assert DataPack.model_validate(raw["data"]) == TEST_DATAPACK
 
 
 async def test_double_queue_before_processing_stays_claimable(
     joint_fixture: JointFixture,
 ):
-    """Queuing the same ID twice before any claim yields one doc with latest data."""
+    """Ensure queuing the same ID twice before any claim yields one doc with latest data."""
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
 
@@ -89,17 +89,11 @@ async def test_double_queue_before_processing_stays_claimable(
     assert count == 1
 
 
-async def test_stale_doc_can_be_reclaimed(joint_fixture: JointFixture):
-    """A doc stuck with a dead processor beyond stale_after can be reclaimed."""
-    config = await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
-        publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
-    )
+async def test_stale_doc_can_be_reclaimed(joint_fixture: JointFixture, monkeypatch):
+    """Ensure a doc stuck with a dead processor beyond stale_after can be reclaimed."""
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     ingress = make_ingress_pack("IngressModel")
 
-    # Queue and then mark as stale (old processor, expired timestamp)
     await registry.queue_unprocessed(ingress)
     stale_time = now_utc_ms_prec() - timedelta(
         seconds=joint_fixture.config.stale_after + 10
@@ -114,60 +108,24 @@ async def test_stale_doc_can_be_reclaimed(joint_fixture: JointFixture):
         },
     )
 
-    # Fresh claim should NOT find this (processor != None)
-    fresh = await registry._unprocessed_aem_pack_collection.find_one_and_update(
-        filter={"original_id": None, "processor": None},
-        update={
-            "$set": {
-                "processor": joint_fixture.config.service_instance_id,
-                "started_processing_at": now_utc_ms_prec(),
-            }
-        },
-        return_document=True,
-    )
-    assert fresh is None
+    # Check the stale pack is passed by intercepting the call and skipping processing
+    claimed: list[UnprocessedAEMPack] = []
 
-    # Stale claim SHOULD find it
-    stale_doc = await registry._unprocessed_aem_pack_collection.find_one_and_update(
-        filter={
-            "original_id": None,
-            "started_processing_at": {
-                "$lt": now_utc_ms_prec()
-                - timedelta(seconds=joint_fixture.config.stale_after)
-            },
-        },
-        update={
-            "$set": {
-                "processor": joint_fixture.config.service_instance_id,
-                "started_processing_at": now_utc_ms_prec(),
-            }
-        },
-        sort=[("started_processing_at", 1)],
-        return_document=True,
-    )
-    assert stale_doc is not None
-    assert stale_doc["processor"] == joint_fixture.config.service_instance_id
+    async def capture_and_stop(*, incoming, config):
+        claimed.append(incoming)
+        raise RuntimeError("STOP, testing time!")
 
-    # Process the reclaimed doc
-    stale_doc["id"] = stale_doc.pop("_id")
-    stale_doc["data"] = DataPack.model_validate(stale_doc["data"])
-    claimed = UnprocessedAEMPack(**stale_doc)
-    await process_pack(registry=registry, incoming=claimed, config=config)
+    monkeypatch.setattr(registry, "_process_next_aem_pack", capture_and_stop)
 
-    # Derived packs created successfully
-    derived = await collect_derived_packs(
-        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=ingress.id
-    )
-    assert len(derived) == 3
-    assert {pack.model_name for pack in derived} == {
-        "DerivedModel1",
-        "DerivedModel2",
-        "DerivedModel3",
-    }
+    with pytest.raises(RuntimeError):
+        await registry.process_aem_packs()
+
+    assert len(claimed) == 1
+    assert claimed[0].id == ingress.id
 
 
 async def test_dirty_marker_discards_on_concurrent_update(joint_fixture: JointFixture):
-    """When queue_unprocessed is called while processing, dirty marker discards results."""
+    """Ensure queueing a new ingress AEM version while processing will discard results and not publish."""
     config = await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],

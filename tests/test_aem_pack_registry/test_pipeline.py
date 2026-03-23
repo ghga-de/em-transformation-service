@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""End-to-end pipeline tests: queue → claim → process → verify derived packs."""
+"""Test different configurations with end-to-end tests: queue → claim → process → verify derived packs."""
 
 from uuid import uuid4
 
