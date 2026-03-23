@@ -17,8 +17,6 @@
 
 from uuid import uuid4
 
-import pytest
-
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.models import PersistedConfig
 from tests.fixtures.aem_pack_registry import (
@@ -31,13 +29,11 @@ from tests.fixtures.aem_pack_registry import (
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
-pytestmark = pytest.mark.asyncio
-
 
 async def test_unreachable_pack_deleted_after_route_removal(
     joint_fixture: JointFixture,
 ):
-    """Removing a route causes previously derived packs to be deleted on re-processing."""
+    """Ensure removing a route causes previously derived packs to be deleted on re-processing."""
     config = await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
@@ -46,45 +42,46 @@ async def test_unreachable_pack_deleted_after_route_removal(
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
 
-    # First processing: DerivedModel1, DerivedModel2, DerivedModel3 derived
+    # Derive all models first
     ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
-    claimed = await queue_and_claim(
+    unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=claimed, config=config)
+    await process_pack(registry=registry, incoming=unprocessed, config=config)
 
-    derived_v1 = await collect_derived_packs(
+    derived = await collect_derived_packs(
         aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
     )
-    assert len(derived_v1) == 3
+    assert len(derived) == 3
 
-    # Remove route DerivedModel2→DerivedModel3 from config (DerivedModel3 becomes unreachable)
-    route_to_remove = next(
-        route for route in config.routes if route.output_model_name == "DerivedModel3"
-    )
+    # Remove route DerivedModel2→DerivedModel3 from config
     new_config = PersistedConfig(
         models=[model for model in config.models if model.name != "DerivedModel3"],
-        routes=[route for route in config.routes if route.name != route_to_remove.name],
+        routes=[
+            route
+            for route in config.routes
+            if route.output_model_name != "DerivedModel3"
+        ],
         workflows=config.workflows,
     )
 
     # Re-process same ingress
-    ingress_v2 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
-    claimed_v2 = await queue_and_claim(
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    unprocessed = await queue_and_claim(
         registry=registry,
-        pack=ingress_v2,
+        pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await process_pack(registry=registry, incoming=claimed_v2, config=new_config)
+    await process_pack(registry=registry, incoming=unprocessed, config=new_config)
 
     # DerivedModel3 deleted (unreachable), DerivedModel1 and DerivedModel2 remain
-    derived_v2 = await collect_derived_packs(
+    derived = await collect_derived_packs(
         aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
     )
-    assert len(derived_v2) == 2
-    assert {pack.model_name for pack in derived_v2} == {
+    assert len(derived) == 2
+    assert {pack.model_name for pack in derived} == {
         "DerivedModel1",
         "DerivedModel2",
     }

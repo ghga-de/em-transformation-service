@@ -30,82 +30,77 @@ from tests.fixtures.aem_pack_registry import (
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
+pytestmark = pytest.mark.asyncio
 
-@pytest.mark.asyncio
-class TestReprocessing:
-    """Tests for re-processing the same ingress pack and ID reuse behavior."""
 
-    async def test_reuses_derived_pack_ids(self, joint_fixture: JointFixture):
-        """Re-processing the same ingress pack reuses existing derived pack UUIDs."""
-        config = await populate_db_config(
-            daos=joint_fixture.daos,
-            config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
-            publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
-        )
-        registry: AEMPackRegistry = joint_fixture.aem_pack_registry
-        aem_id = uuid4()
+async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
+    """Ensure re-processing the same ingress pack reuses existing derived pack UUIDs."""
+    config = await populate_db_config(
+        daos=joint_fixture.daos,
+        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+        publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
+    )
+    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
+    aem_id = uuid4()
 
-        # First processing
-        ingress_v1 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
-        claimed_v1 = await queue_and_claim(
-            registry=registry,
-            pack=ingress_v1,
-            service_instance_id=joint_fixture.config.service_instance_id,
-        )
-        await process_pack(registry=registry, incoming=claimed_v1, config=config)
+    # First processing
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    unprocessed = await queue_and_claim(
+        registry=registry,
+        pack=ingress,
+        service_instance_id=joint_fixture.config.service_instance_id,
+    )
+    await process_pack(registry=registry, incoming=unprocessed, config=config)
 
-        derived_v1 = await collect_derived_packs(
-            aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
-        )
-        ids_v1 = {pack.model_name: pack.id for pack in derived_v1}
+    derived = await collect_derived_packs(
+        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
+    )
+    derived_pack_names = {pack.model_name: pack.id for pack in derived}
 
-        # Second processing
-        ingress_v2 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
-        claimed_v2 = await queue_and_claim(
-            registry=registry,
-            pack=ingress_v2,
-            service_instance_id=joint_fixture.config.service_instance_id,
-        )
-        await process_pack(registry=registry, incoming=claimed_v2, config=config)
+    # Second processing
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    unprocessed = await queue_and_claim(
+        registry=registry,
+        pack=ingress,
+        service_instance_id=joint_fixture.config.service_instance_id,
+    )
+    await process_pack(registry=registry, incoming=unprocessed, config=config)
 
-        derived_v2 = await collect_derived_packs(
-            aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
-        )
-        ids_v2 = {pack.model_name: pack.id for pack in derived_v2}
+    derived = await collect_derived_packs(
+        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
+    )
+    re_derived_pack_names = {pack.model_name: pack.id for pack in derived}
 
-        # IDs reused across runs
-        assert ids_v1["DerivedModel1"] == ids_v2["DerivedModel1"]
-        assert ids_v1["DerivedModel2"] == ids_v2["DerivedModel2"]
-        assert ids_v1["DerivedModel3"] == ids_v2["DerivedModel3"]
+    # Ensure IDs are reused across runs
+    assert derived_pack_names["DerivedModel1"] == re_derived_pack_names["DerivedModel1"]
+    assert derived_pack_names["DerivedModel2"] == re_derived_pack_names["DerivedModel2"]
+    assert derived_pack_names["DerivedModel3"] == re_derived_pack_names["DerivedModel3"]
 
-        # Annotations unchanged
-        for pack in derived_v2:
-            assert pack.annotation == {}
+    # Annotations unchanged
+    for pack in derived:
+        assert pack.annotation == {}
 
-    async def test_first_processing_generates_fresh_ids(
-        self, joint_fixture: JointFixture
-    ):
-        """First processing generates unique UUIDs for all derived packs."""
-        config = await populate_db_config(
-            daos=joint_fixture.daos,
-            config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
-            publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
-        )
-        registry: AEMPackRegistry = joint_fixture.aem_pack_registry
-        ingress = make_ingress_pack("IngressModel")
 
-        claimed = await queue_and_claim(
-            registry=registry,
-            pack=ingress,
-            service_instance_id=joint_fixture.config.service_instance_id,
-        )
-        await process_pack(registry=registry, incoming=claimed, config=config)
+async def test_first_processing_generates_fresh_ids(joint_fixture: JointFixture):
+    """Ensure processing generates unique UUIDs for all derived packs."""
+    config = await populate_db_config(
+        daos=joint_fixture.daos,
+        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+        publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
+    )
+    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
+    ingress = make_ingress_pack("IngressModel")
 
-        derived = await collect_derived_packs(
-            aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=ingress.id
-        )
-        all_ids = {pack.id for pack in derived}
-        all_ids.add(ingress.id)
-        assert (
-            len(all_ids) == 4
-        )  # ingress ID + DerivedModel1 ID + DerivedModel2 ID + DerivedModel3 ID, all distinct
+    unprocessed = await queue_and_claim(
+        registry=registry,
+        pack=ingress,
+        service_instance_id=joint_fixture.config.service_instance_id,
+    )
+    await process_pack(registry=registry, incoming=unprocessed, config=config)
+
+    derived = await collect_derived_packs(
+        aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=ingress.id
+    )
+    all_ids = {pack.id for pack in derived}
+    all_ids.add(ingress.id)
+    assert len(all_ids) == 4

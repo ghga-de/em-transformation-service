@@ -30,10 +30,8 @@ from tests.fixtures.joint import JointFixture
 pytestmark = pytest.mark.asyncio
 
 
-async def test_nonexistent_model_raises_error_in_pipeline(
-    joint_fixture: JointFixture,
-):
-    """Processing an AEMPack for a model not in the config raises ValueError."""
+async def test_nonexistent_model_raises_error_in_pipeline(joint_fixture: JointFixture):
+    """Ensure processing an AEMPack for a model not in the config raises ValueError."""
     config = await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
