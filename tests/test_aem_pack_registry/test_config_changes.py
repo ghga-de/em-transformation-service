@@ -50,28 +50,25 @@ class TestConfigChanges:
 
         # Derive all models first
         ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
-        claimed = await queue_and_claim(
+        unprocessed = await queue_and_claim(
             registry=registry,
             pack=ingress,
             service_instance_id=joint_fixture.config.service_instance_id,
         )
-        await process_pack(registry=registry, incoming=claimed, config=config)
+        await process_pack(registry=registry, incoming=unprocessed, config=config)
 
-        derived_v1 = await collect_derived_packs(
+        derived = await collect_derived_packs(
             aem_pack_dao=joint_fixture.daos.aem_pack_dao, original_id=aem_id
         )
-        assert len(derived_v1) == 3
+        assert len(derived) == 3
 
-        # Remove route DerivedModel2→DerivedModel3 from config (DerivedModel3 becomes unreachable)
-        route_to_remove = next(
-            route
-            for route in config.routes
-            if route.output_model_name == "DerivedModel3"
-        )
+        # Remove route DerivedModel2→DerivedModel3 from config
         new_config = PersistedConfig(
             models=[model for model in config.models if model.name != "DerivedModel3"],
             routes=[
-                route for route in config.routes if route.name != route_to_remove.name
+                route
+                for route in config.routes
+                if route.output_model_name != "DerivedModel3"
             ],
             workflows=config.workflows,
         )
