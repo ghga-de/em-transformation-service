@@ -15,6 +15,8 @@
 
 """Tests for queueing, claiming, and stale-doc recovery."""
 
+import asyncio
+import logging
 from datetime import timedelta
 from uuid import uuid4
 
@@ -122,7 +124,54 @@ async def test_stale_doc_can_be_reclaimed(joint_fixture: JointFixture, monkeypat
     assert claimed[0].id == ingress.id
 
 
-async def test_dirty_marker_discards_on_concurrent_update(joint_fixture: JointFixture):
+async def test_fresh_pack_claimed_on_first_query(
+    joint_fixture: JointFixture, monkeypatch
+):
+    """Ensure process_aem_packs claims a fresh (unprocessed) pack via the first query."""
+    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
+    ingress = make_ingress_pack("IngressModel")
+
+    await registry.queue_unprocessed(ingress)
+
+    claimed: list[UnprocessedAEMPack] = []
+
+    async def capture_and_stop(*, incoming, config):
+        claimed.append(incoming)
+        raise RuntimeError("STOP, testing time!")
+
+    monkeypatch.setattr(registry, "_process_next_aem_pack", capture_and_stop)
+
+    with pytest.raises(RuntimeError):
+        await registry.process_aem_packs()
+
+    assert len(claimed) == 1
+    assert claimed[0].id == ingress.id
+
+
+async def test_idle_path_logs_and_sleeps(
+    joint_fixture: JointFixture,
+    monkeypatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    """Ensure process_aem_packs logs and sleeps when no packs are queued."""
+    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
+
+    async def stop_on_sleep(*args, **kwargs):
+        raise RuntimeError("STOP, testing time!")
+
+    monkeypatch.setattr(asyncio, "sleep", stop_on_sleep)
+
+    with caplog.at_level(logging.INFO, logger="ets.core.aem_pack_registry"):
+        with pytest.raises(RuntimeError):
+            await registry.process_aem_packs()
+
+    assert any("No new AEM found" in record.message for record in caplog.records)
+
+
+async def test_dirty_marker_discards_on_concurrent_update(
+    joint_fixture: JointFixture,
+    caplog: pytest.LogCaptureFixture,
+):
     """Ensure queueing a new ingress AEM version while processing will discard results and not publish."""
     config = await populate_db_config(
         daos=joint_fixture.daos,
@@ -150,7 +199,9 @@ async def test_dirty_marker_discards_on_concurrent_update(joint_fixture: JointFi
     assert raw["processor"] == joint_fixture.config.dirty_marker
 
     # Process v1 — should detect dirty and discard results
-    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="ets.core.aem_pack_registry"):
+        await registry._process_next_aem_pack(incoming=unprocessed, config=config)
 
     # No derived packs published
     derived = [
@@ -167,3 +218,9 @@ async def test_dirty_marker_discards_on_concurrent_update(joint_fixture: JointFi
     assert raw["processor"] is None
     assert raw["started_processing_at"] is None
     assert raw["annotation"] == {}
+
+    # Discarding-changes warning logged
+    assert any(
+        "Discarding changes" in record.message and str(aem_id) in record.message
+        for record in caplog.records
+    )

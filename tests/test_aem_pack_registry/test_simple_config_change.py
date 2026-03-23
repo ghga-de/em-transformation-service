@@ -35,6 +35,7 @@ pytestmark = pytest.mark.asyncio
 
 async def test_unreachable_pack_deleted_after_route_removal(
     joint_fixture: JointFixture,
+    caplog: pytest.LogCaptureFixture,
 ):
     """Ensure removing a route causes previously derived packs to be deleted on re-processing."""
     config = await populate_db_config(
@@ -61,6 +62,9 @@ async def test_unreachable_pack_deleted_after_route_removal(
         )
     ]
     assert len(derived) == 3
+    deleted_pack_id = next(
+        pack.id for pack in derived if pack.model_name == "DerivedModel3"
+    )
 
     # Remove route DerivedModel2→DerivedModel3 from config
     new_config = PersistedConfig(
@@ -80,7 +84,9 @@ async def test_unreachable_pack_deleted_after_route_removal(
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await registry._process_next_aem_pack(incoming=unprocessed, config=new_config)
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="ets.core.aem_pack_registry"):
+        await registry._process_next_aem_pack(incoming=unprocessed, config=new_config)
 
     # DerivedModel3 deleted (unreachable), DerivedModel1 and DerivedModel2 remain
     derived = [
@@ -94,6 +100,13 @@ async def test_unreachable_pack_deleted_after_route_removal(
         "DerivedModel1",
         "DerivedModel2",
     }
+
+    # "no longer exists" warning logged for removed model
+    assert any(
+        "no longer exists in the config" in record.message
+        and str(deleted_pack_id) in record.message
+        for record in caplog.records
+    )
 
 
 async def test_orphaned_pack_cleaned_up_when_model_still_exists(
