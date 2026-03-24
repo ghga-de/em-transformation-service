@@ -120,6 +120,14 @@ class PruningResult:
                 workflows={"shared_workflow"},
             ),
         ),
+        (
+            PRUNING_CASES["emim_not_pruned"],
+            PruningResult(
+                models={"UnpublishedSource", "PublishedDerived", "UnpublishedEMIM"},
+                routes={"UnpublishedSource:workflow:PublishedDerived"},
+                workflows={"workflow"},
+            ),
+        ),
     ],
     ids=[
         "bifurcating_subgraph",
@@ -129,6 +137,7 @@ class PruningResult:
         "keep_referenced_workflow",
         "leaf_pruned",
         "shared_workflow_not_pruned",
+        "emim_not_pruned",
     ],
     indirect=["pruning_fixture"],
 )

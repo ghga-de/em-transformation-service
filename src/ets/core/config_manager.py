@@ -77,7 +77,11 @@ class ConfigManager(ConfigManagerPort):
         # Check which models need pruning by traversing in reverse topological order
         pruned_model_names: set[str] = set()
         for model in sorted(config.models, key=lambda model: model.order, reverse=True):
-            if not model.publish and not (downstream[model.name] - pruned_model_names):
+            if (
+                not model.is_ingress
+                and not model.publish
+                and not (downstream[model.name] - pruned_model_names)
+            ):
                 pruned_model_names.add(model.name)
 
         # Directly prune models from config as they are unique
