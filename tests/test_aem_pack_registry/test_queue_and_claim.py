@@ -25,7 +25,11 @@ import pytest
 from hexkit.utils import now_utc_ms_prec
 from schemapack.spec.datapack import DataPack
 
-from ets.core.aem_pack_registry import AEMPackRegistry
+from ets.core.aem_pack_registry import (
+    PROCESSOR_FIELD,
+    STARTED_AT_FIELD,
+    AEMPackRegistry,
+)
 from ets.core.models import IncomingAEMPack
 from tests.fixtures.aem_pack_registry import (
     TEST_DATAPACK,
@@ -221,5 +225,66 @@ async def test_dirty_marker_discards_on_concurrent_update(
     # Discarding-changes warning logged
     assert any(
         "Discarding changes" in record.message and str(aem_id) in record.message
+        for record in caplog.records
+    )
+
+
+async def test_reclaimed_by_other_instance_discards_without_update(
+    joint_fixture: JointFixture,
+    caplog: pytest.LogCaptureFixture,
+):
+    """Ensure processing discards results without modifying the doc when another instance has reclaimed it."""
+    config = await populate_db_config(
+        daos=joint_fixture.daos,
+        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+        publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
+    )
+    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
+    aem_id = uuid4()
+
+    # Queue and claim with our service instance
+    pack = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    unprocessed = await queue_and_claim(
+        registry=registry,
+        pack=pack,
+        service_instance_id=joint_fixture.config.service_instance_id,
+    )
+
+    # Simulate another instance reclaiming the document
+    other_instance_id = "other-service-instance-id"
+    await registry._unprocessed_aem_pack_collection.find_one_and_update(
+        {"_id": aem_id},
+        {
+            "$set": {
+                PROCESSOR_FIELD: other_instance_id,
+                STARTED_AT_FIELD: now_utc_ms_prec(),
+            }
+        },
+    )
+
+    # Process — should detect reclaim and discard results
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="ets.core.aem_pack_registry"):
+        await registry._process_next_aem_pack(incoming=unprocessed, config=config)
+
+    # No derived packs published
+    derived = [
+        aem_pack
+        async for aem_pack in joint_fixture.daos.aem_pack_dao.find_all(
+            mapping={"original_id": aem_id}
+        )
+    ]
+    assert len(derived) == 0
+
+    # Doc still owned by the other instance (processor field not touched)
+    raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
+    assert raw is not None
+    assert raw[PROCESSOR_FIELD] == other_instance_id
+
+    # Warning logged mentioning reclaim and the other instance ID
+    assert any(
+        "reclaimed" in record.message
+        and str(aem_id) in record.message
+        and other_instance_id in record.message
         for record in caplog.records
     )

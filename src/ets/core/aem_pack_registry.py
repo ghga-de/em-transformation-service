@@ -256,7 +256,6 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 log.info(f"Upserting derived AEM Pack {aem_pack.id}")
                 await self._aem_pack_dao.upsert(aem_pack)
 
-        # Mark the processed doc so the stale and fresh queries cannot re-claim it.
         # If a concurrent queue_unprocessed already changed processor, the filter won't match
         # and the update is a no-op, leaving the doc for reprocessing.
         await self._unprocessed_aem_pack_collection.find_one_and_update(
