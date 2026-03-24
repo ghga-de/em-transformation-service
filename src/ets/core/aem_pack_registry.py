@@ -219,18 +219,36 @@ class AEMPackRegistry(AEMPackRegistryPort):
                     await self._aem_pack_dao.delete(aem_pack_id)
 
             # check if an updated version of the original AEM might have arrived in the meantime
-            freed = await self._unprocessed_aem_pack_collection.find_one_and_update(
-                filter={
-                    "_id": incoming_aem.id,
-                    PROCESSOR_FIELD: self._config.dirty_marker,
-                },
-                update={"$set": {PROCESSOR_FIELD: None, STARTED_AT_FIELD: None}},
+            new_version = (
+                await self._unprocessed_aem_pack_collection.find_one_and_update(
+                    filter={
+                        "_id": incoming_aem.id,
+                        PROCESSOR_FIELD: self._config.dirty_marker,
+                    },
+                    update={"$set": {PROCESSOR_FIELD: None, STARTED_AT_FIELD: None}},
+                )
             )
-            if freed:
+            if new_version:
                 log.warning(
                     "A different version of the ingress AEM %s has been received"
                     " during processing. Discarding changes.",
                     incoming_aem.id,
+                )
+                return
+
+            # check if another service instance has reclaimed this AEM in the meantime
+            claimed_by_other = await self._unprocessed_aem_pack_collection.find_one(
+                {
+                    "_id": incoming_aem.id,
+                    PROCESSOR_FIELD: {"$ne": self._config.service_instance_id},
+                }
+            )
+            if claimed_by_other:
+                log.warning(
+                    "Ingress AEM %s has been reclaimed by another service instance (%s)"
+                    " during processing. Discarding changes.",
+                    incoming_aem.id,
+                    claimed_by_other[PROCESSOR_FIELD],
                 )
                 return
 
@@ -239,8 +257,8 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 await self._aem_pack_dao.upsert(aem_pack)
 
         # Mark the processed doc so the stale and fresh queries cannot re-claim it.
-        # If a concurrent queue_unprocessed already changed processor to dirty_marker,
-        # the filter won't match and the update is a no-op, leaving the doc for reprocessing.
+        # If a concurrent queue_unprocessed already changed processor, the filter won't match
+        # and the update is a no-op, leaving the doc for reprocessing.
         await self._unprocessed_aem_pack_collection.find_one_and_update(
             {
                 "_id": incoming_aem.id,
