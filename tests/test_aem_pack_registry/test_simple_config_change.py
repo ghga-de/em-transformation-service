@@ -53,7 +53,11 @@ async def test_unreachable_pack_deleted_after_route_removal(
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(
+        incoming_aem=unprocessed,
+        correlation_id=unprocessed.correlation_id,
+        config=config,
+    )
 
     derived = [
         pack
@@ -86,7 +90,11 @@ async def test_unreachable_pack_deleted_after_route_removal(
     )
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="ets.core.aem_pack_registry"):
-        await registry._process_next_aem_pack(incoming=unprocessed, config=new_config)
+        await registry._process_next_aem_pack(
+            incoming_aem=unprocessed,
+            correlation_id=unprocessed.correlation_id,
+            config=new_config,
+        )
 
     # DerivedModel3 deleted (unreachable), DerivedModel1 and DerivedModel2 remain
     derived = [
@@ -131,7 +139,11 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(
+        incoming_aem=unprocessed,
+        correlation_id=unprocessed.correlation_id,
+        config=config,
+    )
 
     derived = [
         pack
@@ -163,7 +175,11 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
     )
     caplog.clear()
     with caplog.at_level(logging.WARNING):
-        await registry._process_next_aem_pack(incoming=unprocessed, config=new_config)
+        await registry._process_next_aem_pack(
+            incoming_aem=unprocessed,
+            correlation_id=unprocessed.correlation_id,
+            config=new_config,
+        )
 
     # DerivedModel3 pack deleted, DerivedModel1 and DerivedModel2 remain
     derived = [

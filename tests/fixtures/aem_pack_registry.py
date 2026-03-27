@@ -20,14 +20,13 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from hexkit.utils import now_utc_ms_prec
+from hexkit.correlation import set_correlation_id
 from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
 from ets.core.aem_pack_registry import (
     PROCESSOR_FIELD,
-    STARTED_AT_FIELD,
     AEMPackRegistry,
 )
 from ets.core.model_derivation import ModelDeriver
@@ -169,15 +168,11 @@ async def queue_and_claim(
 
     Mirrors the claim step performed by process_aem_packs().
     """
-    await registry.queue_unprocessed(pack)
+    async with set_correlation_id(pack.correlation_id):
+        await registry.queue_unprocessed(pack)
     doc = await registry._unprocessed_aem_pack_collection.find_one_and_update(
         filter={"_id": pack.id, PROCESSOR_FIELD: None},
-        update={
-            "$set": {
-                PROCESSOR_FIELD: service_instance_id,
-                STARTED_AT_FIELD: now_utc_ms_prec(),
-            }
-        },
+        update={"$set": {PROCESSOR_FIELD: service_instance_id}},
         return_document=True,
     )
     assert doc is not None, f"Failed to claim unprocessed pack {pack.id}"

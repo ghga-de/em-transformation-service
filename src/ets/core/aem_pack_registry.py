@@ -17,22 +17,21 @@
 
 import asyncio
 import logging
-from datetime import timedelta
 from typing import Any
 from uuid import uuid4
 
-from hexkit.correlation import set_correlation_id
+from hexkit.correlation import get_correlation_id, set_correlation_id
 from hexkit.utils import now_utc_ms_prec
 from metldata import get_transformation_registry
 from metldata.transform.handling import TransformationHandler
 from pydantic import UUID4, BaseModel, ConfigDict
-from pymongo import ASCENDING, AsyncMongoClient
+from pymongo import AsyncMongoClient
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
 from ets.adapters.outbound.dao import UNPROCESSED_AEM_PACK_COLLECTION
 from ets.config import Config
-from ets.core.models import AEMPack, IncomingAEMPack, PersistedConfig, Workflow
+from ets.core.models import AEMPack, PersistedConfig, Workflow
 from ets.ports.inbound.aem_pack_registry import (
     AEMPackRegistryPort,
 )
@@ -42,9 +41,9 @@ from ets.ports.outbound.dao import AEMPackDao
 log = logging.getLogger(__name__)
 
 PROCESSOR_FIELD = "processor"
-STARTED_AT_FIELD = "started_processing_at"
 ORIGINAL_ID_FIELD = "original_id"
 PROCESSED_AT_FIELD = "processed_at"
+NEEDS_REPROCESSING_FIELD = "needs_reprocessing"
 
 
 class _AnnotationModel(BaseModel):
@@ -75,13 +74,11 @@ class AEMPackRegistry(AEMPackRegistryPort):
         ]
         self._transformation_registry = get_transformation_registry()
 
-    async def queue_unprocessed(self, aem_pack: IncomingAEMPack):
+    async def queue_unprocessed(self, aem_pack: AEMPack):
         """Fetch new AEMs via event subscriber and put them into the queue for processing."""
-        doc = aem_pack.model_dump(
-            mode="json",
-            exclude={"processor", "started_processing_at", "processed_at"},
-        )
+        doc = aem_pack.model_dump(mode="json")
         doc.pop("id")
+        doc["correlation_id"] = get_correlation_id()
 
         await self._unprocessed_aem_pack_collection.find_one_and_update(
             filter={"_id": aem_pack.id},
@@ -89,22 +86,17 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 {
                     "$set": {
                         **doc,
-                        # mark as dirty by setting placeholder processor
-                        # this will block processing until the current iteration
-                        # is finished and marks it as freed
+                        # Preserve the current processor so the in-flight instance can still
+                        # complete and mark the doc as done; it will be requeued via needs_reprocessing.
                         PROCESSOR_FIELD: {
                             "$cond": {
                                 "if": f"${PROCESSOR_FIELD}",
-                                "then": self._config.dirty_marker,
+                                "then": f"${PROCESSOR_FIELD}",
                                 "else": None,
                             }
                         },
-                        STARTED_AT_FIELD: {
-                            "$cond": {
-                                "if": f"${PROCESSOR_FIELD}",
-                                "then": now_utc_ms_prec(),
-                                "else": None,
-                            }
+                        NEEDS_REPROCESSING_FIELD: {
+                            "$ne": [f"${PROCESSOR_FIELD}", None]
                         },
                         PROCESSED_AT_FIELD: None,
                     }
@@ -118,50 +110,56 @@ class AEMPackRegistry(AEMPackRegistryPort):
         config = await self._config_loader.load_config_from_db()
 
         while True:
-            # Try to fetch fresh AEM first
-            unprocessed_aem_pack = (
-                await self._unprocessed_aem_pack_collection.find_one_and_update(
-                    filter={
-                        ORIGINAL_ID_FIELD: None,
-                        PROCESSOR_FIELD: None,
-                        PROCESSED_AT_FIELD: None,
-                    },
-                    update={
-                        "$set": {
-                            PROCESSOR_FIELD: self._config.service_instance_id,
-                            STARTED_AT_FIELD: now_utc_ms_prec(),
-                        }
-                    },
-                    return_document=True,
-                )
+            # Check for packs abandoned by a previous crash of this instance
+            unprocessed_aem_pack = await self._unprocessed_aem_pack_collection.find_one(
+                {
+                    PROCESSOR_FIELD: self._config.service_instance_id,
+                    PROCESSED_AT_FIELD: None,
+                }
             )
             if not unprocessed_aem_pack:
-                # No fresh AEMs left, see if a stale one can be grabbed, get the oldest one first in that case
+                # No abandoned packs, claim a fresh one
+                unprocessed_aem_pack = (
+                    await self._unprocessed_aem_pack_collection.find_one_and_update(
+                        filter={PROCESSOR_FIELD: None, PROCESSED_AT_FIELD: None},
+                        update={
+                            "$set": {PROCESSOR_FIELD: self._config.service_instance_id}
+                        },
+                        return_document=True,
+                    )
+                )
+            if not unprocessed_aem_pack:
+                # Check for already-processed packs that received a new version while in flight
                 unprocessed_aem_pack = (
                     await self._unprocessed_aem_pack_collection.find_one_and_update(
                         filter={
-                            ORIGINAL_ID_FIELD: None,
-                            STARTED_AT_FIELD: {
-                                "$lt": now_utc_ms_prec()
-                                - timedelta(seconds=self._config.stale_after)
-                            },
-                            PROCESSED_AT_FIELD: None,
+                            PROCESSED_AT_FIELD: {"$ne": None},
+                            NEEDS_REPROCESSING_FIELD: True,
                         },
                         update={
                             "$set": {
                                 PROCESSOR_FIELD: self._config.service_instance_id,
-                                STARTED_AT_FIELD: now_utc_ms_prec(),
+                                PROCESSED_AT_FIELD: None,
+                                NEEDS_REPROCESSING_FIELD: False,
                             }
                         },
-                        sort=[(STARTED_AT_FIELD, ASCENDING)],
                         return_document=True,
                     )
                 )
 
             if unprocessed_aem_pack:
                 unprocessed_aem_pack["id"] = unprocessed_aem_pack.pop("_id")
+                unprocessed_aem_pack.pop("processor")
+                unprocessed_aem_pack.pop("processed_at")
+                unprocessed_aem_pack.pop(NEEDS_REPROCESSING_FIELD, None)
+                correlation_id = unprocessed_aem_pack.pop("correlation_id")
+
+                incoming_aem = AEMPack(**unprocessed_aem_pack)
+
                 await self._process_next_aem_pack(
-                    incoming=IncomingAEMPack(**unprocessed_aem_pack), config=config
+                    incoming_aem=incoming_aem,
+                    correlation_id=correlation_id,
+                    config=config,
                 )
             else:
                 log.info(
@@ -170,20 +168,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 await asyncio.sleep(self._config.sleep_for)
 
     async def _process_next_aem_pack(
-        self, *, incoming: IncomingAEMPack, config: PersistedConfig
+        self, *, incoming_aem: AEMPack, correlation_id: UUID4, config: PersistedConfig
     ):
         """Perform transformation on the whole subgraph matching the incoming AEMs ingress model."""
-        # Convert to normal AEMPack to be type consistent within _traverse_graph
-        incoming_aem = AEMPack(
-            **incoming.model_dump(
-                exclude={
-                    "processor",
-                    "started_processing_at",
-                    "correlation_id",
-                    "processed_at",
-                }
-            )
-        )
         dirty_map = {
             aem_pack.model_name: aem_pack.id
             async for aem_pack in self._aem_pack_dao.find_all(
@@ -199,7 +186,17 @@ class AEMPackRegistry(AEMPackRegistryPort):
             config=config,
         )
 
-        async with set_correlation_id(incoming.correlation_id):
+        await self._unprocessed_aem_pack_collection.update_one(
+            {"_id": incoming_aem.id},
+            {
+                "$set": {
+                    PROCESSOR_FIELD: None,
+                    PROCESSED_AT_FIELD: now_utc_ms_prec(),
+                }
+            },
+        )
+
+        async with set_correlation_id(correlation_id):
             if dirty_map:
                 # Check if there are corresponding models remaining or if they have been removed from the config.
 
@@ -218,59 +215,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                         )
                     await self._aem_pack_dao.delete(aem_pack_id)
 
-            # check if an updated version of the original AEM might have arrived in the meantime
-            new_version = (
-                await self._unprocessed_aem_pack_collection.find_one_and_update(
-                    filter={
-                        "_id": incoming_aem.id,
-                        PROCESSOR_FIELD: self._config.dirty_marker,
-                    },
-                    update={"$set": {PROCESSOR_FIELD: None, STARTED_AT_FIELD: None}},
-                )
-            )
-            if new_version:
-                log.warning(
-                    "A different version of the ingress AEM %s has been received"
-                    " during processing. Discarding changes.",
-                    incoming_aem.id,
-                )
-                return
-
-            # check if another service instance has reclaimed this AEM in the meantime
-            claimed_by_other = await self._unprocessed_aem_pack_collection.find_one(
-                {
-                    "_id": incoming_aem.id,
-                    PROCESSOR_FIELD: {"$ne": self._config.service_instance_id},
-                }
-            )
-            if claimed_by_other:
-                log.warning(
-                    "Ingress AEM %s has been reclaimed by another service instance (%s)"
-                    " during processing. Discarding changes.",
-                    incoming_aem.id,
-                    claimed_by_other[PROCESSOR_FIELD],
-                )
-                return
-
             for aem_pack in aem_packs_to_publish:
                 log.info(f"Upserting derived AEM Pack {aem_pack.id}")
                 await self._aem_pack_dao.upsert(aem_pack)
-
-        # If a concurrent queue_unprocessed already changed processor, the filter won't match
-        # and the update is a no-op, leaving the doc for reprocessing.
-        await self._unprocessed_aem_pack_collection.find_one_and_update(
-            {
-                "_id": incoming_aem.id,
-                PROCESSOR_FIELD: self._config.service_instance_id,
-            },
-            {
-                "$set": {
-                    PROCESSOR_FIELD: None,
-                    STARTED_AT_FIELD: None,
-                    PROCESSED_AT_FIELD: now_utc_ms_prec(),
-                }
-            },
-        )
 
     def _traverse_graph(
         self,

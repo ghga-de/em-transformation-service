@@ -298,12 +298,12 @@ class IncomingAEMPack(AEMPack):
         default=None,
         description="ID of the service instance that is currently processing this AEMPack.",
     )
-    started_processing_at: datetime | None = Field(
-        default=None,
-        description="When processing was started. Needed to free stale claimed objects.",
-    )
     processed_at: datetime | None = Field(
         default=None,
         description="When this AEMPack was successfully processed. None if not yet processed.",
+    )
+    needs_reprocessing: bool = Field(
+        default=False,
+        description="Set to True when a new version of this AEMPack arrives while it is being processed, signalling that reprocessing is required after the current run completes.",
     )
     model_config = ConfigDict(frozen=True)

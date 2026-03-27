@@ -49,7 +49,11 @@ async def test_chained_routes(joint_fixture: JointFixture):
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(
+        incoming_aem=unprocessed,
+        correlation_id=unprocessed.correlation_id,
+        config=config,
+    )
 
     derived_and_published = [
         pack
@@ -84,7 +88,11 @@ async def test_forking_graph(joint_fixture: JointFixture):
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(
+        incoming_aem=unprocessed,
+        correlation_id=unprocessed.correlation_id,
+        config=config,
+    )
 
     derived_and_published = [
         pack
@@ -119,7 +127,11 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(
+        incoming_aem=unprocessed,
+        correlation_id=unprocessed.correlation_id,
+        config=config,
+    )
 
     derived_and_published = [
         pack
@@ -165,7 +177,11 @@ async def test_ingress_with_no_routes(joint_fixture: JointFixture):
         pack=ingress,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await registry._process_next_aem_pack(incoming=unprocessed, config=config)
+    await registry._process_next_aem_pack(
+        incoming_aem=unprocessed,
+        correlation_id=unprocessed.correlation_id,
+        config=config,
+    )
 
     # The ingress itself is published (publish=True) but has original_id=None,
     # so it won't appear in a derived-pack query. Verify via get_by_id instead.
@@ -197,14 +213,18 @@ async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):
         pack=ingress_1,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await registry._process_next_aem_pack(incoming=claimed_1, config=config)
+    await registry._process_next_aem_pack(
+        incoming_aem=claimed_1, correlation_id=claimed_1.correlation_id, config=config
+    )
 
     claimed_2 = await queue_and_claim(
         registry=registry,
         pack=ingress_2,
         service_instance_id=joint_fixture.config.service_instance_id,
     )
-    await registry._process_next_aem_pack(incoming=claimed_2, config=config)
+    await registry._process_next_aem_pack(
+        incoming_aem=claimed_2, correlation_id=claimed_2.correlation_id, config=config
+    )
 
     derived_1 = [
         pack
@@ -259,7 +279,11 @@ async def test_correlation_id_propagated_to_derived_packs(joint_fixture: JointFi
     async with joint_fixture.kafka.record_events(
         in_topic=joint_fixture.config.derived_aem_pack_topic, capture_headers=True
     ) as recorder:
-        await registry._process_next_aem_pack(incoming=unprocessed, config=config)
+        await registry._process_next_aem_pack(
+            incoming_aem=unprocessed,
+            correlation_id=unprocessed.correlation_id,
+            config=config,
+        )
 
     events = recorder.recorded_events
     assert len(events) == 3  # All 3 derived models published

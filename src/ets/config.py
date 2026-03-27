@@ -16,9 +16,7 @@
 """Config Parameter Modeling and Parsing."""
 
 from pathlib import Path
-from typing import Annotated
 
-from annotated_types import MinLen
 from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
 from hexkit.providers.mongokafka import MongoKafkaConfig
@@ -43,15 +41,7 @@ class Config(
         default=...,
         description="Path to the transformation config file used to populate the database.",
     )
-    dirty_marker: Annotated[str, MinLen(1)] = Field(
-        default="ingress",
-        description="Placeholder processor name used to mark dirty AEM packs during ingress.",
-    )
     sleep_for: int = Field(
         default=60,
         description="Seconds to sleep when no unprocessed AEM packs are found.",
-    )
-    stale_after: int = Field(
-        default=120,
-        description="Seconds after which an unprocessed AEM pack is considered stale.",
     )

@@ -17,12 +17,11 @@
 
 import logging
 
-from hexkit.correlation import get_correlation_id
 from hexkit.protocols.daosub import DaoSubscriberProtocol
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-from ets.core.models import AEMPack, IncomingAEMPack
+from ets.core.models import AEMPack
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 
 log = logging.getLogger(__name__)
@@ -57,10 +56,7 @@ class EventSubTranslator(DaoSubscriberProtocol):
 
     async def changed(self, resource_id: str, update: AEMPack) -> None:
         """Consume a change event (created or updated) for the AEMPack."""
-        unprocessed = IncomingAEMPack(
-            **update.model_dump(), correlation_id=get_correlation_id()
-        )
-        await self._aem_pack_registry.queue_unprocessed(unprocessed)
+        await self._aem_pack_registry.queue_unprocessed(update)
 
     async def deleted(self, resource_id: str) -> None:
         """Consume a deletion event for an AEMPack."""

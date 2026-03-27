@@ -17,17 +17,15 @@
 
 import asyncio
 import logging
-from datetime import timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
-from hexkit.utils import now_utc_ms_prec
+from hexkit.correlation import set_correlation_id
 from schemapack.spec.datapack import DataPack
 
 from ets.core.aem_pack_registry import (
     PROCESSOR_FIELD,
-    STARTED_AT_FIELD,
     AEMPackRegistry,
 )
 from ets.core.models import IncomingAEMPack
@@ -57,14 +55,14 @@ async def test_queue_creates_correct_document(joint_fixture: JointFixture):
         correlation_id=expected_correlation_id,
     )
 
-    await registry.queue_unprocessed(aem_pack)
+    async with set_correlation_id(expected_correlation_id):
+        await registry.queue_unprocessed(aem_pack)
 
     raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
     assert raw is not None
     assert raw["model_name"] == "TestModel"
     assert raw["annotation"] == {}
     assert raw["processor"] is None
-    assert raw["started_processing_at"] is None
     assert raw["processed_at"] is None
     assert str(raw["correlation_id"]) == str(expected_correlation_id)
     assert DataPack.model_validate(raw["data"]) == TEST_DATAPACK
@@ -78,15 +76,16 @@ async def test_double_queue_before_processing_stays_claimable(
     aem_id = uuid4()
 
     pack_v1 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
-    await registry.queue_unprocessed(pack_v1)
+    async with set_correlation_id(pack_v1.correlation_id):
+        await registry.queue_unprocessed(pack_v1)
 
     pack_v2 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
-    await registry.queue_unprocessed(pack_v2)
+    async with set_correlation_id(pack_v2.correlation_id):
+        await registry.queue_unprocessed(pack_v2)
 
     raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
     assert raw is not None
     assert raw["processor"] is None
-    assert raw["started_processing_at"] is None
     assert raw["processed_at"] is None
     assert raw["annotation"] == {}
 
@@ -96,30 +95,23 @@ async def test_double_queue_before_processing_stays_claimable(
     assert count == 1
 
 
-async def test_stale_doc_can_be_reclaimed(joint_fixture: JointFixture):
-    """Ensure a doc stuck with a dead processor beyond stale_after can be reclaimed."""
+async def test_abandoned_pack_reclaimed_by_same_instance(joint_fixture: JointFixture):
+    """Ensure process_aem_packs reclaims a pack left claimed by a previous crash of this instance."""
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     ingress = make_ingress_pack("IngressModel")
 
-    await registry.queue_unprocessed(ingress)
-    stale_time = now_utc_ms_prec() - timedelta(
-        seconds=joint_fixture.config.stale_after + 10
-    )
+    async with set_correlation_id(ingress.correlation_id):
+        await registry.queue_unprocessed(ingress)
+    # Simulate a previous crash: the doc is already claimed by this instance
     await registry._unprocessed_aem_pack_collection.update_one(
         {"_id": ingress.id},
-        {
-            "$set": {
-                "processor": "dead_instance",
-                "started_processing_at": stale_time,
-            }
-        },
+        {"$set": {PROCESSOR_FIELD: joint_fixture.config.service_instance_id}},
     )
 
-    # Check the stale pack is passed by intercepting the call and skipping processing
     claimed: list[IncomingAEMPack] = []
 
-    async def capture_and_stop(*, incoming, config):
-        claimed.append(incoming)
+    async def capture_and_stop(*, incoming_aem, correlation_id, config):
+        claimed.append(incoming_aem)
         raise RuntimeError("STOP, testing time!")
 
     with (
@@ -137,12 +129,13 @@ async def test_fresh_pack_claimed_on_first_query(joint_fixture: JointFixture):
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     ingress = make_ingress_pack("IngressModel")
 
-    await registry.queue_unprocessed(ingress)
+    async with set_correlation_id(ingress.correlation_id):
+        await registry.queue_unprocessed(ingress)
 
     claimed: list[IncomingAEMPack] = []
 
-    async def capture_and_stop(*, incoming, config):
-        claimed.append(incoming)
+    async def capture_and_stop(*, incoming_aem, correlation_id, config):
+        claimed.append(incoming_aem)
         raise RuntimeError("STOP, testing time!")
 
     with (
@@ -171,11 +164,10 @@ async def test_idle_path_logs_and_sleeps(
     assert any("No new AEM found" in record.message for record in caplog.records)
 
 
-async def test_dirty_marker_discards_on_concurrent_update(
+async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
     joint_fixture: JointFixture,
-    caplog: pytest.LogCaptureFixture,
 ):
-    """Ensure queueing a new ingress AEM version while processing will discard results and not publish."""
+    """Ensure processing publishes results even when a new version was queued concurrently, and leaves the doc for reprocessing."""
     config = await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
@@ -194,97 +186,33 @@ async def test_dirty_marker_discards_on_concurrent_update(
 
     # Simulate concurrent update: queue v2 with same ID while v1 is claimed
     pack_v2 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
-    await registry.queue_unprocessed(pack_v2)
+    async with set_correlation_id(pack_v2.correlation_id):
+        await registry.queue_unprocessed(pack_v2)
 
-    # Verify dirty marker was set
+    # Processor is preserved so in-flight instance can complete; needs_reprocessing signals v2 is pending
     raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
     assert raw is not None
-    assert raw["processor"] == joint_fixture.config.dirty_marker
+    assert raw["processor"] == joint_fixture.config.service_instance_id
+    assert raw["needs_reprocessing"] is True
 
-    # Process v1 — should detect dirty and discard results
-    caplog.clear()
-    with caplog.at_level(logging.WARNING, logger="ets.core.aem_pack_registry"):
-        await registry._process_next_aem_pack(incoming=unprocessed, config=config)
+    # Process v1 — should still publish
+    await registry._process_next_aem_pack(
+        incoming_aem=unprocessed,
+        correlation_id=unprocessed.correlation_id,
+        config=config,
+    )
 
-    # No derived packs published
     derived = [
         pack
         async for pack in joint_fixture.daos.aem_pack_dao.find_all(
             mapping={"original_id": aem_id}
         )
     ]
-    assert len(derived) == 0
+    assert len(derived) == 3
 
-    # Doc freed for reprocessing with v2's data
+    # Doc flagged for reprocessing: processor released, processed_at stamped, needs_reprocessing still True
     raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
     assert raw is not None
     assert raw["processor"] is None
-    assert raw["started_processing_at"] is None
-    assert raw["annotation"] == {}
-
-    # Discarding-changes warning logged
-    assert any(
-        "Discarding changes" in record.message and str(aem_id) in record.message
-        for record in caplog.records
-    )
-
-
-async def test_reclaimed_by_other_instance_discards_without_update(
-    joint_fixture: JointFixture,
-    caplog: pytest.LogCaptureFixture,
-):
-    """Ensure processing discards results without modifying the doc when another instance has reclaimed it."""
-    config = await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
-        publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
-    )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
-    aem_id = uuid4()
-
-    # Queue and claim with our service instance
-    pack = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
-    unprocessed = await queue_and_claim(
-        registry=registry,
-        pack=pack,
-        service_instance_id=joint_fixture.config.service_instance_id,
-    )
-
-    # Simulate another instance reclaiming the document
-    other_instance_id = "other-service-instance-id"
-    await registry._unprocessed_aem_pack_collection.find_one_and_update(
-        {"_id": aem_id},
-        {
-            "$set": {
-                PROCESSOR_FIELD: other_instance_id,
-                STARTED_AT_FIELD: now_utc_ms_prec(),
-            }
-        },
-    )
-
-    # Process — should detect reclaim and discard results
-    caplog.clear()
-    with caplog.at_level(logging.WARNING, logger="ets.core.aem_pack_registry"):
-        await registry._process_next_aem_pack(incoming=unprocessed, config=config)
-
-    # No derived packs published
-    derived = [
-        aem_pack
-        async for aem_pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": aem_id}
-        )
-    ]
-    assert len(derived) == 0
-
-    # Doc still owned by the other instance (processor field not touched)
-    raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": aem_id})
-    assert raw is not None
-    assert raw[PROCESSOR_FIELD] == other_instance_id
-
-    # Warning logged mentioning reclaim and the other instance ID
-    assert any(
-        "reclaimed" in record.message
-        and str(aem_id) in record.message
-        and other_instance_id in record.message
-        for record in caplog.records
-    )
+    assert raw["processed_at"] is not None
+    assert raw["needs_reprocessing"] is True
