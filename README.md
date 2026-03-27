@@ -247,9 +247,7 @@ The service requires the following configuration parameters:
 
 - <a id="properties/log_traceback"></a>**`log_traceback`** *(boolean)*: Whether to include exception tracebacks in log messages. Default: `true`.
 - <a id="properties/input_config_path"></a>**`input_config_path`** *(string, format: path, required)*: Path to the transformation config file used to populate the database.
-- <a id="properties/dirty_marker"></a>**`dirty_marker`** *(string)*: Placeholder processor name used to mark dirty AEM packs during ingress. Length must be at least 1. Default: `"ingress"`.
 - <a id="properties/sleep_for"></a>**`sleep_for`** *(integer)*: Seconds to sleep when no unprocessed AEM packs are found. Default: `60`.
-- <a id="properties/stale_after"></a>**`stale_after`** *(integer)*: Seconds after which an unprocessed AEM pack is considered stale. Default: `120`.
 
 ### Usage:
 

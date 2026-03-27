@@ -255,23 +255,10 @@
       "title": "Input Config Path",
       "type": "string"
     },
-    "dirty_marker": {
-      "default": "ingress",
-      "description": "Placeholder processor name used to mark dirty AEM packs during ingress.",
-      "minLength": 1,
-      "title": "Dirty Marker",
-      "type": "string"
-    },
     "sleep_for": {
       "default": 60,
       "description": "Seconds to sleep when no unprocessed AEM packs are found.",
       "title": "Sleep For",
-      "type": "integer"
-    },
-    "stale_after": {
-      "default": 120,
-      "description": "Seconds after which an unprocessed AEM pack is considered stale.",
-      "title": "Stale After",
       "type": "integer"
     }
   },

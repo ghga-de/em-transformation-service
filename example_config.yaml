@@ -1,6 +1,5 @@
 db_name: dev
 derived_aem_pack_topic: derived-aems
-dirty_marker: ingress
 generate_correlation_id: true
 input_config_path: input_dummy.yaml
 kafka_compression_type: null
@@ -25,4 +24,3 @@ original_aem_pack_topic: original-aems
 service_instance_id: '1'
 service_name: ets
 sleep_for: 60
-stale_after: 120
