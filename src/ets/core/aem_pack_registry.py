@@ -41,7 +41,6 @@ from ets.ports.outbound.dao import AEMPackDao
 log = logging.getLogger(__name__)
 
 PROCESSOR_FIELD = "processor"
-ORIGINAL_ID_FIELD = "original_id"
 PROCESSED_AT_FIELD = "processed_at"
 NEEDS_REPROCESSING_FIELD = "needs_reprocessing"
 
@@ -118,7 +117,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 }
             )
             if not unprocessed_aem_pack:
-                # No abandoned packs, claim a fresh one
+                # No abandoned packs; try to claim a fresh one
                 unprocessed_aem_pack = (
                     await self._unprocessed_aem_pack_collection.find_one_and_update(
                         filter={PROCESSOR_FIELD: None, PROCESSED_AT_FIELD: None},
@@ -149,8 +148,8 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
             if unprocessed_aem_pack:
                 unprocessed_aem_pack["id"] = unprocessed_aem_pack.pop("_id")
-                unprocessed_aem_pack.pop("processor")
-                unprocessed_aem_pack.pop("processed_at")
+                unprocessed_aem_pack.pop(PROCESSOR_FIELD)
+                unprocessed_aem_pack.pop(PROCESSED_AT_FIELD)
                 unprocessed_aem_pack.pop(NEEDS_REPROCESSING_FIELD, None)
                 correlation_id = unprocessed_aem_pack.pop("correlation_id")
 
@@ -232,6 +231,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
         models_by_name = {model.name: model for model in config.models}
         model_order = {model.name: model.order for model in config.models}
         workflows_by_name = {workflow.name: workflow for workflow in config.workflows}
+        routes_by_input: dict[str, list] = {}
+        for route in config.routes:
+            routes_by_input.setdefault(route.input_model_name, []).append(route)
 
         if not models_by_name.get(incoming.model_name):
             # Needs DLQ setup
@@ -250,7 +252,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 aem_packs_to_publish.append(current_aem_pack)
 
             current_routes = sorted(
-                [r for r in config.routes if r.input_model_name == current_model_name],
+                routes_by_input[current_model_name],
                 key=lambda r: model_order[r.output_model_name],
             )
             for route in current_routes:

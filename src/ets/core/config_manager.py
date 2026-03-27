@@ -51,11 +51,11 @@ class ConfigManager(ConfigManagerPort):
             case RawConfig() as raw_config:
                 # validate new config
                 config = self.validator.validate(raw_config)
-                return self._prune_unpublished_leaves(config)
+                return self._prune_unproductive_subgraph(config)
             case PersistedConfig() as persisted_config:
                 return persisted_config
 
-    def _prune_unpublished_leaves(self, config: ValidatedConfig) -> ValidatedConfig:
+    def _prune_unproductive_subgraph(self, config: ValidatedConfig) -> ValidatedConfig:
         """Remove unpublished trailing models, along with their associated routes and orphaned workflows.
 
         Traverses models in reverse order, pruning any that appear after the last published

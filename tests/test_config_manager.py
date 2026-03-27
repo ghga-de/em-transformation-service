@@ -138,7 +138,7 @@ def test_prune_unpublished_leaves(
     expected: PruningResult,
 ):
     """Confirm _prune_unpublished_leaves retains the correct models, routes, and workflows."""
-    result = manager._prune_unpublished_leaves(pruning_fixture)
+    result = manager._prune_unproductive_subgraph(pruning_fixture)
     assert {m.name for m in result.models} == expected.models
     assert {r.name for r in result.routes} == expected.routes
     assert {w.name for w in result.workflows} == expected.workflows
@@ -160,4 +160,4 @@ def test_prune_unpublished_leaves_raises(
 ):
     """Confirm _prune_unpublished_leaves raises when pruning leaves results in any empty config field."""
     with pytest.raises(ConfigValidationError):
-        manager._prune_unpublished_leaves(pruning_fixture)
+        manager._prune_unproductive_subgraph(pruning_fixture)
