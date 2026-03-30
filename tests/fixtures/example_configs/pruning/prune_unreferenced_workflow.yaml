@@ -1,0 +1,58 @@
+# Cascading leaf pruning removes UnpublishedLeaf first, then UnpublishedDerived; all
+# routes reference pruned output models and are removed, raising a ConfigValidationError.
+#
+# Graph:
+#     PublishedSource --[workflow]--> UnpublishedDerived --[workflow]--> UnpublishedLeaf
+
+config:
+  models:
+    - name: PublishedSource
+      order: 0
+      publish: true
+      is_ingress: true
+      version: null
+      schema_:
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+    - name: UnpublishedDerived
+      order: 1
+      publish: false
+      is_ingress: false
+      version: null
+      schema_: null
+    - name: UnpublishedLeaf
+      order: 2
+      publish: false
+      is_ingress: false
+      version: null
+      schema_: null
+  routes:
+    - input_model_name: PublishedSource
+      workflow_name: workflow
+      output_model_name: UnpublishedDerived
+    - input_model_name: UnpublishedDerived
+      workflow_name: workflow
+      output_model_name: UnpublishedLeaf
+  workflows:
+    - name: workflow
+      description: Passes content schema through unchanged
+      workflow:
+        operations:
+          - name: transform_content
+            description: Identity transformation
+            args:
+              class_name: Item
+              content_schema:
+                type: object
+                additionalProperties: false
+              embedding_profile: {}
+              content_template_yaml: |
+                {% for key in content_property_names %}
+                  {{ key }}: {{ original[key] }}
+                {% endfor %}

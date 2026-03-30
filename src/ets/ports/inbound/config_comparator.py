@@ -26,6 +26,11 @@ class ComparisonMismatchError(RuntimeError):
 class ConfigComparatorPort(ABC):
     """Manages the comparison of the old and the new config."""
 
+    @property
+    @abstractmethod
+    def persisted_config(self) -> PersistedConfig:
+        """Return the persisted config with sorted collections."""
+
     @abstractmethod
     def compare_configs(
         self,
