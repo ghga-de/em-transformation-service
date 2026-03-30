@@ -1,0 +1,66 @@
+# All routes target unpublished non-ingress models and are pruned; ingress sources
+# survive model pruning but empty routes raise a ConfigValidationError.
+#
+# Subgraph 1:
+#     UnpublishedSource --[workflow]--> UnpublishedLeaf
+#
+# Subgraph 2:
+#     UnpublishedSource_2
+
+config:
+  models:
+    - name: UnpublishedSource
+      order: 0
+      publish: false
+      is_ingress: true
+      version: null
+      schema_:
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+    - name: UnpublishedLeaf
+      order: 1
+      publish: false
+      is_ingress: false
+      version: null
+      schema_: null
+    - name: UnpublishedSource_2
+      order: 2
+      publish: false
+      is_ingress: true
+      version: null
+      schema_:
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+  routes:
+    - input_model_name: UnpublishedSource
+      workflow_name: workflow
+      output_model_name: UnpublishedLeaf
+  workflows:
+    - name: workflow
+      description: Passes content schema through unchanged
+      workflow:
+        operations:
+          - name: transform_content
+            description: Identity transformation
+            args:
+              class_name: Item
+              content_schema:
+                type: object
+                additionalProperties: false
+              embedding_profile: {}
+              content_template_yaml: |
+                {% for key in content_property_names %}
+                  {{ key }}: {{ original[key] }}
+                {% endfor %}

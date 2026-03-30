@@ -1,0 +1,77 @@
+# One source fans out to three outputs; the unpublished branch and leaf are pruned.
+#
+# Graph:
+#     PublishedSource --[workflow]--> PublishedBranch1
+#     PublishedSource --[workflow]--> PublishedBranch2
+#     PublishedSource --[workflow]--> UnpublishedMid --[workflow]--> UnpublishedLeaf
+
+config:
+  models:
+    - name: PublishedSource
+      order: 0
+      publish: true
+      is_ingress: true
+      version: null
+      schema_:
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+    - name: PublishedBranch1
+      order: 1
+      publish: true
+      is_ingress: false
+      version: null
+      schema_: null
+    - name: PublishedBranch2
+      order: 2
+      publish: true
+      is_ingress: false
+      version: null
+      schema_: null
+    - name: UnpublishedMid
+      order: 3
+      publish: false
+      is_ingress: false
+      version: null
+      schema_: null
+    - name: UnpublishedLeaf
+      order: 4
+      publish: false
+      is_ingress: false
+      version: null
+      schema_: null
+  routes:
+    - input_model_name: PublishedSource
+      workflow_name: workflow
+      output_model_name: PublishedBranch1
+    - input_model_name: PublishedSource
+      workflow_name: workflow
+      output_model_name: PublishedBranch2
+    - input_model_name: PublishedSource
+      workflow_name: workflow
+      output_model_name: UnpublishedMid
+    - input_model_name: UnpublishedMid
+      workflow_name: workflow
+      output_model_name: UnpublishedLeaf
+  workflows:
+    - name: workflow
+      description: Passes content schema through unchanged
+      workflow:
+        operations:
+          - name: transform_content
+            description: Identity transformation
+            args:
+              class_name: Item
+              content_schema:
+                type: object
+                additionalProperties: false
+              embedding_profile: {}
+              content_template_yaml: |
+                {% for key in content_property_names %}
+                  {{ key }}: {{ original[key] }}
+                {% endfor %}

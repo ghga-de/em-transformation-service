@@ -33,6 +33,7 @@ class ConfigManagerPort(ABC):
 
         This includes:
         - Comparing raw config with the persisted config
-        - If they differ, validate the raw config and return it for further processing
         - If they are the same, return the persisted config
+        - If they differ, validate the raw config, prune unproductive subgraphs and return it
+        - If validation fails, fall back to the persisted config
         """
