@@ -36,20 +36,26 @@ class ConfigComparator(ConfigComparatorPort):
     """Compares new config with the persisted one to detect changes."""
 
     def __init__(self, raw_config: RawConfig, persisted_config: PersistedConfig):
-        self._raw_config = RawConfig(
-            models=sorted(raw_config.models, key=lambda m: m.name),
-            routes=sorted(raw_config.routes, key=lambda r: r.name),
-            workflows=sorted(raw_config.workflows, key=lambda w: w.name),
+        self._raw_config = raw_config.model_copy(
+            update={
+                "models": sorted(raw_config.models, key=lambda m: m.name),
+                "routes": sorted(raw_config.routes, key=lambda r: r.name),
+                "workflows": sorted(raw_config.workflows, key=lambda w: w.name),
+            }
         )
         self._persisted_config = persisted_config
 
     @cached_property
     def persisted_config(self) -> PersistedConfig:
         """Return the persisted config with sorted collections."""
-        return PersistedConfig(
-            models=sorted(self._persisted_config.models, key=lambda m: m.name),
-            routes=sorted(self._persisted_config.routes, key=lambda r: r.name),
-            workflows=sorted(self._persisted_config.workflows, key=lambda w: w.name),
+        return self._persisted_config.model_copy(
+            update={
+                "models": sorted(self._persisted_config.models, key=lambda m: m.name),
+                "routes": sorted(self._persisted_config.routes, key=lambda r: r.name),
+                "workflows": sorted(
+                    self._persisted_config.workflows, key=lambda w: w.name
+                ),
+            }
         )
 
     def compare_configs(self) -> PersistedConfig | RawConfig:
