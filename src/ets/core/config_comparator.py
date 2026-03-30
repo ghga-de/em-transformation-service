@@ -113,16 +113,16 @@ class ConfigComparator(ConfigComparatorPort):
         new = self._raw_config.routes
         old = self.persisted_config.routes
         if len(new) != len(old):
-            raise ComparisonMismatchError("Different amount of config entities.")
+            raise ComparisonMismatchError("Different amount of routes.")
         for n, o in zip(new, old, strict=True):
             if n != o:
-                raise ComparisonMismatchError(f"Mismatching config entity: {n.name}.")
+                raise ComparisonMismatchError(f"Mismatching route: {n.name}.")
 
     def _compare_workflows(self):
         new = self._raw_config.workflows
         old = self.persisted_config.workflows
         if len(new) != len(old):
-            raise ComparisonMismatchError("Different amount of config entities.")
+            raise ComparisonMismatchError("Different amount of workflows.")
         for n, o in zip(new, old, strict=True):
             if n != o:
-                raise ComparisonMismatchError(f"Mismatching config entity: {n.name}.")
+                raise ComparisonMismatchError(f"Mismatching workflow: {n.name}.")

@@ -59,8 +59,6 @@ def _prune_models(config: ValidatedConfig) -> set[str]:
     config.models = [m for m in config.models if m.name not in pruned_model_names]
     for name in pruned_model_names:
         log.warning("Pruned unpublished model: %s", name)
-    if not config.models:
-        raise ConfigValidationError("All models were pruned from the config.")
 
     return pruned_model_names
 
