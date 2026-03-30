@@ -16,16 +16,13 @@
 """Contains functionality to compare transformation configs."""
 
 import logging
+from functools import cached_property
 
 from schemapack import is_equal_schemapack
 
 from ets.core.models import (
-    Model,
     PersistedConfig,
     RawConfig,
-    RawModel,
-    Route,
-    Workflow,
 )
 from ets.ports.inbound.config_comparator import (
     ComparisonMismatchError,
@@ -39,89 +36,87 @@ class ConfigComparator(ConfigComparatorPort):
     """Compares new config with the persisted one to detect changes."""
 
     def __init__(self, raw_config: RawConfig, persisted_config: PersistedConfig):
-        self.raw_config = raw_config
-        self.persisted_config = persisted_config
+        self._raw_config = RawConfig(
+            models=sorted(raw_config.models, key=lambda m: m.name),
+            routes=sorted(raw_config.routes, key=lambda r: r.name),
+            workflows=sorted(raw_config.workflows, key=lambda w: w.name),
+        )
+        self._persisted_config = persisted_config
 
-    def compare_configs(
-        self,
-    ) -> PersistedConfig | RawConfig:
+    @cached_property
+    def persisted_config(self) -> PersistedConfig:
+        """Return the persisted config with sorted collections."""
+        return PersistedConfig(
+            models=sorted(self._persisted_config.models, key=lambda m: m.name),
+            routes=sorted(self._persisted_config.routes, key=lambda r: r.name),
+            workflows=sorted(self._persisted_config.workflows, key=lambda w: w.name),
+        )
+
+    def compare_configs(self) -> PersistedConfig | RawConfig:
         """Compare new config with the persisted one.
 
         Returns:
             RawConfig: when the configs differ, containing the new models, routes, and workflows.
             PersistedConfig: when the configs are equal, containing the persisted models, routes, and workflows.
         """
-        old_models = sorted(self.persisted_config.models, key=lambda model: model.name)
-        old_routes = sorted(self.persisted_config.routes, key=lambda route: route.name)
-        old_workflows = sorted(
-            self.persisted_config.workflows, key=lambda workflow: workflow.name
-        )
-
-        new_models = sorted(self.raw_config.models, key=lambda model: model.name)
-        new_routes = sorted(self.raw_config.routes, key=lambda route: route.name)
-        new_workflows = sorted(
-            self.raw_config.workflows, key=lambda workflow: workflow.name
-        )
-
         try:
             log.info("Comparing models.")
-            _compare_models(new_models, old_models)
+            self._compare_models()
             log.info("Comparing routes.")
-            _compare_entities(new_routes, old_routes)
+            self._compare_routes()
             log.info("Comparing workflows.")
-            _compare_entities(new_workflows, old_workflows)
+            self._compare_workflows()
         except ComparisonMismatchError as error:
             log.info(
                 f"Changes detected between configs, using new config.\nDetails:{error}"
             )
-            return self.raw_config
+            return self._raw_config
 
         log.info("No changes detected between configs, continuing with old config.")
         return self.persisted_config
 
+    def _compare_models(self):
+        new = self._raw_config.models
+        old = self.persisted_config.models
+        if len(new) != len(old):
+            raise ComparisonMismatchError("Different amount of model configs.")
+        for new_model, old_model in zip(new, old, strict=True):
+            # compare model attributes except the schemapacks
+            if (
+                new_model.name != old_model.name
+                or new_model.description != old_model.description
+                or new_model.publish != old_model.publish
+                or new_model.version != old_model.version
+                or new_model.is_ingress != old_model.is_ingress
+            ):
+                raise ComparisonMismatchError(
+                    f"Mismatching fields on model {new_model.name}."
+                )
+            # Validation after loading ensures that only two invariants exist here:
+            # 1) is_ingress == True and new_schema
+            # 2) is_ingress == False and new_schema is None
+            # Only the first case needs comparison
+            new_schema = new_model.schema_
+            old_schema = old_model.schema_
+            if new_schema and not is_equal_schemapack(old_schema, new_schema):
+                raise ComparisonMismatchError(
+                    f"Mismatching schema on EMIM model {new_model.name}."
+                )
 
-def _compare_entities[ConfigField: Route | Workflow](
-    new: list[ConfigField], old: list[ConfigField]
-):
-    """Comparison logic for routes and workflows.
+    def _compare_routes(self):
+        new = self._raw_config.routes
+        old = self.persisted_config.routes
+        if len(new) != len(old):
+            raise ComparisonMismatchError("Different amount of config entities.")
+        for n, o in zip(new, old, strict=True):
+            if n != o:
+                raise ComparisonMismatchError(f"Mismatching config entity: {n.name}.")
 
-    Assumes both lists are sorted by name.
-    """
-    if len(new) != len(old):
-        raise ComparisonMismatchError("Different amount of config entities.")
-    for n, o in zip(new, old, strict=True):
-        if n != o:
-            raise ComparisonMismatchError(f"Mismatching config entity: {n.name}.")
-
-
-def _compare_models(new: list[RawModel], old: list[Model]):
-    """Custom comparison logic for new (file) models vs persisted models.
-
-    Assumes both lists are sorted by name.
-    """
-    if len(new) != len(old):
-        raise ComparisonMismatchError("Different amount of model configs.")
-
-    for new_model, old_model in zip(new, old, strict=True):
-        # compare model attributes except the schemapacks
-        if (
-            new_model.name != old_model.name
-            or new_model.description != old_model.description
-            or new_model.publish != old_model.publish
-            or new_model.version != old_model.version
-            or new_model.is_ingress != old_model.is_ingress
-        ):
-            raise ComparisonMismatchError(
-                f"Mismatching fields on model {new_model.name}."
-            )
-        # Validation after loading ensures that only two invariants exist here:
-        # 1) is_ingress == True and new_schema
-        # 2) is_ingress == False and new_schema is None
-        # Only the first case needs comparison
-        new_schema = new_model.schema_
-        old_schema = old_model.schema_
-
-        if new_schema and not is_equal_schemapack(old_schema, new_schema):
-            raise ComparisonMismatchError(
-                f"Mismatching schema on EMIM model {new_model.name}."
-            )
+    def _compare_workflows(self):
+        new = self._raw_config.workflows
+        old = self.persisted_config.workflows
+        if len(new) != len(old):
+            raise ComparisonMismatchError("Different amount of config entities.")
+        for n, o in zip(new, old, strict=True):
+            if n != o:
+                raise ComparisonMismatchError(f"Mismatching config entity: {n.name}.")

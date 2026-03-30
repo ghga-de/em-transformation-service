@@ -15,6 +15,7 @@
 """Contains functionality to load and compare service config."""
 
 from abc import ABC, abstractmethod
+from functools import cached_property
 
 from ets.core.models import PersistedConfig, RawConfig
 
@@ -25,6 +26,11 @@ class ComparisonMismatchError(RuntimeError):
 
 class ConfigComparatorPort(ABC):
     """Manages the comparison of the old and the new config."""
+
+    @cached_property
+    @abstractmethod
+    def persisted_config(self) -> PersistedConfig:
+        """Return the persisted config with sorted collections."""
 
     @abstractmethod
     def compare_configs(

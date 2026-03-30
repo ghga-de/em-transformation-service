@@ -50,8 +50,15 @@ class ConfigManager(ConfigManagerPort):
         match self.comparator.compare_configs():
             case RawConfig() as raw_config:
                 # validate new config
-                config = self.validator.validate(raw_config)
-                return self._prune_unpublished_leaves(config)
+                try:
+                    config = self.validator.validate(raw_config)
+                    return self._prune_unpublished_leaves(config)
+                except ConfigValidationError as error:
+                    log.warning(error)
+                    log.warning(
+                        "New config failed to validate, using existing, persistent config instead."
+                    )
+                    return self.comparator.persisted_config
             case PersistedConfig() as persisted_config:
                 return persisted_config
 
