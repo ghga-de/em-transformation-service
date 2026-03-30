@@ -17,7 +17,7 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, nullcontext
-from typing import NamedTuple
+from dataclasses import dataclass
 
 from hexkit.providers.akafka import (
     ComboTranslator,
@@ -37,7 +37,8 @@ from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
 
 
-class ConfigAdapters(NamedTuple):
+@dataclass
+class ConfigAdapters:
     """Holds the config loader and writer adapters sharing the same DAO instances."""
 
     loader: ConfigLoaderPort
