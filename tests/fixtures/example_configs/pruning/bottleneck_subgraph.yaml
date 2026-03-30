@@ -1,6 +1,6 @@
-# A bottleneck node has both convergence (two independent sources feed into it) and
-# branching (it fans out to three outputs). Only the unpublished leaf is pruned;
-# the unpublished source, bottleneck, and published outputs all survive.
+# Two sources converge on a bottleneck that fans out to three outputs; only
+# UnpublishedLeaf and its route are pruned. UnpublishedSource survives as an
+# ingress model.
 #
 # Graph:
 #     UnpublishedSource --[workflow]--> Bottleneck

@@ -1,5 +1,5 @@
-# A route whose output model is pruned is also removed;
-# the workflow it referenced survives because another route still uses it.
+# UnpublishedLeaf and its route are pruned; the workflow survives because the
+# other route still references it.
 #
 # Graph:
 #     PublishedSource --[workflow]--> PublishedDerived --[workflow]--> UnpublishedLeaf

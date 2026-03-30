@@ -1,5 +1,4 @@
-# One source fans out to three outputs; the unpublished branch and its trailing
-# leaf are both pruned.
+# One source fans out to three outputs; the unpublished branch and leaf are pruned.
 #
 # Graph:
 #     PublishedSource --[workflow]--> PublishedBranch1

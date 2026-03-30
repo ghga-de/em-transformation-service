@@ -1,13 +1,11 @@
-# An unpublished EMIM source (is_ingress=True) must not be pruned,
-# even when it has no downstream published models.
+# UnpublishedLeaf and its route are pruned; UnpublishedEMIM survives as an ingress
+# model (is_ingress=True) despite having no published downstream.
 #
 # Subgraph 1:
 #     UnpublishedSource --[workflow]--> PublishedDerived
 #
 # Subgraph 2:
 #     UnpublishedEMIM --[workflow]--> UnpublishedLeaf
-#
-# UnpublishedLeaf is pruned, but UnpublishedEMIM survives (is_ingress=True).
 
 config:
   models:

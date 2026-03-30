@@ -1,4 +1,5 @@
-# All subgraphs contain no published models and are pruned entirely.
+# All routes target unpublished non-ingress models and are pruned; ingress sources
+# survive model pruning but empty routes raise a ConfigValidationError.
 #
 # Subgraph 1:
 #     UnpublishedSource --[workflow]--> UnpublishedLeaf

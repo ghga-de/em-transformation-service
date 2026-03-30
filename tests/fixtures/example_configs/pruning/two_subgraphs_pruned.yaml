@@ -1,6 +1,7 @@
-# Isolated published ingress survives; ingresses with no published models are pruned.
+# UnpublishedLeaf is pruned and its route removed; all ingress models survive, but no
+# routes remain, raising a ConfigValidationError.
 #
-# Subgraph 1 (orphaned):
+# Subgraph 1:
 #     UnpublishedSource
 #
 # Subgraph 2:
