@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 from yaml import safe_load
 
-from ets.core.models import ValidatedConfig
+from ets.core.models import RawConfig, ValidatedConfig
 
 
 @pytest.fixture
@@ -31,3 +31,12 @@ def pruning_fixture(request: pytest.FixtureRequest) -> Generator[ValidatedConfig
     with path.open("r") as fh:
         data = safe_load(fh)
     yield ValidatedConfig.model_validate(data["config"])
+
+
+@pytest.fixture
+def raw_config_fixture(request: pytest.FixtureRequest) -> Generator[RawConfig]:
+    """Load a RawConfig from the YAML path passed via indirect (needs to be set on the test case)."""
+    path: Path = request.param
+    with path.open("r") as fh:
+        data = safe_load(fh)
+    yield RawConfig.model_validate(data)

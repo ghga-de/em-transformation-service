@@ -16,14 +16,21 @@
 """Tests for the pruning logic in ConfigManager."""
 
 from dataclasses import dataclass, field
+from unittest.mock import MagicMock
 
 import pytest
+from yaml import safe_load
 
+from ets.core.config_manager import ConfigManager
 from ets.core.config_pruning import prune_unproductive_subgraphs
-from ets.core.models import ValidatedConfig
-from ets.ports.inbound.config_validator import ConfigValidationError
+from ets.core.models import PersistedConfig, RawConfig, ValidatedConfig
+from ets.ports.inbound.config_comparator import ConfigComparatorPort
+from ets.ports.inbound.config_validator import (
+    ConfigValidationError,
+    ConfigValidatorPort,
+)
 from tests.fixtures.config_manager import pruning_fixture  # noqa: F401
-from tests.fixtures.examples import PRUNING_CASES
+from tests.fixtures.examples import PRUNING_CASES, VALID_CONFIGS
 
 
 @dataclass
@@ -165,3 +172,42 @@ def test_prune_unproductive_subgraphs_raises(
     """Confirm prune_unproductive_subgraphs raises when pruning leaves results in any empty config field."""
     with pytest.raises(ConfigValidationError):
         prune_unproductive_subgraphs(pruning_fixture)
+
+
+@pytest.mark.parametrize(
+    "compare_returns_raw, validation_raises",
+    [(True, False), (True, True), (False, False)],
+    ids=["new_valid_config", "validation_fallback", "unchanged_config"],
+)
+def test_resolve_transformation_config(
+    compare_returns_raw: bool, validation_raises: bool
+):
+    """Confirm resolve_transformation_config handles all execution paths."""
+    with VALID_CONFIGS["basic_config"].open() as fh:
+        raw_config = RawConfig.model_validate(safe_load(fh))
+    with PRUNING_CASES["nothing_pruned"].open() as fh:
+        validated_config = ValidatedConfig.model_validate(safe_load(fh)["config"])
+
+    persisted = PersistedConfig(models=[], routes=[], workflows=[])
+
+    comparator = MagicMock(spec=ConfigComparatorPort)
+    comparator.persisted_config = persisted
+    comparator.compare_configs.return_value = (
+        raw_config if compare_returns_raw else persisted
+    )
+
+    validator = MagicMock(spec=ConfigValidatorPort)
+    if validation_raises:
+        validator.validate.side_effect = ConfigValidationError("invalid")
+    else:
+        validator.validate.return_value = validated_config
+
+    result = ConfigManager(
+        validator=validator, comparator=comparator
+    ).resolve_transformation_config()
+
+    if compare_returns_raw and not validation_raises:
+        validator.validate.assert_called_once_with(raw_config)
+        assert isinstance(result, ValidatedConfig)
+    else:
+        assert result is persisted

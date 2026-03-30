@@ -47,7 +47,6 @@ class ConfigManager(ConfigManagerPort):
         - If they differ, validate the raw config, prune unproductive subgraphs and return it
         - If validation fails, fall back to the persisted config
         """
-        # compare configs
         match self.comparator.compare_configs():
             case RawConfig() as raw_config:
                 # validate new config
@@ -57,7 +56,7 @@ class ConfigManager(ConfigManagerPort):
                 except ConfigValidationError as error:
                     log.warning(error)
                     log.warning(
-                        "New config failed to validate, using existing, persistent config instead."
+                        "New config failed to validate, using existing, persisted config instead."
                     )
                     return self.comparator.persisted_config
             case PersistedConfig() as persisted_config:
