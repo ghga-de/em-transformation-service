@@ -17,19 +17,11 @@
 
 from collections.abc import Generator
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from yaml import safe_load
 
-from ets.core.config_manager import ConfigManager
 from ets.core.models import ValidatedConfig
-
-
-@pytest.fixture
-def manager() -> Generator[ConfigManager]:
-    """ConfigManager with mock ports (unused by pruning methods)."""
-    yield ConfigManager(validator=MagicMock(), comparator=MagicMock())
 
 
 @pytest.fixture

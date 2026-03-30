@@ -28,7 +28,7 @@ from tests.fixtures.examples import PRUNING_CASES
 
 @dataclass
 class PruningResult:
-    """Expected state after applying _prune_unpublished_leaves."""
+    """Expected state after applying prune_unproductive_subgraphs."""
 
     models: set[str] = field(default_factory=set)
     routes: set[str] = field(default_factory=set)
@@ -138,11 +138,11 @@ class PruningResult:
     ],
     indirect=["pruning_fixture"],
 )
-def test_prune_unpublished_leaves(
+def test_prune_unproductive_subgraphs(
     pruning_fixture: ValidatedConfig,  # noqa: F811
     expected: PruningResult,
 ):
-    """Confirm _prune_unpublished_leaves retains the correct models, routes, and workflows."""
+    """Confirm prune_unproductive_subgraphs retains the correct models, routes, and workflows."""
     result = prune_unproductive_subgraphs(pruning_fixture)
     assert {m.name for m in result.models} == expected.models
     assert {r.name for r in result.routes} == expected.routes
@@ -159,9 +159,9 @@ def test_prune_unpublished_leaves(
     ids=["everything_pruned", "two_subgraphs_pruned", "prune_unreferenced_workflow"],
     indirect=["pruning_fixture"],
 )
-def test_prune_unpublished_leaves_raises(
+def test_prune_unproductive_subgraphs_raises(
     pruning_fixture: ValidatedConfig,  # noqa: F811
 ):
-    """Confirm _prune_unpublished_leaves raises when pruning leaves results in any empty config field."""
+    """Confirm prune_unproductive_subgraphs raises when pruning leaves results in any empty config field."""
     with pytest.raises(ConfigValidationError):
         prune_unproductive_subgraphs(pruning_fixture)

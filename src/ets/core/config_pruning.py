@@ -78,9 +78,9 @@ def _prune_routes(config: ValidatedConfig, pruned_model_names: set[str]) -> set[
     if not surviving_routes:
         raise ConfigValidationError("All routes were pruned from the config.")
 
-    config.routes = surviving_routes
-    for route in config.routes:
+    for route in surviving_routes:
         workflow_prune_candidates.discard(route.workflow_name)
+    config.routes = surviving_routes
 
     return workflow_prune_candidates
 
@@ -88,7 +88,7 @@ def _prune_routes(config: ValidatedConfig, pruned_model_names: set[str]) -> set[
 def _prune_workflows(
     config: ValidatedConfig, workflow_prune_candidates: set[str]
 ) -> None:
-    """Prune orphaned workflows from config."""
+    """Prune workflows not referenced by any surviving route."""
     config.workflows = [
         workflow
         for workflow in config.workflows
