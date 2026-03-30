@@ -19,13 +19,10 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from ets.core.config_manager import ConfigManager
+from ets.core.config_pruning import prune_unproductive_subgraphs
 from ets.core.models import ValidatedConfig
 from ets.ports.inbound.config_validator import ConfigValidationError
-from tests.fixtures.config_manager import (
-    manager,  # noqa: F401
-    pruning_fixture,  # noqa: F401
-)
+from tests.fixtures.config_manager import pruning_fixture  # noqa: F401
 from tests.fixtures.examples import PRUNING_CASES
 
 
@@ -142,12 +139,11 @@ class PruningResult:
     indirect=["pruning_fixture"],
 )
 def test_prune_unpublished_leaves(
-    manager: ConfigManager,  # noqa: F811
     pruning_fixture: ValidatedConfig,  # noqa: F811
     expected: PruningResult,
 ):
     """Confirm _prune_unpublished_leaves retains the correct models, routes, and workflows."""
-    result = manager._prune_unpublished_leaves(pruning_fixture)
+    result = prune_unproductive_subgraphs(pruning_fixture)
     assert {m.name for m in result.models} == expected.models
     assert {r.name for r in result.routes} == expected.routes
     assert {w.name for w in result.workflows} == expected.workflows
@@ -164,9 +160,8 @@ def test_prune_unpublished_leaves(
     indirect=["pruning_fixture"],
 )
 def test_prune_unpublished_leaves_raises(
-    manager: ConfigManager,  # noqa: F811
     pruning_fixture: ValidatedConfig,  # noqa: F811
 ):
     """Confirm _prune_unpublished_leaves raises when pruning leaves results in any empty config field."""
     with pytest.raises(ConfigValidationError):
-        manager._prune_unpublished_leaves(pruning_fixture)
+        prune_unproductive_subgraphs(pruning_fixture)
