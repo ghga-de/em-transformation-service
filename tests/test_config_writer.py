@@ -57,15 +57,9 @@ async def test_write_config_upserts_to_db(
     # Read back and assert round-trip equality
     stored_config = await loader.load_config_from_db()
 
-    assert sorted(m.name for m in stored_config.models) == sorted(
-        m.name for m in persisted_config.models
-    )
-    assert sorted(r.name for r in stored_config.routes) == sorted(
-        r.name for r in persisted_config.routes
-    )
-    assert sorted(w.name for w in stored_config.workflows) == sorted(
-        w.name for w in persisted_config.workflows
-    )
+    assert set(stored_config.models) == set(persisted_config.models)
+    assert set(stored_config.routes) == set(persisted_config.routes)
+    assert set(stored_config.workflows) == set(persisted_config.workflows)
 
     # Verify schemas are preserved correctly
     stored_by_name = {m.name: m for m in stored_config.models}
