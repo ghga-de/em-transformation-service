@@ -57,9 +57,15 @@ async def test_write_config_upserts_to_db(
     # Read back and assert round-trip equality
     stored_config = await loader.load_config_from_db()
 
-    assert set(stored_config.models) == set(persisted_config.models)
-    assert set(stored_config.routes) == set(persisted_config.routes)
-    assert set(stored_config.workflows) == set(persisted_config.workflows)
+    assert sorted(stored_config.models, key=lambda m: m.name) == sorted(
+        persisted_config.models, key=lambda m: m.name
+    )
+    assert sorted(stored_config.routes, key=lambda r: r.name) == sorted(
+        persisted_config.routes, key=lambda r: r.name
+    )
+    assert sorted(stored_config.workflows, key=lambda w: w.name) == sorted(
+        persisted_config.workflows, key=lambda w: w.name
+    )
 
     # Verify schemas are preserved correctly
     stored_by_name = {m.name: m for m in stored_config.models}
@@ -84,6 +90,12 @@ async def test_write_config_upsert_is_idempotent(
     await writer.write_config(persisted_config)  # must not raise
 
     stored_config = await loader.load_config_from_db()
-    assert len(stored_config.models) == len(persisted_config.models)
-    assert len(stored_config.routes) == len(persisted_config.routes)
-    assert len(stored_config.workflows) == len(persisted_config.workflows)
+    assert sorted(stored_config.models, key=lambda m: m.name) == sorted(
+        persisted_config.models, key=lambda m: m.name
+    )
+    assert sorted(stored_config.routes, key=lambda r: r.name) == sorted(
+        persisted_config.routes, key=lambda r: r.name
+    )
+    assert sorted(stored_config.workflows, key=lambda w: w.name) == sorted(
+        persisted_config.workflows, key=lambda w: w.name
+    )
