@@ -95,9 +95,18 @@ class AEMPackRegistry(AEMPackRegistryPort):
                             }
                         },
                         NEEDS_REPROCESSING_FIELD: {
-                            "$ne": [f"${PROCESSOR_FIELD}", None]
+                            "$or": [
+                                {"$ne": [f"${PROCESSOR_FIELD}", None]},
+                                {"$ne": [f"${PROCESSED_AT_FIELD}", None]},
+                            ]
                         },
-                        PROCESSED_AT_FIELD: None,
+                        PROCESSED_AT_FIELD: {
+                            "$cond": {
+                                "if": f"${PROCESSED_AT_FIELD}",
+                                "then": f"${PROCESSED_AT_FIELD}",
+                                "else": None,
+                            }
+                        },
                     }
                 }
             ],
