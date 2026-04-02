@@ -1,4 +1,5 @@
-# Three sources converge on one output; the two unpublished sources are pruned.
+# Three sources converge on a published output; nothing is pruned — the unpublished
+# sources are ingress models (is_ingress=True) and are never pruned.
 #
 # Graph:
 #     UnpublishedSource1 --[workflow]--> PublishedDerived

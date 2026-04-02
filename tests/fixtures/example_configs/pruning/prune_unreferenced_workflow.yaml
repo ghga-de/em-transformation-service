@@ -1,4 +1,5 @@
-# A route whose input model is pruned is also removed. The orphaned workflow is pruned.
+# Cascading leaf pruning removes UnpublishedLeaf first, then UnpublishedDerived; all
+# routes reference pruned output models and are removed, raising a ConfigValidationError.
 #
 # Graph:
 #     PublishedSource --[workflow]--> UnpublishedDerived --[workflow]--> UnpublishedLeaf

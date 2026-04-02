@@ -17,19 +17,11 @@
 
 from collections.abc import Generator
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from yaml import safe_load
 
-from ets.core.config_manager import ConfigManager
-from ets.core.models import ValidatedConfig
-
-
-@pytest.fixture
-def manager() -> Generator[ConfigManager]:
-    """ConfigManager with mock ports (unused by pruning methods)."""
-    yield ConfigManager(validator=MagicMock(), comparator=MagicMock())
+from ets.core.models import RawConfig, ValidatedConfig
 
 
 @pytest.fixture
@@ -39,3 +31,12 @@ def pruning_fixture(request: pytest.FixtureRequest) -> Generator[ValidatedConfig
     with path.open("r") as fh:
         data = safe_load(fh)
     yield ValidatedConfig.model_validate(data["config"])
+
+
+@pytest.fixture
+def raw_config_fixture(request: pytest.FixtureRequest) -> Generator[RawConfig]:
+    """Load a RawConfig from the YAML path passed via indirect (needs to be set on the test case)."""
+    path: Path = request.param
+    with path.open("r") as fh:
+        data = safe_load(fh)
+    yield RawConfig.model_validate(data)

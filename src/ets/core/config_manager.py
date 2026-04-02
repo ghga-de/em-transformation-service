@@ -18,6 +18,7 @@
 import logging
 from collections import defaultdict
 
+from ets.core.config_pruning import prune_unproductive_subgraphs
 from ets.core.models import PersistedConfig, RawConfig, ValidatedConfig
 from ets.ports.inbound.config_comparator import ConfigComparatorPort
 from ets.ports.inbound.config_manager import ConfigManagerPort
@@ -43,15 +44,22 @@ class ConfigManager(ConfigManagerPort):
 
         This includes:
         - Comparing raw config with the persisted config
-        - If they differ, validate the raw config and return it for further processing
         - If they are the same, return the persisted config
+        - If they differ, validate the raw config, prune unproductive subgraphs and return it
+        - If validation fails, fall back to the persisted config
         """
-        # compare configs
         match self.comparator.compare_configs():
             case RawConfig() as raw_config:
                 # validate new config
-                config = self.validator.validate(raw_config)
-                return self._prune_unproductive_subgraph(config)
+                try:
+                    config = self.validator.validate(raw_config)
+                    return prune_unproductive_subgraphs(config)
+                except ConfigValidationError as error:
+                    log.warning(error)
+                    log.warning(
+                        "New config failed to validate, using existing, persisted config instead."
+                    )
+                    return self.comparator.persisted_config
             case PersistedConfig() as persisted_config:
                 return persisted_config
 

@@ -1,5 +1,5 @@
-# A workflow referenced only by removed routes is pruned;
-# a workflow still referenced by a surviving route is kept.
+# UnpublishedLeaf and its route are pruned, along with the workflow used only by
+# that route; the other workflow survives.
 #
 # Graph:
 #     PublishedSource --[kept_workflow]--> PublishedDerived --[dropped_workflow]--> UnpublishedLeaf

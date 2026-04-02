@@ -1,14 +1,17 @@
-# UnpublishedLeaf and its route are pruned; the workflow survives because the
-# other route still references it.
+# UnpublishedLeaf and its route are pruned; UnpublishedEMIM survives as an ingress
+# model (is_ingress=True) despite having no published downstream.
 #
-# Graph:
-#     PublishedSource --[workflow]--> PublishedDerived --[workflow]--> UnpublishedLeaf
+# Subgraph 1:
+#     UnpublishedSource --[workflow]--> PublishedDerived
+#
+# Subgraph 2:
+#     UnpublishedEMIM --[workflow]--> UnpublishedLeaf
 
 config:
   models:
-    - name: PublishedSource
+    - name: UnpublishedSource
       order: 0
-      publish: true
+      publish: false
       is_ingress: true
       version: null
       schema_:
@@ -26,17 +29,32 @@ config:
       is_ingress: false
       version: null
       schema_: null
-    - name: UnpublishedLeaf
+    - name: UnpublishedEMIM
       order: 2
+      publish: false
+      is_ingress: true
+      version: null
+      schema_:
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+    - name: UnpublishedLeaf
+      order: 3
       publish: false
       is_ingress: false
       version: null
       schema_: null
+
   routes:
-    - input_model_name: PublishedSource
+    - input_model_name: UnpublishedSource
       workflow_name: workflow
       output_model_name: PublishedDerived
-    - input_model_name: PublishedDerived
+    - input_model_name: UnpublishedEMIM
       workflow_name: workflow
       output_model_name: UnpublishedLeaf
   workflows:

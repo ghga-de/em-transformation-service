@@ -213,6 +213,12 @@ class RawConfig(BaseModel):
         default=..., description="Up to date workflows for downstream processing."
     )
 
+    @model_validator(mode="after")
+    def _require_at_least_one_emim(self) -> "RawConfig":
+        if not any(model.is_ingress for model in self.models):
+            raise ValueError("At least one model must be an EMIM (is_ingress=True).")
+        return self
+
 
 class ValidatedConfig(BaseModel):
     """Describes the validated transformation configuration.

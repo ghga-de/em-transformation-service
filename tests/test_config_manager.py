@@ -16,22 +16,26 @@
 """Tests for the pruning logic in ConfigManager."""
 
 from dataclasses import dataclass, field
+from unittest.mock import MagicMock
 
 import pytest
+from yaml import safe_load
 
 from ets.core.config_manager import ConfigManager
-from ets.core.models import ValidatedConfig
-from ets.ports.inbound.config_validator import ConfigValidationError
-from tests.fixtures.config_manager import (
-    manager,  # noqa: F401
-    pruning_fixture,  # noqa: F401
+from ets.core.config_pruning import prune_unproductive_subgraphs
+from ets.core.models import PersistedConfig, RawConfig, ValidatedConfig
+from ets.ports.inbound.config_comparator import ConfigComparatorPort
+from ets.ports.inbound.config_validator import (
+    ConfigValidationError,
+    ConfigValidatorPort,
 )
-from tests.fixtures.examples import PRUNING_CASES
+from tests.fixtures.config_manager import pruning_fixture  # noqa: F401
+from tests.fixtures.examples import PRUNING_CASES, VALID_CONFIGS
 
 
 @dataclass
 class PruningResult:
-    """Expected state after applying _prune_unpublished_leaves."""
+    """Expected state after applying prune_unproductive_subgraphs."""
 
     models: set[str] = field(default_factory=set)
     routes: set[str] = field(default_factory=set)
@@ -120,6 +124,14 @@ class PruningResult:
                 workflows={"shared_workflow"},
             ),
         ),
+        (
+            PRUNING_CASES["emim_not_pruned"],
+            PruningResult(
+                models={"UnpublishedSource", "PublishedDerived", "UnpublishedEMIM"},
+                routes={"UnpublishedSource:workflow:PublishedDerived"},
+                workflows={"workflow"},
+            ),
+        ),
     ],
     ids=[
         "bifurcating_subgraph",
@@ -129,16 +141,16 @@ class PruningResult:
         "keep_referenced_workflow",
         "leaf_pruned",
         "shared_workflow_not_pruned",
+        "emim_not_pruned",
     ],
     indirect=["pruning_fixture"],
 )
-def test_prune_unpublished_leaves(
-    manager: ConfigManager,  # noqa: F811
+def test_prune_unproductive_subgraphs(
     pruning_fixture: ValidatedConfig,  # noqa: F811
     expected: PruningResult,
 ):
-    """Confirm _prune_unpublished_leaves retains the correct models, routes, and workflows."""
-    result = manager._prune_unproductive_subgraph(pruning_fixture)
+    """Confirm prune_unproductive_subgraphs retains the correct models, routes, and workflows."""
+    result = prune_unproductive_subgraphs(pruning_fixture)
     assert {m.name for m in result.models} == expected.models
     assert {r.name for r in result.routes} == expected.routes
     assert {w.name for w in result.workflows} == expected.workflows
@@ -154,10 +166,48 @@ def test_prune_unpublished_leaves(
     ids=["everything_pruned", "two_subgraphs_pruned", "prune_unreferenced_workflow"],
     indirect=["pruning_fixture"],
 )
-def test_prune_unpublished_leaves_raises(
-    manager: ConfigManager,  # noqa: F811
+def test_prune_unproductive_subgraphs_raises(
     pruning_fixture: ValidatedConfig,  # noqa: F811
 ):
-    """Confirm _prune_unpublished_leaves raises when pruning leaves results in any empty config field."""
+    """Confirm prune_unproductive_subgraphs raises when pruning leaves results in any empty config field."""
     with pytest.raises(ConfigValidationError):
-        manager._prune_unproductive_subgraph(pruning_fixture)
+        prune_unproductive_subgraphs(pruning_fixture)
+
+
+@pytest.mark.parametrize(
+    "compare_returns_raw, validation_raises",
+    [(True, False), (True, True), (False, False)],
+    ids=["new_valid_config", "validation_fallback", "unchanged_config"],
+)
+def test_resolve_transformation_config(
+    compare_returns_raw: bool, validation_raises: bool
+):
+    """Confirm resolve_transformation_config handles all execution paths."""
+    with VALID_CONFIGS["basic_config"].open() as fh:
+        raw_config = RawConfig.model_validate(safe_load(fh))
+    with PRUNING_CASES["nothing_pruned"].open() as fh:
+        validated_config = ValidatedConfig.model_validate(safe_load(fh)["config"])
+
+    persisted = PersistedConfig(models=[], routes=[], workflows=[])
+
+    comparator = MagicMock(spec=ConfigComparatorPort)
+    comparator.persisted_config = persisted
+    comparator.compare_configs.return_value = (
+        raw_config if compare_returns_raw else persisted
+    )
+
+    validator = MagicMock(spec=ConfigValidatorPort)
+    if validation_raises:
+        validator.validate.side_effect = ConfigValidationError("invalid")
+    else:
+        validator.validate.return_value = validated_config
+
+    result = ConfigManager(
+        validator=validator, comparator=comparator
+    ).resolve_transformation_config()
+
+    if compare_returns_raw and not validation_raises:
+        validator.validate.assert_called_once_with(raw_config)
+        assert isinstance(result, ValidatedConfig)
+    else:
+        assert result is persisted
