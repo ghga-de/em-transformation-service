@@ -252,7 +252,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 aem_packs_to_publish.append(current_aem_pack)
 
             current_routes = sorted(
-                routes_by_input[current_model_name],
+                routes_by_input.get(current_model_name, []),
                 key=lambda r: model_order[r.output_model_name],
             )
             for route in current_routes:

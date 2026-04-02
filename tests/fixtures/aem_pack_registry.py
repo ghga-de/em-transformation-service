@@ -65,7 +65,7 @@ TEST_SCHEMA = SchemaPack.model_validate(
 
 TEST_DATAPACK = DataPack.model_validate(
     {
-        "datapack": "3.0.0",
+        "datapack": "4.0.0",
         "resources": {
             "File": {
                 "test_alias": {

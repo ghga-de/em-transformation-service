@@ -32,14 +32,14 @@ models:
   - name: DerivedModel1
     is_ingress: false
     version: null
-    publish: false
+    publish: true
     order: 1
     schema_: null
 
   - name: DerivedModel2
     is_ingress: false
     version: null
-    publish: false
+    publish: true
     order: 2
     schema_: null
 

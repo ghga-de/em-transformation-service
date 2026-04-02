@@ -80,7 +80,9 @@ async def test_clears_dirty_map(
 
     for name in dirty_names:
         assert name not in remaining_dirty
-    assert len(aem_packs_to_publish) == 0
+    assert {pack.model_name for pack in aem_packs_to_publish} == {
+        model.name for model in aem_pack_config.models if model.publish
+    }
 
 
 async def test_respects_topological_order(joint_fixture: JointFixture):
@@ -117,7 +119,9 @@ async def test_respects_topological_order(joint_fixture: JointFixture):
     # Both branches were traversed regardless of order
     assert "DerivedModel1" not in remaining_dirty
     assert "DerivedModel2" not in remaining_dirty
-    assert len(aem_packs_to_publish) == 0
+    assert {pack.model_name for pack in aem_packs_to_publish} == {
+        model.name for model in aem_pack_config.models if model.publish
+    }
 
 
 async def test_reuses_dirty_map_ids(joint_fixture: JointFixture):
