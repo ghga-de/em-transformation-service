@@ -30,7 +30,7 @@ ModelDao = Dao[models.Model]
 WorkflowDao = Dao[models.Workflow]
 RouteDao = Dao[models.Route]
 AEMPackDao = Dao[AEMPack]
-UnprocessedAEMPackDao = Dao[IncomingAEMPack]
+IncomingAEMPackDao = Dao[IncomingAEMPack]
 
 
 class AEMPackEventPublisherPort(ABC):

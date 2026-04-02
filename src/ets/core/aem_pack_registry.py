@@ -29,7 +29,7 @@ from pymongo import AsyncMongoClient
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.adapters.outbound.dao import UNPROCESSED_AEM_PACK_COLLECTION
+from ets.adapters.outbound.dao import INCOMING_AEM_PACK_COLLECTION
 from ets.config import Config
 from ets.core.models import AEMPack, PersistedConfig, Workflow
 from ets.ports.inbound.aem_pack_registry import (
@@ -68,8 +68,8 @@ class AEMPackRegistry(AEMPackRegistryPort):
         self._mongo_client = mongo_client
         # Bypassing DAO, as we need specific atomicity guarantees for the operations
         # DAO based code would need to deal with possible race conditions
-        self._unprocessed_aem_pack_collection = mongo_client[config.db_name][
-            UNPROCESSED_AEM_PACK_COLLECTION
+        self._incoming_aem_pack_collection = mongo_client[config.db_name][
+            INCOMING_AEM_PACK_COLLECTION
         ]
         self._transformation_registry = get_transformation_registry()
 
@@ -79,7 +79,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         doc.pop("id")
         doc["correlation_id"] = get_correlation_id()
 
-        await self._unprocessed_aem_pack_collection.find_one_and_update(
+        await self._incoming_aem_pack_collection.find_one_and_update(
             filter={"_id": aem_pack.id},
             update=[
                 {
@@ -110,7 +110,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
         while True:
             # Check for packs abandoned by a previous crash of this instance
-            unprocessed_aem_pack = await self._unprocessed_aem_pack_collection.find_one(
+            unprocessed_aem_pack = await self._incoming_aem_pack_collection.find_one(
                 {
                     PROCESSOR_FIELD: self._config.service_instance_id,
                     PROCESSED_AT_FIELD: None,
@@ -119,7 +119,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
             if not unprocessed_aem_pack:
                 # No abandoned packs; try to claim a fresh one
                 unprocessed_aem_pack = (
-                    await self._unprocessed_aem_pack_collection.find_one_and_update(
+                    await self._incoming_aem_pack_collection.find_one_and_update(
                         filter={PROCESSOR_FIELD: None, PROCESSED_AT_FIELD: None},
                         update={
                             "$set": {PROCESSOR_FIELD: self._config.service_instance_id}
@@ -130,7 +130,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
             if not unprocessed_aem_pack:
                 # Check for already-processed packs that received a new version while in flight
                 unprocessed_aem_pack = (
-                    await self._unprocessed_aem_pack_collection.find_one_and_update(
+                    await self._incoming_aem_pack_collection.find_one_and_update(
                         filter={
                             PROCESSED_AT_FIELD: {"$ne": None},
                             NEEDS_REPROCESSING_FIELD: True,
@@ -185,7 +185,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
             config=config,
         )
 
-        await self._unprocessed_aem_pack_collection.update_one(
+        await self._incoming_aem_pack_collection.update_one(
             {"_id": incoming_aem.id},
             {
                 "$set": {

@@ -26,15 +26,15 @@ from ets.core import models
 from ets.core.models import AEMPack
 from ets.ports.outbound.dao import (
     AEMPackEventPublisherPort,
+    IncomingAEMPackDao,
     ModelDao,
     RouteDao,
-    UnprocessedAEMPackDao,
     WorkflowDao,
 )
 
 log = logging.getLogger(__name__)
 
-UNPROCESSED_AEM_PACK_COLLECTION = "unprocessed_aem_packs"
+INCOMING_AEM_PACK_COLLECTION = "incoming_aem_packs"
 
 
 async def get_persisted_model_dao(*, dao_factory: DaoFactoryProtocol) -> ModelDao:
@@ -58,12 +58,12 @@ async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
     )
 
 
-async def get_unprocessed_aem_pack_dao(
+async def get_incoming_aem_pack_dao(
     *, dao_factory: DaoFactoryProtocol
-) -> UnprocessedAEMPackDao:
-    """Setup the Unprocessed AEM Pack DAO using the specified provider of the DaoFactoryProtocol."""
+) -> IncomingAEMPackDao:
+    """Setup the incoming AEM Pack DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
-        name=UNPROCESSED_AEM_PACK_COLLECTION,
+        name=INCOMING_AEM_PACK_COLLECTION,
         dto_model=models.IncomingAEMPack,
         id_field="id",
     )

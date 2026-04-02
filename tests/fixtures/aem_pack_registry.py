@@ -170,7 +170,7 @@ async def queue_and_claim(
     """
     async with set_correlation_id(pack.correlation_id):
         await registry.queue_unprocessed(pack)
-    doc = await registry._unprocessed_aem_pack_collection.find_one_and_update(
+    doc = await registry._incoming_aem_pack_collection.find_one_and_update(
         filter={"_id": pack.id, PROCESSOR_FIELD: None},
         update={"$set": {PROCESSOR_FIELD: service_instance_id}},
         return_document=True,

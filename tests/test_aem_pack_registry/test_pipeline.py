@@ -67,7 +67,7 @@ async def test_chained_routes(joint_fixture: JointFixture):
     assert isinstance(derived_and_published[0].data, DataPack)
 
     # Unprocessed doc preserved and marked as processed
-    raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": ingress.id})
+    raw = await registry._incoming_aem_pack_collection.find_one({"_id": ingress.id})
     assert raw is not None
     assert raw["processed_at"] is not None
     assert raw["processor"] is None
@@ -149,7 +149,7 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
         assert isinstance(pack.data, DataPack)
 
     # Unprocessed doc preserved and marked as processed
-    raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": ingress.id})
+    raw = await registry._incoming_aem_pack_collection.find_one({"_id": ingress.id})
     assert raw is not None
     assert raw["processed_at"] is not None
     assert raw["processor"] is None
@@ -190,7 +190,7 @@ async def test_ingress_with_no_routes(joint_fixture: JointFixture):
     assert published.original_id is None
 
     # Unprocessed doc preserved and marked as processed
-    raw = await registry._unprocessed_aem_pack_collection.find_one({"_id": ingress.id})
+    raw = await registry._incoming_aem_pack_collection.find_one({"_id": ingress.id})
     assert raw is not None
     assert raw["processed_at"] is not None
     assert raw["processor"] is None
