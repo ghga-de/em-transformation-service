@@ -185,16 +185,6 @@ class AEMPackRegistry(AEMPackRegistryPort):
             config=config,
         )
 
-        await self._incoming_aem_pack_collection.update_one(
-            {"_id": incoming_aem.id},
-            {
-                "$set": {
-                    PROCESSOR_FIELD: None,
-                    PROCESSED_AT_FIELD: now_utc_ms_prec(),
-                }
-            },
-        )
-
         async with set_correlation_id(correlation_id):
             if dirty_map:
                 # Check if there are corresponding models remaining or if they have been removed from the config.
@@ -217,6 +207,16 @@ class AEMPackRegistry(AEMPackRegistryPort):
             for aem_pack in aem_packs_to_publish:
                 log.info(f"Upserting derived AEM Pack {aem_pack.id}")
                 await self._aem_pack_dao.upsert(aem_pack)
+
+        await self._incoming_aem_pack_collection.update_one(
+            {"_id": incoming_aem.id},
+            {
+                "$set": {
+                    PROCESSOR_FIELD: None,
+                    PROCESSED_AT_FIELD: now_utc_ms_prec(),
+                }
+            },
+        )
 
     def _traverse_graph(
         self,
