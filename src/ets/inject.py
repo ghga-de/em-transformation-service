@@ -17,6 +17,7 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, nullcontext
+from dataclasses import dataclass
 
 from hexkit.providers.akafka import (
     ComboTranslator,
@@ -28,15 +29,25 @@ from hexkit.providers.mongodb import MongoDbDaoFactory
 from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound import dao
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
+from ets.adapters.outbound.config_writer import ConfigWriterAdapter
 from ets.config import Config
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
+from ets.ports.outbound.config_writer import ConfigWriterPort
+
+
+@dataclass
+class ConfigAdapters:
+    """Holds the config loader and writer adapters sharing the same DAO instances."""
+
+    loader: ConfigLoaderPort
+    writer: ConfigWriterPort
 
 
 @asynccontextmanager
-async def prepare_config_loader(*, config: Config) -> AsyncGenerator[ConfigLoaderPort]:
-    """Constructs config loader instances that can be used by the central core class.
+async def prepare_config_adapters(*, config: Config) -> AsyncGenerator[ConfigAdapters]:
+    """Constructs config loader and writer instances sharing a single MongoDB connection.
 
     Factored out for better testability.
     """
@@ -44,10 +55,17 @@ async def prepare_config_loader(*, config: Config) -> AsyncGenerator[ConfigLoade
         model_dao = await dao.get_persisted_model_dao(dao_factory=dao_factory)
         route_dao = await dao.get_route_dao(dao_factory=dao_factory)
         workflow_dao = await dao.get_workflow_dao(dao_factory=dao_factory)
-        yield ConfigLoaderAdapter(
-            model_dao=model_dao,
-            route_dao=route_dao,
-            workflow_dao=workflow_dao,
+        yield ConfigAdapters(
+            loader=ConfigLoaderAdapter(
+                model_dao=model_dao,
+                route_dao=route_dao,
+                workflow_dao=workflow_dao,
+            ),
+            writer=ConfigWriterAdapter(
+                model_dao=model_dao,
+                route_dao=route_dao,
+                workflow_dao=workflow_dao,
+            ),
         )
 
 
