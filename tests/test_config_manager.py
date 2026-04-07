@@ -25,6 +25,7 @@ from ets.core.config_manager import ConfigManager
 from ets.core.config_pruning import prune_unproductive_subgraphs
 from ets.core.models import PersistedConfig, RawConfig, ValidatedConfig
 from ets.ports.inbound.config_comparator import ConfigComparatorPort
+from ets.ports.inbound.config_manager import ConfigManagerError
 from ets.ports.inbound.config_validator import (
     ConfigValidationError,
     ConfigValidatorPort,
@@ -182,13 +183,16 @@ def test_prune_unproductive_subgraphs_raises(
 def test_resolve_transformation_config(
     compare_returns_raw: bool, validation_raises: bool
 ):
-    """Confirm resolve_transformation_config handles all execution paths."""
+    """Confirm resolve_transformation_config handles the happy paths and validation fallback."""
     with VALID_CONFIGS["basic_config"].open() as fh:
         raw_config = RawConfig.model_validate(safe_load(fh))
     with PRUNING_CASES["nothing_pruned"].open() as fh:
         validated_config = ValidatedConfig.model_validate(safe_load(fh)["config"])
 
-    persisted = PersistedConfig(models=[], routes=[], workflows=[])
+    persisted = MagicMock(spec=PersistedConfig)
+    persisted.models = [MagicMock()]
+    persisted.routes = [MagicMock()]
+    persisted.workflows = [MagicMock()]
 
     comparator = MagicMock(spec=ConfigComparatorPort)
     comparator.persisted_config = persisted
@@ -211,3 +215,23 @@ def test_resolve_transformation_config(
         assert isinstance(result, ValidatedConfig)
     else:
         assert result is persisted
+
+
+def test_resolve_transformation_config_stops_when_no_persisted_config():
+    """When validation fails and no config is stored in the database, raise ConfigManagerError."""
+    with VALID_CONFIGS["basic_config"].open() as fh:
+        raw_config = RawConfig.model_validate(safe_load(fh))
+
+    empty_persisted = PersistedConfig(models=[], routes=[], workflows=[])
+
+    comparator = MagicMock(spec=ConfigComparatorPort)
+    comparator.persisted_config = empty_persisted
+    comparator.compare_configs.return_value = raw_config
+
+    validator = MagicMock(spec=ConfigValidatorPort)
+    validator.validate.side_effect = ConfigValidationError("invalid")
+
+    manager = ConfigManager(validator=validator, comparator=comparator)
+
+    with pytest.raises(ConfigManagerError, match="no previous valid config"):
+        manager.resolve_transformation_config()
