@@ -40,9 +40,10 @@ async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
     )
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
+    pid = str(uuid4())
 
     # First processing
-    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
@@ -55,14 +56,12 @@ async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
 
     derived = [
         pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": aem_id}
-        )
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
     ]
     derived_pack_names = {pack.model_name: pack.id for pack in derived}
 
     # Second processing
-    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
@@ -75,9 +74,7 @@ async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
 
     derived = [
         pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": aem_id}
-        )
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
     ]
     re_derived_pack_names = {pack.model_name: pack.id for pack in derived}
 
@@ -114,7 +111,7 @@ async def test_first_processing_generates_fresh_ids(joint_fixture: JointFixture)
     derived = [
         pack
         async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": ingress.id}
+            mapping={"pid": ingress.pid}
         )
     ]
     all_ids = {pack.id for pack in derived}

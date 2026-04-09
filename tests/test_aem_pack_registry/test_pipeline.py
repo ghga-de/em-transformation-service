@@ -57,12 +57,12 @@ async def test_chained_routes(joint_fixture: JointFixture):
     derived_and_published = [
         pack
         async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": ingress.id}
+            mapping={"pid": ingress.pid}
         )
     ]
     assert len(derived_and_published) == 1
     assert derived_and_published[0].model_name == "DerivedModel3"
-    assert derived_and_published[0].original_id == ingress.id
+    assert derived_and_published[0].pid == ingress.pid
     assert isinstance(derived_and_published[0].data, DataPack)
 
     # Unprocessed doc preserved and marked as processed
@@ -95,14 +95,14 @@ async def test_forking_graph(joint_fixture: JointFixture):
     derived_and_published = [
         pack
         async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": ingress.id}
+            mapping={"pid": ingress.pid}
         )
     ]
     assert len(derived_and_published) == 2
     names = {pack.model_name for pack in derived_and_published}
     assert names == {"DerivedModel1", "DerivedModel2"}
     for pack in derived_and_published:
-        assert pack.original_id == ingress.id
+        assert pack.pid == ingress.pid
 
 
 @pytest.mark.parametrize(
@@ -133,7 +133,7 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
     derived_and_published = [
         pack
         async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": ingress.id}
+            mapping={"pid": ingress.pid}
         )
     ]
     assert len(derived_and_published) == 2
@@ -142,7 +142,7 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
         "DerivedModel2",
     }
     for pack in derived_and_published:
-        assert pack.original_id == ingress.id
+        assert pack.pid == ingress.pid
         assert isinstance(pack.data, DataPack)
 
     # Unprocessed doc preserved and marked as processed
@@ -179,11 +179,10 @@ async def test_ingress_with_no_routes(joint_fixture: JointFixture):
         config=config,
     )
 
-    # The ingress itself is published (publish=True) but has original_id=None,
-    # so it won't appear in a derived-pack query. Verify via get_by_id instead.
+    # The ingress itself is published (publish=True). Verify via get_by_id.
     published = await joint_fixture.daos.aem_pack_dao.get_by_id(ingress.id)
     assert published.model_name == "Isolated"
-    assert published.original_id is None
+    assert published.pid == ingress.pid
 
     # Unprocessed doc preserved and marked as processed
     raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": ingress.id})
@@ -223,13 +222,13 @@ async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):
     derived_1 = [
         pack
         async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": ingress_1.id}
+            mapping={"pid": ingress_1.pid}
         )
     ]
     derived_2 = [
         pack
         async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": ingress_2.id}
+            mapping={"pid": ingress_2.pid}
         )
     ]
 

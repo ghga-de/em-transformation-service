@@ -45,9 +45,10 @@ async def test_unreachable_pack_deleted_after_route_removal(
     )
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
+    pid = str(uuid4())
 
     # Derive all models first
-    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
@@ -60,9 +61,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
 
     derived = [
         pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": aem_id}
-        )
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
     ]
     assert len(derived) == 3
     deleted_pack_id = next(
@@ -81,7 +80,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
     )
 
     # Re-process same ingress
-    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
@@ -97,9 +96,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
     # DerivedModel3 deleted (unreachable), DerivedModel1 and DerivedModel2 remain
     derived = [
         pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": aem_id}
-        )
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
     ]
     assert len(derived) == 2
     assert {pack.model_name for pack in derived} == {
@@ -129,9 +126,10 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
     )
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
+    pid = str(uuid4())
 
     # Initial processing: derive all 3 packs
-    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
@@ -144,9 +142,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
 
     derived = [
         pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": aem_id}
-        )
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
     ]
     assert len(derived) == 3
     orphaned_pack = next(pack for pack in derived if pack.model_name == "DerivedModel3")
@@ -164,7 +160,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
     )
 
     # Re-process same ingress with modified config
-    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
@@ -180,9 +176,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
     # DerivedModel3 pack deleted, DerivedModel1 and DerivedModel2 remain
     derived = [
         pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": aem_id}
-        )
+        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
     ]
     assert len(derived) == 2
     assert {pack.model_name for pack in derived} == {

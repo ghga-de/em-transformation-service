@@ -15,8 +15,6 @@
 
 """Tests for AEMPack related utility functions called in during processing."""
 
-from uuid import uuid4
-
 import pytest
 from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
@@ -42,20 +40,20 @@ async def test_create_aem_pack(
 ):
     """Test creating an AEMPack wrapper, with and without a pre-specified ID."""
     model_name = "TestModel"
-    original_id = uuid4()
+    pid = "test-pid"
     annotation: dict = {}
 
     aem_pack = joint_fixture.aem_pack_registry._create_aem_pack(
         aem_id=aem_id,
         model_name=model_name,
-        original_id=original_id,
+        pid=pid,
         data=TEST_DATAPACK,
         annotation=annotation,
     )
 
     assert aem_pack.id is not None
     assert aem_pack.model_name == model_name
-    assert aem_pack.original_id == original_id
+    assert aem_pack.pid == pid
     assert aem_pack.data == TEST_DATAPACK
     assert aem_pack.annotation == annotation
     if expected_aem_id:

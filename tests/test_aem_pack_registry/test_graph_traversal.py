@@ -63,7 +63,7 @@ async def test_clears_dirty_map(
     incoming = AEMPack(
         id=uuid4(),
         model_name=ingress.name,
-        original_id=None,
+        pid="test-pid",
         data=TEST_DATAPACK,
         annotation={},
     )
@@ -97,7 +97,7 @@ async def test_respects_topological_order(joint_fixture: JointFixture):
     incoming = AEMPack(
         id=uuid4(),
         model_name=ingress.name,
-        original_id=None,
+        pid="test-pid",
         data=TEST_DATAPACK,
         annotation={},
     )
@@ -134,7 +134,7 @@ async def test_reuses_dirty_map_ids(joint_fixture: JointFixture):
     incoming = AEMPack(
         id=uuid4(),
         model_name=ingress.name,
-        original_id=None,
+        pid="test-pid",
         data=TEST_DATAPACK,
         annotation={},
     )
@@ -168,7 +168,7 @@ async def test_generates_new_id_when_no_dirty_entry(joint_fixture: JointFixture)
     incoming = AEMPack(
         id=uuid4(),
         model_name=ingress.name,
-        original_id=None,
+        pid="test-pid",
         data=TEST_DATAPACK,
         annotation={},
     )
@@ -216,7 +216,7 @@ async def test_bottleneck_topology(
     incoming = AEMPack(
         id=uuid4(),
         model_name=ingress_name,
-        original_id=None,
+        pid="test-pid",
         data=TEST_DATAPACK,
         annotation={},
     )

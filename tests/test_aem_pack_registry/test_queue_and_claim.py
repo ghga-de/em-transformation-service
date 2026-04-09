@@ -46,8 +46,8 @@ async def test_queue_creates_correct_document(joint_fixture: JointFixture):
     expected_correlation_id = uuid4()
     aem_pack = IncomingAEMPack(
         id=aem_id,
+        pid="test-pid",
         model_name="TestModel",
-        original_id=None,
         data=TEST_DATAPACK,
         annotation={},
         correlation_id=expected_correlation_id,
@@ -202,7 +202,7 @@ async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
     derived = [
         pack
         async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"original_id": aem_id}
+            mapping={"pid": pack_v1.pid}
         )
     ]
     assert len(derived) == 3

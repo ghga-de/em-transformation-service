@@ -17,6 +17,7 @@
 
 from hexkit.protocols.dao import DaoFactoryProtocol
 from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
+from hexkit.providers.mongodb import MongoDbIndex
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
@@ -60,6 +61,7 @@ async def get_incoming_aem_pack_dao(
         name=INCOMING_AEM_PACK_COLLECTION,
         dto_model=models.IncomingAEMPack,
         id_field="id",
+        indexes=[MongoDbIndex(fields={"pid": 1, "model_name": 1})],
     )
 
 
@@ -84,4 +86,5 @@ async def get_aem_pack_dao(
         dto_to_event=lambda aem_pack: aem_pack.model_dump(mode="json"),
         event_topic=topic,
         autopublish=True,
+        indexes=[MongoDbIndex(fields={"pid": 1, "model_name": 1})],
     )

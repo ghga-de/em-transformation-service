@@ -91,7 +91,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         dirty_map = {
             aem_pack.model_name: aem_pack.id
             async for aem_pack in self._aem_pack_dao.find_all(
-                mapping={"original_id": incoming_aem.id}
+                mapping={"pid": incoming_aem.pid}
             )
         }
         transformed_map: dict[str, AEMPack] = {incoming_aem.model_name: incoming_aem}
@@ -175,7 +175,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
                     aem_id=dirty_map.get(route.output_model_name),
                     data=transformed_data,
                     model_name=route.output_model_name,
-                    original_id=incoming.id,
+                    pid=incoming.pid,
                     annotation=current_aem_pack.annotation,
                 )
                 transformed_map[route.output_model_name] = transformed_aem_pack
@@ -216,7 +216,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         *,
         aem_id: UUID4 | None = None,
         model_name: str,
-        original_id: UUID4,
+        pid: str,
         data: DataPack,
         annotation: dict[str, Any],
     ) -> AEMPack:
@@ -224,7 +224,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         return AEMPack(
             id=aem_id or uuid4(),
             model_name=model_name,
-            original_id=original_id,
+            pid=pid,
             data=data,
             annotation=annotation,
         )

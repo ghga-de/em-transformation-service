@@ -263,13 +263,13 @@ class AEMPack(BaseModel):
         default=...,
         description="Unique identifier of the EMPack.",
     )
+    pid: str = Field(
+        default=...,
+        description="Non-unique identifier that's shared between an incoming AEMPacks and all its derived AEMPacks.",
+    )
     model_name: str = Field(
         default=...,
         description="Unique name of the model the EMPack conforms to.",
-    )
-    original_id: UUID4 | None = Field(
-        default=None,
-        description="ID of the original incoming EMPack it was derived from. None if it is an original EMPack.",
     )
     data: DataPack = Field(
         default=...,

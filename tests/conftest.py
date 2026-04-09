@@ -40,7 +40,7 @@ TEST_ANNOTATED_EM_PACK_ID = uuid4()
 TEST_AEM_PACK = AEMPack(
     id=TEST_ANNOTATED_EM_PACK_ID,
     model_name="test_model",
-    original_id=None,
+    pid="test-pid",
     data=TEST_DATAPACK,
     annotation={"model_version": "test.0.0"},
 )
