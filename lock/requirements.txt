@@ -73,15 +73,15 @@ attrs==26.1.0 \
     #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
-boto3==1.42.78 \
-    --hash=sha256:480a34a077484a5ca60124dfd150ba3ea6517fc89963a679e45b30c6db614d26 \
-    --hash=sha256:cef2ebdb9be5c0e96822f8d3941ac4b816c90a5737a7ffb901d664c808964b63
+boto3==1.42.86 \
+    --hash=sha256:492c3c7cbbe9842882680064902f50cf711b5ab770d26525549872339ed95d5b \
+    --hash=sha256:c87d2a750b1a8cad0384d1a83d3bad6aedf924ae9a14aaba814bcb3297b39c01
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit
-botocore==1.42.78 \
-    --hash=sha256:038ab63c7f898e8b5db58cb6a45e4da56c31dd984e7e995839a3540c735564ea \
-    --hash=sha256:61cbd49728e23f68cfd945406ab40044d49abed143362f7ffa4a4f4bd4311791
+botocore==1.42.86 \
+    --hash=sha256:443387337864e069f7e4e885ccdc81592725b5598ca966514af3e9776bce0bfe \
+    --hash=sha256:baa49e93b4c92d63e0c8288026ee1ef8de83f182743127cc9175504440a48e49
     # via
     #   -c lock/requirements-dev.txt
     #   boto3
@@ -94,9 +94,9 @@ certifi==2026.2.25 \
     #   -c lock/requirements-dev.txt
     #   httpcore
     #   httpx
-click==8.3.1 \
-    --hash=sha256:12ff4785d337a1bb490bb7e9c2b1ee5da3112e94a8622f26a6c77f5d2fc6842a \
-    --hash=sha256:981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6
+click==8.3.2 \
+    --hash=sha256:14162b8b3b3550a7d479eafa77dfd3c38d9dc8951f6f69c78913a8f9a7540fd5 \
+    --hash=sha256:1924d2c27c5653561cd2cae4548d1406039cb79b858b747cfea24924bbc1616d
     # via
     #   -c lock/requirements-dev.txt
     #   typer
@@ -251,9 +251,9 @@ email-validator==2.3.0 \
     # via
     #   -c lock/requirements-dev.txt
     #   pydantic
-fastapi==0.135.2 \
-    --hash=sha256:0af0447d541867e8db2a6a25c23a8c4bd80e2394ac5529bd87501bbb9e240ca5 \
-    --hash=sha256:88a832095359755527b7f63bb4c6bc9edb8329a026189eed83d6c1afcf419d56
+fastapi==0.135.3 \
+    --hash=sha256:9b0f590c813acd13d0ab43dd8494138eb58e484bfac405db1f3187cfc5810d98 \
+    --hash=sha256:bd6d7caf1a2bdd8d676843cdcd2287729572a1ef524fc4d65c17ae002a1be654
     # via
     #   -c lock/requirements-dev.txt
     #   ghga-service-commons
@@ -1127,9 +1127,9 @@ urllib3==2.6.3 \
     # via
     #   -c lock/requirements-dev.txt
     #   botocore
-uvicorn==0.42.0 \
-    --hash=sha256:96c30f5c7abe6f74ae8900a70e92b85ad6613b745d4879eb9b16ccad15645359 \
-    --hash=sha256:9b1f190ce15a2dd22e7758651d9b6d12df09a13d51ba5bf4fc33c383a48e1775
+uvicorn==0.44.0 \
+    --hash=sha256:6c942071b68f07e178264b9152f1f16dfac5da85880c4ce06366a96d70d4f31e \
+    --hash=sha256:ce937c99a2cc70279556967274414c087888e8cec9f9c94644dfca11bd3ced89
     # via
     #   -c lock/requirements-dev.txt
     #   ghga-service-commons

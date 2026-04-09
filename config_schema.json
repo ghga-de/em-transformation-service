@@ -5,7 +5,7 @@
     "derived_aem_pack_topic": {
       "description": "Topic for events informing about derived AEMs.",
       "examples": [
-        "derived-aems"
+        "derived-aempacks"
       ],
       "title": "Derived Aem Pack Topic",
       "type": "string"
