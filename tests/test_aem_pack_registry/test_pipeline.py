@@ -47,7 +47,6 @@ async def test_chained_routes(joint_fixture: JointFixture):
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
@@ -67,7 +66,7 @@ async def test_chained_routes(joint_fixture: JointFixture):
     assert isinstance(derived_and_published[0].data, DataPack)
 
     # Unprocessed doc preserved and marked as processed
-    raw = await registry._incoming_aem_pack_collection.find_one({"_id": ingress.id})
+    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": ingress.id})
     assert raw is not None
     assert raw["processed_at"] is not None
     assert raw["processor"] is None
@@ -86,7 +85,6 @@ async def test_forking_graph(joint_fixture: JointFixture):
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
@@ -125,7 +123,6 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
@@ -149,7 +146,7 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
         assert isinstance(pack.data, DataPack)
 
     # Unprocessed doc preserved and marked as processed
-    raw = await registry._incoming_aem_pack_collection.find_one({"_id": ingress.id})
+    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": ingress.id})
     assert raw is not None
     assert raw["processed_at"] is not None
     assert raw["processor"] is None
@@ -175,7 +172,6 @@ async def test_ingress_with_no_routes(joint_fixture: JointFixture):
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
@@ -190,7 +186,7 @@ async def test_ingress_with_no_routes(joint_fixture: JointFixture):
     assert published.original_id is None
 
     # Unprocessed doc preserved and marked as processed
-    raw = await registry._incoming_aem_pack_collection.find_one({"_id": ingress.id})
+    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": ingress.id})
     assert raw is not None
     assert raw["processed_at"] is not None
     assert raw["processor"] is None
@@ -211,7 +207,6 @@ async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):
     claimed_1 = await queue_and_claim(
         registry=registry,
         pack=ingress_1,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     await registry._process_next_aem_pack(
         incoming_aem=claimed_1, correlation_id=claimed_1.correlation_id, config=config
@@ -220,7 +215,6 @@ async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):
     claimed_2 = await queue_and_claim(
         registry=registry,
         pack=ingress_2,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     await registry._process_next_aem_pack(
         incoming_aem=claimed_2, correlation_id=claimed_2.correlation_id, config=config
@@ -273,7 +267,6 @@ async def test_correlation_id_propagated_to_derived_packs(joint_fixture: JointFi
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
 
     async with joint_fixture.kafka.record_events(

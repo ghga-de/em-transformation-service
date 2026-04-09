@@ -46,7 +46,6 @@ async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
@@ -67,7 +66,6 @@ async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
@@ -106,7 +104,6 @@ async def test_first_processing_generates_fresh_ids(joint_fixture: JointFixture)
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,

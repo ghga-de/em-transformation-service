@@ -56,7 +56,7 @@ async def test_queue_creates_correct_document(joint_fixture: JointFixture):
     async with set_correlation_id(expected_correlation_id):
         await registry.queue_unprocessed(aem_pack)
 
-    raw = await registry._incoming_aem_pack_collection.find_one({"_id": aem_id})
+    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": aem_id})
     assert raw is not None
     assert raw["model_name"] == "TestModel"
     assert raw["annotation"] == {}
@@ -81,13 +81,13 @@ async def test_double_queue_before_processing_stays_claimable(
     async with set_correlation_id(pack_v2.correlation_id):
         await registry.queue_unprocessed(pack_v2)
 
-    raw = await registry._incoming_aem_pack_collection.find_one({"_id": aem_id})
+    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": aem_id})
     assert raw is not None
     assert raw["processor"] is None
     assert raw["processed_at"] is None
     assert raw["annotation"] == {}
 
-    count = await registry._incoming_aem_pack_collection.count_documents(
+    count = await joint_fixture.incoming_aem_pack_collection.count_documents(
         {"_id": aem_id}
     )
     assert count == 1
@@ -101,7 +101,7 @@ async def test_abandoned_pack_reclaimed_by_same_instance(joint_fixture: JointFix
     async with set_correlation_id(ingress.correlation_id):
         await registry.queue_unprocessed(ingress)
     # Simulate a previous crash: the doc is already claimed by this instance
-    await registry._incoming_aem_pack_collection.update_one(
+    await joint_fixture.incoming_aem_pack_collection.update_one(
         {"_id": ingress.id},
         {"$set": {PROCESSOR_FIELD: joint_fixture.config.service_instance_id}},
     )
@@ -179,7 +179,6 @@ async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=pack_v1,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
 
     # Simulate concurrent update: queue v2 with same ID while v1 is claimed
@@ -188,7 +187,7 @@ async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
         await registry.queue_unprocessed(pack_v2)
 
     # Processor is preserved so in-flight instance can complete; needs_reprocessing signals v2 is pending
-    raw = await registry._incoming_aem_pack_collection.find_one({"_id": aem_id})
+    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": aem_id})
     assert raw is not None
     assert raw["processor"] == joint_fixture.config.service_instance_id
     assert raw["needs_reprocessing"] is True
@@ -209,7 +208,7 @@ async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
     assert len(derived) == 3
 
     # Doc flagged for reprocessing: processor released, processed_at stamped, needs_reprocessing still True
-    raw = await registry._incoming_aem_pack_collection.find_one({"_id": aem_id})
+    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": aem_id})
     assert raw is not None
     assert raw["processor"] is None
     assert raw["processed_at"] is not None

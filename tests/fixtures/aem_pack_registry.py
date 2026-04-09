@@ -25,7 +25,6 @@ from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.constants import PROCESSOR_FIELD
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.model_derivation import ModelDeriver
 from ets.core.models import (
@@ -160,7 +159,6 @@ def make_ingress_pack(
 async def queue_and_claim(
     registry: AEMPackRegistry,
     pack: IncomingAEMPack,
-    service_instance_id: str,
 ) -> IncomingAEMPack:
     """Queue an unprocessed pack and atomically claim it for processing.
 
@@ -168,12 +166,6 @@ async def queue_and_claim(
     """
     async with set_correlation_id(pack.correlation_id):
         await registry.queue_unprocessed(pack)
-    doc = await registry._incoming_aem_pack_collection.find_one_and_update(
-        filter={"_id": pack.id, PROCESSOR_FIELD: None},
-        update={"$set": {PROCESSOR_FIELD: service_instance_id}},
-        return_document=True,
-    )
-    assert doc is not None, f"Failed to claim unprocessed pack {pack.id}"
-    doc["id"] = doc.pop("_id")
-    doc["data"] = DataPack.model_validate(doc["data"])
-    return IncomingAEMPack(**doc)
+    claimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert claimed is not None, f"Failed to claim unprocessed pack {pack.id}"
+    return claimed

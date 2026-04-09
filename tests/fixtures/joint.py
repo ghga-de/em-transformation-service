@@ -22,16 +22,19 @@ from typing import cast
 import pytest_asyncio
 from hexkit.providers.akafka import KafkaEventSubscriber
 from hexkit.providers.akafka.testutils import KafkaFixture
+from hexkit.providers.mongodb import ConfiguredMongoClient
 from hexkit.providers.mongodb.testutils import MongoDbFixture
 from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
+from pymongo.asynchronous.collection import AsyncCollection
 
 from ets.adapters.outbound.dao import (
-    AEMPackDaoFactory,
+    get_aem_pack_dao,
     get_persisted_model_dao,
     get_route_dao,
     get_workflow_dao,
 )
 from ets.config import Config
+from ets.constants import INCOMING_AEM_PACK_COLLECTION
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.inject import (
     prepare_aem_pack_registry,
@@ -62,6 +65,7 @@ class JointFixture:
     config: Config
     daos: DAOs
     event_subscriber: KafkaEventSubscriber
+    incoming_aem_pack_collection: AsyncCollection
     kafka: KafkaFixture
     loader: ConfigLoaderPort
     writer: ConfigWriterPort
@@ -79,12 +83,17 @@ async def joint_fixture(
     route_dao = await get_route_dao(dao_factory=mongodb.dao_factory)
     workflow_dao = await get_workflow_dao(dao_factory=mongodb.dao_factory)
 
-    async with MongoKafkaDaoPublisherFactory.construct(
-        config=config
-    ) as dao_pub_factory:
-        aem_pack_dao = await AEMPackDaoFactory(
-            config=config, dao_publisher_factory=dao_pub_factory
-        ).get_aem_pack_dao()
+    async with (
+        MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
+        ConfiguredMongoClient(config=config) as async_mongo_client,
+    ):
+        aem_pack_dao = await get_aem_pack_dao(
+            dao_publisher_factory=dao_pub_factory,
+            topic=config.derived_aem_pack_topic,
+        )
+        incoming_aem_pack_collection = async_mongo_client[config.db_name][
+            INCOMING_AEM_PACK_COLLECTION
+        ]
         daos = DAOs(
             aem_pack_dao=aem_pack_dao,
             model_dao=model_dao,
@@ -101,9 +110,10 @@ async def joint_fixture(
         ):
             yield JointFixture(
                 aem_pack_registry=cast(AEMPackRegistry, aem_pack_registry),
-                daos=daos,
                 config=config,
+                daos=daos,
                 event_subscriber=event_subscriber,
+                incoming_aem_pack_collection=incoming_aem_pack_collection,
                 kafka=kafka,
                 loader=config_adapters.loader,
                 writer=config_adapters.writer,

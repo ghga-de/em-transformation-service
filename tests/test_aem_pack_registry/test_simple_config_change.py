@@ -51,7 +51,6 @@ async def test_unreachable_pack_deleted_after_route_removal(
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
@@ -86,7 +85,6 @@ async def test_unreachable_pack_deleted_after_route_removal(
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="ets.core.aem_pack_registry"):
@@ -137,7 +135,6 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
@@ -171,7 +168,6 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
     unprocessed = await queue_and_claim(
         registry=registry,
         pack=ingress,
-        service_instance_id=joint_fixture.config.service_instance_id,
     )
     caplog.clear()
     with caplog.at_level(logging.WARNING):

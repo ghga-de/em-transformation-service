@@ -31,6 +31,7 @@ from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
 from ets.adapters.outbound.config_writer import ConfigWriterAdapter
 from ets.adapters.outbound.dao import (
+    get_aem_pack_dao,
     get_persisted_model_dao,
     get_route_dao,
     get_workflow_dao,
@@ -87,10 +88,10 @@ async def prepare_aem_pack_registry(
         MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
         ConfiguredMongoClient(config=config) as mongo_client,
     ):
-        aem_pack_dao_factory = AEMPackDaoFactory(
-            config=config, dao_publisher_factory=dao_pub_factory
+        aem_pack_dao = await get_aem_pack_dao(
+            dao_publisher_factory=dao_pub_factory,
+            topic=config.derived_aem_pack_topic,
         )
-        aem_pack_dao = await aem_pack_dao_factory.get_aem_pack_dao()
         incoming_aem_pack_queue = IncomingAEMPackQueue(
             collection=mongo_client[config.db_name][INCOMING_AEM_PACK_COLLECTION],
             service_instance_id=config.service_instance_id,
