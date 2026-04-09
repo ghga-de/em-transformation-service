@@ -31,12 +31,13 @@ from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
 from ets.adapters.outbound.config_writer import ConfigWriterAdapter
 from ets.adapters.outbound.dao import (
-    AEMPackDaoFactory,
     get_persisted_model_dao,
     get_route_dao,
     get_workflow_dao,
 )
+from ets.adapters.outbound.incoming_aem_pack_queue import IncomingAEMPackQueue
 from ets.config import Config
+from ets.constants import INCOMING_AEM_PACK_COLLECTION
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
@@ -90,12 +91,16 @@ async def prepare_aem_pack_registry(
             config=config, dao_publisher_factory=dao_pub_factory
         )
         aem_pack_dao = await aem_pack_dao_factory.get_aem_pack_dao()
+        incoming_aem_pack_queue = IncomingAEMPackQueue(
+            collection=mongo_client[config.db_name][INCOMING_AEM_PACK_COLLECTION],
+            service_instance_id=config.service_instance_id,
+        )
 
         yield AEMPackRegistry(
             config=config,
             aem_pack_dao=aem_pack_dao,
             config_loader=config_adapters.loader,
-            mongo_client=mongo_client,
+            incoming_aem_pack_queue=incoming_aem_pack_queue,
         )
 
 

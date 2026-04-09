@@ -21,15 +21,12 @@ from typing import Any
 from uuid import uuid4
 
 from hexkit.correlation import get_correlation_id, set_correlation_id
-from hexkit.utils import now_utc_ms_prec
 from metldata import get_transformation_registry
 from metldata.transform.handling import TransformationHandler
 from pydantic import UUID4, BaseModel, ConfigDict
-from pymongo import AsyncMongoClient
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.adapters.outbound.dao import INCOMING_AEM_PACK_COLLECTION
 from ets.config import Config
 from ets.core.models import AEMPack, PersistedConfig, Workflow
 from ets.ports.inbound.aem_pack_registry import (
@@ -37,12 +34,9 @@ from ets.ports.inbound.aem_pack_registry import (
 )
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.dao import AEMPackDao
+from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 log = logging.getLogger(__name__)
-
-PROCESSOR_FIELD = "processor"
-PROCESSED_AT_FIELD = "processed_at"
-NEEDS_REPROCESSING_FIELD = "needs_reprocessing"
 
 
 class _AnnotationModel(BaseModel):
@@ -60,113 +54,28 @@ class AEMPackRegistry(AEMPackRegistryPort):
         config: Config,
         aem_pack_dao: AEMPackDao,
         config_loader: ConfigLoaderPort,
-        mongo_client: AsyncMongoClient,
+        incoming_aem_pack_queue: IncomingAEMPackQueuePort,
     ):
         self._config = config
         self._aem_pack_dao = aem_pack_dao
         self._config_loader = config_loader
-        self._mongo_client = mongo_client
-        # Bypassing DAO, as we need specific atomicity guarantees for the operations
-        # DAO based code would need to deal with possible race conditions
-        self._incoming_aem_pack_collection = mongo_client[config.db_name][
-            INCOMING_AEM_PACK_COLLECTION
-        ]
+        self._incoming_aem_pack_queue = incoming_aem_pack_queue
         self._transformation_registry = get_transformation_registry()
 
     async def queue_unprocessed(self, aem_pack: AEMPack):
-        """Fetch new AEMs via event subscriber and put them into the queue for processing."""
-        doc = aem_pack.model_dump(mode="json")
-        doc.pop("id")
-        doc["correlation_id"] = get_correlation_id()
-
-        await self._incoming_aem_pack_collection.find_one_and_update(
-            filter={"_id": aem_pack.id},
-            update=[
-                {
-                    "$set": {
-                        **doc,
-                        # Preserve the current processor so the in-flight instance can still
-                        # complete and mark the doc as done; it will be requeued via needs_reprocessing.
-                        PROCESSOR_FIELD: {
-                            "$cond": {
-                                "if": f"${PROCESSOR_FIELD}",
-                                "then": f"${PROCESSOR_FIELD}",
-                                "else": None,
-                            }
-                        },
-                        NEEDS_REPROCESSING_FIELD: {
-                            "$or": [
-                                {"$ne": [f"${PROCESSOR_FIELD}", None]},
-                                {"$ne": [f"${PROCESSED_AT_FIELD}", None]},
-                            ]
-                        },
-                        PROCESSED_AT_FIELD: {
-                            "$cond": {
-                                "if": f"${PROCESSED_AT_FIELD}",
-                                "then": f"${PROCESSED_AT_FIELD}",
-                                "else": None,
-                            }
-                        },
-                    }
-                }
-            ],
-            upsert=True,
-        )
+        """Fetch new AEMPacks via event subscriber and put them into the queue for processing."""
+        await self._incoming_aem_pack_queue.queue(aem_pack, get_correlation_id())
 
     async def process_aem_packs(self) -> None:
         """Derives AEM packs from incoming AEM."""
         config = await self._config_loader.load_config_from_db()
 
         while True:
-            # Check for packs abandoned by a previous crash of this instance
-            unprocessed_aem_pack = await self._incoming_aem_pack_collection.find_one(
-                {
-                    PROCESSOR_FIELD: self._config.service_instance_id,
-                    PROCESSED_AT_FIELD: None,
-                }
-            )
-            if not unprocessed_aem_pack:
-                # No abandoned packs; try to claim a fresh one
-                unprocessed_aem_pack = (
-                    await self._incoming_aem_pack_collection.find_one_and_update(
-                        filter={PROCESSOR_FIELD: None, PROCESSED_AT_FIELD: None},
-                        update={
-                            "$set": {PROCESSOR_FIELD: self._config.service_instance_id}
-                        },
-                        return_document=True,
-                    )
-                )
-            if not unprocessed_aem_pack:
-                # Check for already-processed packs that received a new version while in flight
-                unprocessed_aem_pack = (
-                    await self._incoming_aem_pack_collection.find_one_and_update(
-                        filter={
-                            PROCESSED_AT_FIELD: {"$ne": None},
-                            NEEDS_REPROCESSING_FIELD: True,
-                        },
-                        update={
-                            "$set": {
-                                PROCESSOR_FIELD: self._config.service_instance_id,
-                                PROCESSED_AT_FIELD: None,
-                                NEEDS_REPROCESSING_FIELD: False,
-                            }
-                        },
-                        return_document=True,
-                    )
-                )
-
-            if unprocessed_aem_pack:
-                unprocessed_aem_pack["id"] = unprocessed_aem_pack.pop("_id")
-                unprocessed_aem_pack.pop(PROCESSOR_FIELD)
-                unprocessed_aem_pack.pop(PROCESSED_AT_FIELD)
-                unprocessed_aem_pack.pop(NEEDS_REPROCESSING_FIELD, None)
-                correlation_id = unprocessed_aem_pack.pop("correlation_id")
-
-                incoming_aem = AEMPack(**unprocessed_aem_pack)
-
+            claimed = await self._incoming_aem_pack_queue.claim_next()
+            if claimed:
                 await self._process_next_aem_pack(
-                    incoming_aem=incoming_aem,
-                    correlation_id=correlation_id,
+                    incoming_aem=claimed,
+                    correlation_id=claimed.correlation_id,
                     config=config,
                 )
             else:
@@ -217,15 +126,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 log.info(f"Upserting derived AEM Pack {aem_pack.id}")
                 await self._aem_pack_dao.upsert(aem_pack)
 
-        await self._incoming_aem_pack_collection.update_one(
-            {"_id": incoming_aem.id},
-            {
-                "$set": {
-                    PROCESSOR_FIELD: None,
-                    PROCESSED_AT_FIELD: now_utc_ms_prec(),
-                }
-            },
-        )
+        await self._incoming_aem_pack_queue.mark_processed(incoming_aem.id)
 
     def _traverse_graph(
         self,

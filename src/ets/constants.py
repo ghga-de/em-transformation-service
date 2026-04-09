@@ -13,15 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""DAO interface for accessing the database."""
+"""Service-wide constants."""
 
-from hexkit.protocols.dao import Dao
-from hexkit.protocols.daopub import DaoPublisher
+INCOMING_AEM_PACK_COLLECTION = "incoming_aem_packs"
 
-from ets.core.models import AEMPack, IncomingAEMPack, Model, Route, Workflow
-
-ModelDao = Dao[Model]
-WorkflowDao = Dao[Workflow]
-RouteDao = Dao[Route]
-AEMPackDao = DaoPublisher[AEMPack]
-IncomingAEMPackDao = Dao[IncomingAEMPack]
+PROCESSOR_FIELD = "processor"
+PROCESSED_AT_FIELD = "processed_at"
+NEEDS_REPROCESSING_FIELD = "needs_reprocessing"

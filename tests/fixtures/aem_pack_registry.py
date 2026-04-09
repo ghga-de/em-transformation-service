@@ -25,10 +25,8 @@ from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.core.aem_pack_registry import (
-    PROCESSOR_FIELD,
-    AEMPackRegistry,
-)
+from ets.constants import PROCESSOR_FIELD
+from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.model_derivation import ModelDeriver
 from ets.core.models import (
     IncomingAEMPack,
