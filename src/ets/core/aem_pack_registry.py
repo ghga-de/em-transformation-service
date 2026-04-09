@@ -146,7 +146,6 @@ class AEMPackRegistry(AEMPackRegistryPort):
             routes_by_input.setdefault(route.input_model_name, []).append(route)
 
         if not models_by_name.get(incoming.model_name):
-            # Needs DLQ setup
             raise ValueError(
                 f"No model with name {incoming.model_name} registered for AEMPack with id {incoming.id}."
             )
