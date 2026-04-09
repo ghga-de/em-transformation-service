@@ -49,18 +49,18 @@ ets --help
 ### Parameters
 
 The service requires the following configuration parameters:
-- <a id="properties/derived_aem_pack_topic"></a>**`derived_aem_pack_topic`** *(string, required)*: Topic for events informing about derived AEMs.
+- <a id="properties/derived_aem_pack_topic"></a>**`derived_aem_pack_topic`** *(string, required)*: Topic for events informing about derived AEMPacks.
 
   Examples:
   ```json
   "derived-aempacks"
   ```
 
-- <a id="properties/original_aem_pack_topic"></a>**`original_aem_pack_topic`** *(string, required)*: Topic informing about new ingress AEMs.
+- <a id="properties/original_aem_pack_topic"></a>**`original_aem_pack_topic`** *(string, required)*: Topic informing about new ingress AEMPacks.
 
   Examples:
   ```json
-  "original-aems"
+  "original-aempacks"
   ```
 
 - <a id="properties/service_name"></a>**`service_name`** *(string)*: Short name of this service. Default: `"ets"`.
@@ -247,7 +247,7 @@ The service requires the following configuration parameters:
 
 - <a id="properties/log_traceback"></a>**`log_traceback`** *(boolean)*: Whether to include exception tracebacks in log messages. Default: `true`.
 - <a id="properties/input_config_path"></a>**`input_config_path`** *(string, format: path, required)*: Path to the transformation config file used to populate the database.
-- <a id="properties/sleep_for"></a>**`sleep_for`** *(integer)*: Seconds to sleep when no unprocessed AEM packs are found. Default: `60`.
+- <a id="properties/sleep_for"></a>**`sleep_for`** *(integer)*: Seconds to sleep when no unprocessed AEMPacks are found. Default: `60`.
 
 ### Usage:
 
