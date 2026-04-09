@@ -35,4 +35,4 @@ class AEMPackEventConfig(BaseSettings):
 
 
 class OriginalAEMPack(AEMPack):
-    """Model for derived AEMPacks."""
+    """Model for the incoming AEMPack payload."""
