@@ -18,23 +18,18 @@
 import logging
 
 from hexkit.protocols.daosub import DaoSubscriberProtocol
-from pydantic import Field
-from pydantic_settings import BaseSettings
 
-from ets.core.models import AEMPack
+from ets.adapters.inbound.temporary_event_schemas import (
+    AEMPackEventConfig,
+    OriginalAEMPack,
+)
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 
 log = logging.getLogger(__name__)
 
 
-class AEMPackTranslatorConfig(BaseSettings):
-    """Config for the AEMPack event subscriber adapter."""
-
-    original_aem_pack_topic: str = Field(
-        default=...,
-        description="Topic informing about new ingress AEMPacks.",
-        examples=["original-aempacks"],
-    )
+class AEMPackTranslatorConfig(AEMPackEventConfig):
+    """Config for the AEMPack event subscriber."""
 
 
 class EventSubTranslator(DaoSubscriberProtocol):
@@ -42,7 +37,7 @@ class EventSubTranslator(DaoSubscriberProtocol):
 
     event_topic: str
 
-    dto_model = AEMPack
+    dto_model = OriginalAEMPack
 
     def __init__(
         self,
@@ -54,7 +49,7 @@ class EventSubTranslator(DaoSubscriberProtocol):
         self._aem_pack_registry = aem_pack_registry
         self._config = config
 
-    async def changed(self, resource_id: str, update: AEMPack) -> None:
+    async def changed(self, resource_id: str, update: OriginalAEMPack) -> None:
         """Consume a change event (created or updated) for the AEMPack."""
         await self._aem_pack_registry.queue_unprocessed(update)
 
