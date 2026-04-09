@@ -55,7 +55,7 @@ async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
 async def get_incoming_aem_pack_dao(
     *, dao_factory: DaoFactoryProtocol
 ) -> IncomingAEMPackDao:
-    """Setup the incoming AEM Pack DAO using the specified provider of the DaoFactoryProtocol."""
+    """Setup the incoming AEMPack DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
         name=INCOMING_AEM_PACK_COLLECTION,
         dto_model=models.IncomingAEMPack,
@@ -68,7 +68,7 @@ class AEMPackDaoConfig(BaseSettings):
 
     derived_aem_pack_topic: str = Field(
         default=...,
-        description="Topic for events informing about derived AEMs.",
+        description="Topic for events informing about derived AEMPacks.",
         examples=["derived-aempacks"],
     )
 
@@ -81,7 +81,7 @@ async def get_aem_pack_dao(
         name="aem_packs",
         id_field="id",
         dto_model=AEMPack,
-        dto_to_event=lambda aem: aem.model_dump(mode="json"),
+        dto_to_event=lambda aem_pack: aem_pack.model_dump(mode="json"),
         event_topic=topic,
         autopublish=True,
     )

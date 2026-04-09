@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""MongoDB adapter for the incoming AEM pack processing queue."""
+"""MongoDB adapter for the incoming AEMPack processing queue."""
 
 from hexkit.correlation import get_correlation_id
 from hexkit.utils import now_utc_ms_prec
@@ -27,7 +27,7 @@ from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 
 class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
-    """MongoDB adapter for the incoming AEM pack processing queue.
+    """MongoDB adapter for the incoming AEMPack processing queue.
 
     Uses atomic find-and-update operations to guarantee that each pack is
     claimed by exactly one processor at a time.

@@ -32,8 +32,8 @@ class AEMPackTranslatorConfig(BaseSettings):
 
     original_aem_pack_topic: str = Field(
         default=...,
-        description="Topic informing about new ingress AEMs.",
-        examples=["original-aems"],
+        description="Topic informing about new ingress AEMPacks.",
+        examples=["original-aempacks"],
     )
 
 

@@ -3,7 +3,7 @@
   "description": "Modifies the original Settings class provided by the user",
   "properties": {
     "derived_aem_pack_topic": {
-      "description": "Topic for events informing about derived AEMs.",
+      "description": "Topic for events informing about derived AEMPacks.",
       "examples": [
         "derived-aempacks"
       ],
@@ -11,9 +11,9 @@
       "type": "string"
     },
     "original_aem_pack_topic": {
-      "description": "Topic informing about new ingress AEMs.",
+      "description": "Topic informing about new ingress AEMPacks.",
       "examples": [
-        "original-aems"
+        "original-aempacks"
       ],
       "title": "Original Aem Pack Topic",
       "type": "string"
@@ -257,7 +257,7 @@
     },
     "sleep_for": {
       "default": 60,
-      "description": "Seconds to sleep when no unprocessed AEM packs are found.",
+      "description": "Seconds to sleep when no unprocessed AEMPacks are found.",
       "title": "Sleep For",
       "type": "integer"
     }

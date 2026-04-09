@@ -39,7 +39,7 @@ class AEMPackRegistryPort(ABC):
             super().__init__(message)
 
     class DataPackValidationError(RuntimeError):
-        """Raised when a DataPack of a AEMPack does not conform to its schema."""
+        """Raised when a DataPack of an AEMPack does not conform to its schema."""
 
         def __init__(self, *, aem_pack_id: UUID4, model_name: str):
             message = (
@@ -50,8 +50,8 @@ class AEMPackRegistryPort(ABC):
 
     @abstractmethod
     async def queue_unprocessed(self, aem_pack: AEMPack):
-        """Put new AEMs from event subscriber into the processing queue."""
+        """Put new AEMPacks from event subscriber into the processing queue."""
 
     @abstractmethod
     async def process_aem_packs(self):
-        """Derives AEM packs from incoming AEM."""
+        """Derives AEMPacks from incoming AEMPacks."""

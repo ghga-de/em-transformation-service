@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Port for the incoming AEM pack processing queue."""
+"""Port for the incoming AEMPack processing queue."""
 
 from abc import ABC, abstractmethod
 
@@ -23,7 +23,7 @@ from ets.core.models import AEMPack, IncomingAEMPack
 
 
 class IncomingAEMPackQueuePort(ABC):
-    """Port for the incoming AEM pack processing queue.
+    """Port for the incoming AEMPack processing queue.
 
     Guarantees that each pack is claimed by exactly one processor at a time.
     """

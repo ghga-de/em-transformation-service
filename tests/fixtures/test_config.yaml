@@ -5,5 +5,5 @@ mongo_dsn: "mongodb://mongodb:27017"
 db_name: "dev"
 kafka_enable_dlq: True
 input_config_path: tests/fixtures/input_configs/manager/valid/basic_config.yaml
-original_aem_pack_topic: original-aems
-derived_aem_pack_topic: derived-aems
+original_aem_pack_topic: original-aempacks
+derived_aem_pack_topic: derived-aempacks

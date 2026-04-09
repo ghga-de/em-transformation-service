@@ -43,5 +43,5 @@ class Config(
     )
     sleep_for: int = Field(
         default=60,
-        description="Seconds to sleep when no unprocessed AEM packs are found.",
+        description="Seconds to sleep when no unprocessed AEMPacks are found.",
     )

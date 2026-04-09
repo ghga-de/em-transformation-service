@@ -19,7 +19,7 @@ import asyncio
 
 import typer
 
-from ets.main import consume_events, process_aems
+from ets.main import consume_events, process_aem_packs
 
 cli = typer.Typer()
 
@@ -30,7 +30,7 @@ def sync_consume_events(run_forever: bool = True):
     asyncio.run(consume_events(run_forever=run_forever))
 
 
-@cli.command(name="process-aems")
-def sync_process_aems():
+@cli.command(name="process-aempacks")
+def sync_process_aem_packs():
     """Run processing on incoming annotated experimental metadata that has been stored in the database."""
-    asyncio.run(process_aems())
+    asyncio.run(process_aem_packs())

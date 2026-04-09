@@ -67,7 +67,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         await self._incoming_aem_pack_queue.queue(aem_pack)
 
     async def process_aem_packs(self) -> None:
-        """Derives AEM packs from incoming AEM."""
+        """Derives AEMPacks from incoming AEMPacks."""
         config = await self._config_loader.load_config_from_db()
 
         while True:
@@ -87,7 +87,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
     async def _process_next_aem_pack(
         self, *, incoming_aem: AEMPack, correlation_id: UUID4, config: PersistedConfig
     ):
-        """Perform transformation on the whole subgraph matching the incoming AEMs ingress model."""
+        """Perform transformation on the whole subgraph matching the incoming AEMPack ingress model."""
         dirty_map = {
             aem_pack.model_name: aem_pack.id
             async for aem_pack in self._aem_pack_dao.find_all(
@@ -123,7 +123,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
                     await self._aem_pack_dao.delete(aem_pack_id)
 
             for aem_pack in aem_packs_to_publish:
-                log.info(f"Upserting derived AEM Pack {aem_pack.id}")
+                log.info(f"Upserting derived AEMPack {aem_pack.id}")
                 await self._aem_pack_dao.upsert(aem_pack)
 
         await self._incoming_aem_pack_queue.mark_processed(incoming_aem.id)

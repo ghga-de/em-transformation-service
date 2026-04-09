@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for AEM pack related utility functions called in during processing."""
+"""Tests for AEMPack related utility functions called in during processing."""
 
 from uuid import uuid4
 
@@ -38,9 +38,9 @@ pytestmark = pytest.mark.asyncio
     ids=["auto_id", "specified_id"],
 )
 async def test_create_aem_pack(
-    joint_fixture: JointFixture, aem_id: UUID4, expected_aem_id: UUID4
+    joint_fixture: JointFixture, aem_id: UUID4 | None, expected_aem_id: bool
 ):
-    """Test creating an AEM pack wrapper, with and without a pre-specified ID."""
+    """Test creating an AEMPack wrapper, with and without a pre-specified ID."""
     model_name = "TestModel"
     original_id = uuid4()
     annotation: dict = {}
