@@ -20,7 +20,7 @@ import logging
 from typing import Any
 from uuid import uuid4
 
-from hexkit.correlation import get_correlation_id, set_correlation_id
+from hexkit.correlation import set_correlation_id
 from metldata import get_transformation_registry
 from metldata.transform.handling import TransformationHandler
 from pydantic import UUID4, BaseModel, ConfigDict
@@ -64,7 +64,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
     async def queue_unprocessed(self, aem_pack: AEMPack):
         """Fetch new AEMPacks via event subscriber and put them into the queue for processing."""
-        await self._incoming_aem_pack_queue.queue(aem_pack, get_correlation_id())
+        await self._incoming_aem_pack_queue.queue(aem_pack)
 
     async def process_aem_packs(self) -> None:
         """Derives AEM packs from incoming AEM."""

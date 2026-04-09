@@ -15,6 +15,7 @@
 
 """MongoDB adapter for the incoming AEM pack processing queue."""
 
+from hexkit.correlation import get_correlation_id
 from hexkit.utils import now_utc_ms_prec
 from pydantic import UUID4
 from pymongo import ReturnDocument
@@ -41,11 +42,11 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         self._collection = collection
         self._service_instance_id = service_instance_id
 
-    async def queue(self, aem_pack: AEMPack, correlation_id: UUID4) -> None:
+    async def queue(self, aem_pack: AEMPack) -> None:
         """Upsert an AEMPack into the queue."""
         doc = aem_pack.model_dump(mode="json")
         doc.pop("id")
-        doc["correlation_id"] = str(correlation_id)
+        doc["correlation_id"] = str(get_correlation_id())
 
         await self._collection.find_one_and_update(
             filter={"_id": aem_pack.id},

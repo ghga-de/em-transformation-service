@@ -29,7 +29,7 @@ class IncomingAEMPackQueuePort(ABC):
     """
 
     @abstractmethod
-    async def queue(self, aem_pack: AEMPack, correlation_id: UUID4) -> None:
+    async def queue(self, aem_pack: AEMPack) -> None:
         """Upsert an AEMPack into the queue."""
 
     @abstractmethod
