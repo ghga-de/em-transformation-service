@@ -61,7 +61,6 @@ async def get_incoming_aem_pack_dao(
         name=INCOMING_AEM_PACK_COLLECTION,
         dto_model=models.IncomingAEMPack,
         id_field="id",
-        indexes=[MongoDbIndex(fields={"pid": 1, "model_name": 1})],
     )
 
 
