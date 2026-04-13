@@ -74,7 +74,6 @@ async def test_apply_workflow_to_data(joint_fixture: JointFixture):
     )
 
     assert isinstance(result_data, DataPack)
-    assert "File" in result_data.resources
     # rename_id_property only modifies the schema (renames the id property),
     # not the resource data, so the resources are unchanged.
     assert result_data.resources == TEST_DATAPACK.resources
