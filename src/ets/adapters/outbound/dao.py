@@ -21,11 +21,9 @@ from hexkit.providers.mongodb import MongoDbIndex
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-from ets.constants import INCOMING_AEM_PACK_COLLECTION
 from ets.core import models
 from ets.core.models import AEMPack
 from ets.ports.outbound.dao import (
-    IncomingAEMPackDao,
     ModelDao,
     RouteDao,
     WorkflowDao,
@@ -50,17 +48,6 @@ async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
     """Setup the Route DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
         name="routes", dto_model=models.Route, id_field="name"
-    )
-
-
-async def get_incoming_aem_pack_dao(
-    *, dao_factory: DaoFactoryProtocol
-) -> IncomingAEMPackDao:
-    """Setup the incoming AEMPack DAO using the specified provider of the DaoFactoryProtocol."""
-    return await dao_factory.get_dao(
-        name=INCOMING_AEM_PACK_COLLECTION,
-        dto_model=models.IncomingAEMPack,
-        id_field="id",
     )
 
 
