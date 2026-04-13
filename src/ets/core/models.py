@@ -250,8 +250,3 @@ class PersistedConfig(BaseModel):
     workflows: list[Workflow] = Field(
         default=..., description="Up to date workflows for downstream processing."
     )
-
-    @property
-    def is_populated(self) -> bool:
-        """Whether all fields are non-empty, i.e. a valid config is persisted."""
-        return bool(self.models and self.routes and self.workflows)
