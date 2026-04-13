@@ -22,6 +22,7 @@ from uuid import uuid4
 
 import pytest
 from hexkit.correlation import set_correlation_id
+from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
 
 from ets.constants import PROCESSOR_FIELD
@@ -106,20 +107,7 @@ async def test_abandoned_pack_reclaimed_by_same_instance(joint_fixture: JointFix
         {"$set": {PROCESSOR_FIELD: joint_fixture.config.service_instance_id}},
     )
 
-    claimed: list[IncomingAEMPack] = []
-
-    async def capture_and_stop(*, incoming_aem, correlation_id, config):
-        claimed.append(incoming_aem)
-        raise RuntimeError("STOP, testing time!")
-
-    with (
-        patch.object(registry, "_process_next_aem_pack", capture_and_stop),
-        pytest.raises(RuntimeError),
-    ):
-        await registry.process_aem_packs()
-
-    assert len(claimed) == 1
-    assert claimed[0].id == ingress.id
+    await _assert_pack_claimed_during_processing(registry, ingress.id)
 
 
 async def test_fresh_pack_claimed_on_first_query(joint_fixture: JointFixture):
@@ -130,6 +118,13 @@ async def test_fresh_pack_claimed_on_first_query(joint_fixture: JointFixture):
     async with set_correlation_id(ingress.correlation_id):
         await registry.queue_unprocessed(ingress)
 
+    await _assert_pack_claimed_during_processing(registry, ingress.id)
+
+
+async def _assert_pack_claimed_during_processing(
+    registry: AEMPackRegistry, expected_id: UUID4
+) -> None:
+    """Helper to assert that a pack is claimed during process_aem_packs."""
     claimed: list[IncomingAEMPack] = []
 
     async def capture_and_stop(*, incoming_aem, correlation_id, config):
@@ -143,7 +138,7 @@ async def test_fresh_pack_claimed_on_first_query(joint_fixture: JointFixture):
         await registry.process_aem_packs()
 
     assert len(claimed) == 1
-    assert claimed[0].id == ingress.id
+    assert claimed[0].id == expected_id
 
 
 async def test_idle_path_logs_and_sleeps(
