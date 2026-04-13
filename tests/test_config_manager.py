@@ -217,15 +217,41 @@ def test_resolve_transformation_config(
         assert result is persisted
 
 
-def test_resolve_transformation_config_stops_when_no_persisted_config():
-    """When validation fails and no config is stored in the database, raise ConfigManagerError."""
+@pytest.mark.parametrize(
+    "models, routes, workflows",
+    [
+        ([], [], []),
+        ([MagicMock()], [], []),
+        ([], [MagicMock()], []),
+        ([], [], [MagicMock()]),
+        ([MagicMock()], [MagicMock()], []),
+        ([MagicMock()], [], [MagicMock()]),
+        ([], [MagicMock()], [MagicMock()]),
+    ],
+    ids=[
+        "all_empty",
+        "only_models",
+        "only_routes",
+        "only_workflows",
+        "missing_workflows",
+        "missing_routes",
+        "missing_models",
+    ],
+)
+def test_resolve_transformation_config_stops_when_no_persisted_config(
+    models, routes, workflows
+):
+    """When validation fails and no valid config is persisted, raise ConfigManagerError."""
     with VALID_CONFIGS["basic_config"].open() as fh:
         raw_config = RawConfig.model_validate(safe_load(fh))
 
-    empty_persisted = PersistedConfig(models=[], routes=[], workflows=[])
+    incomplete_persisted = PersistedConfig(models=[], routes=[], workflows=[])
+    incomplete_persisted.models = models
+    incomplete_persisted.routes = routes
+    incomplete_persisted.workflows = workflows
 
     comparator = MagicMock(spec=ConfigComparatorPort)
-    comparator.persisted_config = empty_persisted
+    comparator.persisted_config = incomplete_persisted
     comparator.compare_configs.return_value = raw_config
 
     validator = MagicMock(spec=ConfigValidatorPort)

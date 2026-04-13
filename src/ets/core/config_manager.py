@@ -61,9 +61,7 @@ class ConfigManager(ConfigManagerPort):
                     return prune_unproductive_subgraphs(config)
                 except ConfigValidationError as error:
                     persisted = self.comparator.persisted_config
-                    if not (
-                        persisted.models and persisted.routes and persisted.workflows
-                    ):
+                    if not persisted.is_populated:
                         msg = (
                             "New config failed to validate and no previous"
                             " valid config exists in the database."
