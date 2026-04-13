@@ -23,7 +23,6 @@ import pytest
 from hexkit.correlation import set_correlation_id
 from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
-from schemapack.spec.schemapack import SchemaPack
 
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.model_derivation import ModelDeriver
@@ -36,29 +35,6 @@ from tests.fixtures.joint import DAOs
 
 # Fixed UUID used in parametrized tests
 EXPECTED_AEM_ID = uuid4()
-
-TEST_SCHEMA = SchemaPack.model_validate(
-    {
-        "schemapack": "4.0.0",
-        "classes": {
-            "File": {
-                "id": {"propertyName": "alias"},
-                "content": {
-                    "$schema": "http://json-schema.org/draft-07/schema#",
-                    "additionalProperties": False,
-                    "properties": {
-                        "checksum": {"type": "string"},
-                        "filename": {"type": "string"},
-                        "format": {"type": "string"},
-                        "size": {"type": "integer"},
-                    },
-                    "required": ["filename", "format", "checksum", "size"],
-                    "type": "object",
-                },
-            }
-        },
-    }
-)
 
 TEST_DATAPACK = DataPack.model_validate(
     {

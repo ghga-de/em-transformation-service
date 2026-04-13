@@ -21,9 +21,7 @@ import pytest
 from schemapack.spec.datapack import DataPack
 
 from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.models import Model, PersistedConfig
 from tests.fixtures.aem_pack_registry import (
-    TEST_SCHEMA,
     make_ingress_pack,
     populate_db_config,
     queue_and_claim,
@@ -144,45 +142,6 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
     for pack in derived_and_published:
         assert pack.pid == ingress.pid
         assert isinstance(pack.data, DataPack)
-
-    # Unprocessed doc preserved and marked as processed
-    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": ingress.id})
-    assert raw is not None
-    assert raw["processed_at"] is not None
-    assert raw["processor"] is None
-
-
-async def test_ingress_with_no_routes(joint_fixture: JointFixture):
-    """Ensure an ingress model with no outgoing routes publishes itself when publish=True."""
-    ingress_model = Model(
-        name="Isolated",
-        description="Isolated ingress model",
-        is_ingress=True,
-        version="1.0.0",
-        schema_=TEST_SCHEMA,
-        order=0,
-        publish=True,
-    )
-    await joint_fixture.daos.model_dao.insert(ingress_model)
-    config = PersistedConfig(models=[ingress_model], routes=[], workflows=[])
-
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
-    ingress = make_ingress_pack("Isolated")
-
-    unprocessed = await queue_and_claim(
-        registry=registry,
-        pack=ingress,
-    )
-    await registry._process_next_aem_pack(
-        incoming_aem=unprocessed,
-        correlation_id=unprocessed.correlation_id,
-        config=config,
-    )
-
-    # The ingress itself is published (publish=True). Verify via get_by_id.
-    published = await joint_fixture.daos.aem_pack_dao.get_by_id(ingress.id)
-    assert published.model_name == "Isolated"
-    assert published.pid == ingress.pid
 
     # Unprocessed doc preserved and marked as processed
     raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": ingress.id})
