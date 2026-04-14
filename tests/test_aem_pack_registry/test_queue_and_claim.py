@@ -21,14 +21,17 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 from hexkit.correlation import set_correlation_id
 from pydantic import UUID4
+from schemapack.exceptions import ValidationError
 from schemapack.spec.datapack import DataPack
 
 from ets.constants import PROCESSOR_FIELD
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.models import IncomingAEMPack
 from tests.fixtures.aem_pack_registry import (
+    INVALID_DATAPACK,
     TEST_DATAPACK,
     make_ingress_pack,
     populate_db_config,
@@ -40,15 +43,26 @@ from tests.fixtures.joint import JointFixture
 pytestmark = pytest.mark.asyncio
 
 
-async def test_queue_creates_correct_document(joint_fixture: JointFixture):
+@pytest_asyncio.fixture
+async def registry(joint_fixture: JointFixture) -> AEMPackRegistry:
+    """Populate DB with single_route config and return the AEM pack registry."""
+    await populate_db_config(
+        daos=joint_fixture.daos,
+        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["single_route"],
+    )
+    return joint_fixture.aem_pack_registry
+
+
+async def test_queue_creates_correct_document(
+    registry: AEMPackRegistry, joint_fixture: JointFixture
+):
     """Ensure queue_unprocessed creates a doc with correct fields, no processor, and deserializable data."""
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
     expected_correlation_id = uuid4()
     aem_pack = IncomingAEMPack(
         id=aem_id,
         pid="test-pid",
-        model_name="TestModel",
+        model_name="IngressModel",
         data=TEST_DATAPACK,
         annotation={},
         correlation_id=expected_correlation_id,
@@ -59,7 +73,7 @@ async def test_queue_creates_correct_document(joint_fixture: JointFixture):
 
     raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": aem_id})
     assert raw is not None
-    assert raw["model_name"] == "TestModel"
+    assert raw["model_name"] == "IngressModel"
     assert raw["annotation"] == {}
     assert raw["processor"] is None
     assert raw["processed_at"] is None
@@ -68,10 +82,9 @@ async def test_queue_creates_correct_document(joint_fixture: JointFixture):
 
 
 async def test_double_queue_before_processing_stays_claimable(
-    joint_fixture: JointFixture,
+    registry: AEMPackRegistry, joint_fixture: JointFixture
 ):
     """Ensure queuing the same ID twice before any claim yields one doc with latest data."""
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
 
     pack_v1 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
@@ -94,9 +107,10 @@ async def test_double_queue_before_processing_stays_claimable(
     assert count == 1
 
 
-async def test_abandoned_pack_reclaimed_by_same_instance(joint_fixture: JointFixture):
+async def test_abandoned_pack_reclaimed_by_same_instance(
+    registry: AEMPackRegistry, joint_fixture: JointFixture
+):
     """Ensure process_aem_packs reclaims a pack left claimed by a previous crash of this instance."""
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     ingress = make_ingress_pack("IngressModel")
 
     async with set_correlation_id(ingress.correlation_id):
@@ -110,15 +124,47 @@ async def test_abandoned_pack_reclaimed_by_same_instance(joint_fixture: JointFix
     await _assert_pack_claimed_during_processing(registry, ingress.id)
 
 
-async def test_fresh_pack_claimed_on_first_query(joint_fixture: JointFixture):
+async def test_fresh_pack_claimed_on_first_query(registry: AEMPackRegistry):
     """Ensure process_aem_packs claims a fresh (unprocessed) pack via the first query."""
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     ingress = make_ingress_pack("IngressModel")
 
     async with set_correlation_id(ingress.correlation_id):
         await registry.queue_unprocessed(ingress)
 
     await _assert_pack_claimed_during_processing(registry, ingress.id)
+
+
+async def test_queue_rejects_unknown_model_name(
+    registry: AEMPackRegistry, joint_fixture: JointFixture
+):
+    """Ensure queue_unprocessed raises and does not enqueue when model_name is not in config."""
+    pack = make_ingress_pack(model_name="UnknownModel")
+
+    with pytest.raises(ValueError, match="UnknownModel"):
+        await registry.queue_unprocessed(pack)
+
+    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": pack.id})
+    assert raw is None
+
+
+async def test_queue_rejects_datapack_not_matching_schema(
+    registry: AEMPackRegistry, joint_fixture: JointFixture
+):
+    """Ensure queue_unprocessed raises and does not enqueue when DataPack fails schema validation."""
+    pack = IncomingAEMPack(
+        id=uuid4(),
+        pid="test-pid",
+        model_name="IngressModel",
+        data=INVALID_DATAPACK,
+        annotation={},
+        correlation_id=uuid4(),
+    )
+
+    with pytest.raises(ValidationError):
+        await registry.queue_unprocessed(pack)
+
+    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": pack.id})
+    assert raw is None
 
 
 async def _assert_pack_claimed_during_processing(

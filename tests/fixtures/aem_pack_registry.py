@@ -54,6 +54,21 @@ TEST_DATAPACK = DataPack.model_validate(
     }
 )
 
+INVALID_DATAPACK = DataPack.model_validate(
+    {
+        "datapack": "4.0.0",
+        "resources": {
+            "File": {
+                "test_alias": {
+                    "content": {
+                        "checksum": "abc123",
+                    }
+                }
+            }
+        },
+    }
+)
+
 
 @pytest.fixture
 def aem_pack_config(request: pytest.FixtureRequest) -> Generator[PersistedConfig]:

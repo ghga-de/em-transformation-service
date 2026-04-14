@@ -19,13 +19,13 @@ from pathlib import Path
 
 import pytest
 
+from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
 from ets.core.config_validator import ConfigValidator
 from ets.ports.inbound.config_validator import ConfigValidationError
 from tests.fixtures.examples import (
     INVALID_ON_VALIDATION_CONFIGS,
     VALID_CONFIGS,
 )
-from tests.fixtures.joint import JointFixture
 
 
 @pytest.fixture
@@ -40,10 +40,10 @@ def validator():
     ids=INVALID_ON_VALIDATION_CONFIGS.keys(),
 )
 def test_invalid_config(
-    path: Path, joint_fixture: JointFixture, validator: ConfigValidator
+    path: Path, loader: ConfigLoaderAdapter, validator: ConfigValidator
 ):
     """Check invalid configs raise ConfigValidationError."""
-    changed_config = joint_fixture.loader.load_config_from_file(path)
+    changed_config = loader.load_config_from_file(path)
     with pytest.raises(ConfigValidationError):
         validator.validate(changed_config)
 
@@ -54,8 +54,8 @@ def test_invalid_config(
     ids=VALID_CONFIGS.keys(),
 )
 def test_valid_config(
-    path: Path, joint_fixture: JointFixture, validator: ConfigValidator
+    path: Path, loader: ConfigLoaderAdapter, validator: ConfigValidator
 ):
     """Check valid config passes validation without errors."""
-    changed_config = joint_fixture.loader.load_config_from_file(path)
+    changed_config = loader.load_config_from_file(path)
     validator.validate(changed_config)

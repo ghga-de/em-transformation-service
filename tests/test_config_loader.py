@@ -19,13 +19,13 @@ from pathlib import Path
 
 import pytest
 
+from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
 from ets.ports.outbound.config_loader import ConfigurationLoaderError
 from tests.fixtures.examples import (
     INVALID_ON_LOAD_CONFIGS,
     INVALID_ON_VALIDATION_CONFIGS,
     VALID_CONFIGS,
 )
-from tests.fixtures.joint import JointFixture
 
 # As long as there is structural integrity of the workflow config,
 # it will be valid on loading
@@ -48,9 +48,8 @@ VALID_ON_LOAD_CONFIGS = INVALID_ON_VALIDATION_CONFIGS | VALID_CONFIGS
     VALID_ON_LOAD_CONFIGS.values(),
     ids=VALID_ON_LOAD_CONFIGS.keys(),
 )
-def test_load_config_happy(path: Path, joint_fixture: JointFixture):
+def test_load_config_happy(path: Path, loader: ConfigLoaderAdapter):
     """Test loading RawConfig from a transformation config file."""
-    loader = joint_fixture.loader
     raw_config = loader.load_config_from_file(path)
     assert raw_config.models
     assert raw_config.routes
@@ -62,7 +61,7 @@ def test_load_config_happy(path: Path, joint_fixture: JointFixture):
     INVALID_ON_LOAD_CONFIGS.values(),
     ids=INVALID_ON_LOAD_CONFIGS.keys(),
 )
-def test_error_on_loading(path: Path, joint_fixture: JointFixture):
+def test_error_on_loading(path: Path, loader: ConfigLoaderAdapter):
     """Check structural errors in the transformation config triggers ConfigurationLoaderError."""
     with pytest.raises(ConfigurationLoaderError):
-        joint_fixture.loader.load_config_from_file(path)
+        loader.load_config_from_file(path)
