@@ -24,3 +24,4 @@ original_aem_pack_topic: original-aempacks
 service_instance_id: '1'
 service_name: ets
 sleep_for: 60
+worker_id: test-worker

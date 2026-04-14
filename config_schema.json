@@ -260,6 +260,11 @@
       "description": "Seconds to sleep when no unprocessed AEMPacks are found.",
       "title": "Sleep For",
       "type": "integer"
+    },
+    "worker_id": {
+      "description": "Unique identifier for a service instance used specifically for the reclamation logic.",
+      "title": "Worker Id",
+      "type": "string"
     }
   },
   "required": [
@@ -269,7 +274,8 @@
     "kafka_servers",
     "mongo_dsn",
     "db_name",
-    "input_config_path"
+    "input_config_path",
+    "worker_id"
   ],
   "title": "ModSettings",
   "type": "object"

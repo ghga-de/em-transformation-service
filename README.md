@@ -248,6 +248,7 @@ The service requires the following configuration parameters:
 - <a id="properties/log_traceback"></a>**`log_traceback`** *(boolean)*: Whether to include exception tracebacks in log messages. Default: `true`.
 - <a id="properties/input_config_path"></a>**`input_config_path`** *(string, format: path, required)*: Path to the transformation config file used to populate the database.
 - <a id="properties/sleep_for"></a>**`sleep_for`** *(integer)*: Seconds to sleep when no unprocessed AEMPacks are found. Default: `60`.
+- <a id="properties/worker_id"></a>**`worker_id`** *(string, required)*: Unique identifier for a service instance used specifically for the reclamation logic.
 
 ### Usage:
 
