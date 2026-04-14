@@ -37,10 +37,10 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         self,
         *,
         collection: AsyncCollection,
-        service_instance_id: str,
+        worker_id: str,
     ):
         self._collection = collection
-        self._service_instance_id = service_instance_id
+        self._worker_id = worker_id
 
     async def queue(self, aem_pack: AEMPack) -> None:
         """Upsert an AEMPack into the queue."""
@@ -87,7 +87,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         # Check for packs abandoned by a previous crash of this instance
         doc = await self._collection.find_one(
             {
-                PROCESSOR_FIELD: self._service_instance_id,
+                PROCESSOR_FIELD: self._worker_id,
                 PROCESSED_AT_FIELD: None,
             }
         )
@@ -95,7 +95,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
             # No abandoned packs; try to claim a fresh one
             doc = await self._collection.find_one_and_update(
                 filter={PROCESSOR_FIELD: None, PROCESSED_AT_FIELD: None},
-                update={"$set": {PROCESSOR_FIELD: self._service_instance_id}},
+                update={"$set": {PROCESSOR_FIELD: self._worker_id}},
                 return_document=ReturnDocument.AFTER,
             )
         if not doc:
@@ -107,7 +107,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 },
                 update={
                     "$set": {
-                        PROCESSOR_FIELD: self._service_instance_id,
+                        PROCESSOR_FIELD: self._worker_id,
                         PROCESSED_AT_FIELD: None,
                         NEEDS_REPROCESSING_FIELD: False,
                     }

@@ -104,7 +104,7 @@ async def test_abandoned_pack_reclaimed_by_same_instance(joint_fixture: JointFix
     # Simulate a previous crash: the doc is already claimed by this instance
     await joint_fixture.incoming_aem_pack_collection.update_one(
         {"_id": ingress.id},
-        {"$set": {PROCESSOR_FIELD: joint_fixture.config.service_instance_id}},
+        {"$set": {PROCESSOR_FIELD: joint_fixture.config.worker_id}},
     )
 
     await _assert_pack_claimed_during_processing(registry, ingress.id)
@@ -184,7 +184,7 @@ async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
     # Processor is preserved so in-flight instance can complete; needs_reprocessing signals v2 is pending
     raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": aem_id})
     assert raw is not None
-    assert raw["processor"] == joint_fixture.config.service_instance_id
+    assert raw["processor"] == joint_fixture.config.worker_id
     assert raw["needs_reprocessing"] is True
 
     # Process v1 — should still publish

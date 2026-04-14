@@ -7,3 +7,4 @@ kafka_enable_dlq: True
 input_config_path: tests/fixtures/input_configs/manager/valid/basic_config.yaml
 original_aem_pack_topic: original-aempacks
 derived_aem_pack_topic: derived-aempacks
+worker_id: test-worker

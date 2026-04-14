@@ -94,7 +94,7 @@ async def prepare_aem_pack_registry(
         )
         incoming_aem_pack_queue = IncomingAEMPackQueue(
             collection=mongo_client[config.db_name][INCOMING_AEM_PACK_COLLECTION],
-            service_instance_id=config.service_instance_id,
+            worker_id=config.worker_id,
         )
 
         yield AEMPackRegistry(

@@ -45,3 +45,7 @@ class Config(
         default=60,
         description="Seconds to sleep when no unprocessed AEMPacks are found.",
     )
+    worker_id: str = Field(
+        default=...,
+        description="Unique identifier for a service instance used specifically for the reclamation logic.",
+    )

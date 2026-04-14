@@ -24,6 +24,8 @@ from hexkit.correlation import set_correlation_id
 from metldata import get_transformation_registry
 from metldata.transform.handling import TransformationHandler
 from pydantic import UUID4, BaseModel, ConfigDict
+from schemapack import SchemaPackValidator
+from schemapack.exceptions import ValidationError
 from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
@@ -64,6 +66,30 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
     async def queue_unprocessed(self, aem_pack: AEMPack):
         """Fetch new AEMPacks via event subscriber and put them into the queue for processing."""
+        # For now, just load. Reloading will be dealt with in the config lock + update ticket
+        config = await self._config_loader.load_config_from_db()
+
+        # Ensure model name exists
+        matching_model = None
+        for model in config.models:
+            if model.name == aem_pack.model_name:
+                matching_model = model
+                break
+        else:
+            model_lookup_error = ValueError(
+                f"No model with name {aem_pack.model_name} registered for AEMPack with id {aem_pack.id}."
+            )
+            log.error(model_lookup_error)
+            raise model_lookup_error
+
+        # Validate DataPack against corresponding SchemaPack
+        validator = SchemaPackValidator(schemapack=matching_model.schema_)
+        try:
+            validator.validate(datapack=aem_pack.data)
+        except ValidationError as error:
+            log.error(error)
+            raise
+
         await self._incoming_aem_pack_queue.queue(aem_pack)
 
     async def process_aem_packs(self) -> None:
@@ -146,9 +172,12 @@ class AEMPackRegistry(AEMPackRegistryPort):
             routes_by_input.setdefault(route.input_model_name, []).append(route)
 
         if not models_by_name.get(incoming.model_name):
-            raise ValueError(
+            model_lookup_error = ValueError(
                 f"No model with name {incoming.model_name} registered for AEMPack with id {incoming.id}."
+                + "This means a previously existing model vanished, which should not happen."
             )
+            log.critical(model_lookup_error)
+            raise model_lookup_error
 
         # Relies on dict insertion-order guarantee.
         # Avoid copying or re-sorting this dict, as that would break the traversal order.
