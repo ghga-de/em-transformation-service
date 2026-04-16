@@ -138,13 +138,13 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 # In this case it also needs to be removed an recreated by separately iterating over its own ingress AEM
                 models_by_name = {model.name: model for model in config.models}
                 for model_name, aem_pack_id in dirty_map.items():
-                    if not models_by_name.get(model_name):
+                    if models_by_name.get(model_name):
                         log.warning(
-                            f"Model with name {model_name} no longer exists in the config, previously derived AEMPack with id {aem_pack_id} is no longer valid. Removing."
+                            f"Derived AEMPack with id {aem_pack_id} is no longer reachable from its previous original ID. Removing."
                         )
                     else:
                         log.warning(
-                            f"Derived AEMPack with id {aem_pack_id} is no longer reachable from its previous original ID. Removing."
+                            f"Model with name {model_name} no longer exists in the config, previously derived AEMPack with id {aem_pack_id} is no longer valid. Removing."
                         )
                     await self._aem_pack_dao.delete(aem_pack_id)
 
@@ -162,7 +162,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         transformed_map: dict[str, AEMPack],
         config: PersistedConfig,
     ) -> tuple[list[AEMPack], dict[str, UUID4]]:
-        """Traverse the transformation graph in topological order, applying workflows to produce transformed AEMPacks."""
+        """Traverse the transformation graph in topological order and apply workflows."""
         aem_packs_to_publish: list[AEMPack] = []
         models_by_name = {model.name: model for model in config.models}
         model_order = {model.name: model.order for model in config.models}
