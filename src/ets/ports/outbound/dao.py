@@ -15,18 +15,12 @@
 
 """DAO interface for accessing the database."""
 
-from hexkit.protocols.dao import Dao, ResourceNotFoundError
+from hexkit.protocols.dao import Dao
+from hexkit.protocols.daopub import DaoPublisher
 
-from ets.adapters.inbound.event_schemas import AEMPack
-from ets.core import models
+from ets.core.models import AEMPack, Model, Route, Workflow
 
-__all__ = ["ResourceNotFoundError"]
-
-
-ModelDao = Dao[models.Model]
-
-WorkflowDao = Dao[models.Workflow]
-
-RouteDao = Dao[models.Route]
-
-AEMPackDao = Dao[AEMPack]
+ModelDao = Dao[Model]
+WorkflowDao = Dao[Workflow]
+RouteDao = Dao[Route]
+AEMPackDao = DaoPublisher[AEMPack]

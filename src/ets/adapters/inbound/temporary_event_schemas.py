@@ -13,24 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Entrypoint of the package"""
+"""Temporary models and config for KafkaEventSubscriber to be replaced by ghga_event_schemas."""
 
-import asyncio
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
-import typer
-
-from ets.main import consume_events, process_aem_packs
-
-cli = typer.Typer()
+from ets.core.models import AEMPack
 
 
-@cli.command(name="consume-events")
-def sync_consume_events(run_forever: bool = True):
-    """Run an event consumer listening to the specified topic."""
-    asyncio.run(consume_events(run_forever=run_forever))
+class AEMPackEventConfig(BaseSettings):
+    """Config for events communicating changes in AEMPacks.
+
+    The event types are hardcoded by `hexkit`.
+    """
+
+    original_aem_pack_topic: str = Field(
+        default=...,
+        description="Topic informing about new ingress AEMPacks.",
+        examples=["original-aempacks"],
+    )
 
 
-@cli.command(name="process-aempacks")
-def sync_process_aem_packs():
-    """Run processing on incoming annotated experimental metadata that has been stored in the database."""
-    asyncio.run(process_aem_packs())
+class OriginalAEMPack(AEMPack):
+    """Model for the incoming AEMPack payload."""

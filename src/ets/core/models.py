@@ -17,17 +17,21 @@
 
 import json
 from collections.abc import Mapping
+from datetime import datetime
 from typing import Annotated, Any
 
 from annotated_types import MinLen
 from metldata.workflow.base import Workflow as MetldataWorkflow
 from pydantic import (
+    UUID4,
     BaseModel,
+    ConfigDict,
     Field,
     field_serializer,
     field_validator,
     model_validator,
 )
+from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
 
@@ -250,3 +254,62 @@ class PersistedConfig(BaseModel):
     workflows: list[Workflow] = Field(
         default=..., description="Up to date workflows for downstream processing."
     )
+
+
+class AEMPack(BaseModel):
+    """Model for derived AEMPacks."""
+
+    id: UUID4 = Field(
+        default=...,
+        description="Unique identifier of the EMPack.",
+    )
+    pid: str = Field(
+        default=...,
+        description="Non-unique identifier that's shared between an incoming AEMPacks and all its derived AEMPacks.",
+    )
+    model_name: str = Field(
+        default=...,
+        description="Unique name of the model the EMPack conforms to.",
+    )
+    data: DataPack = Field(
+        default=...,
+        description="The data conforming to a corresponding Schemapack stored in the model denoted by model_name.",
+    )
+    annotation: dict = Field(
+        default=...,
+        description="Additional information used in some workflows during derivation.",
+    )
+    model_config = ConfigDict(frozen=True)
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def _deserialize_data(cls, v: Mapping[str, Any] | DataPack) -> DataPack:
+        if isinstance(v, DataPack):
+            return v
+        return DataPack.model_validate(v)
+
+    @field_serializer("data")
+    def _serialize_data(self, v: DataPack) -> dict[str, Any]:
+        return json.loads(v.model_dump_json())
+
+
+class IncomingAEMPack(AEMPack):
+    """Variant of the AEMPack for the processing queue."""
+
+    correlation_id: UUID4 = Field(
+        default=...,
+        description="Correlation ID of the event that triggered ingestion of this AEMPack.",
+    )
+    processor: str | None = Field(
+        default=None,
+        description="ID of the service instance that is currently processing this AEMPack.",
+    )
+    processed_at: datetime | None = Field(
+        default=None,
+        description="When this AEMPack was successfully processed. None if not yet processed.",
+    )
+    needs_reprocessing: bool = Field(
+        default=False,
+        description="Set to True when a new version of this AEMPack arrives while it is being processed, signalling that reprocessing is required after the current run completes.",
+    )
+    model_config = ConfigDict(frozen=True)

@@ -49,61 +49,26 @@ ets --help
 ### Parameters
 
 The service requires the following configuration parameters:
-- <a id="properties/aem_pack_upsert_topic"></a>**`aem_pack_upsert_topic`** *(string, required)*: Name of the topic used for events indicating that an original AEMPack is registered for transformation.
-- <a id="properties/log_level"></a>**`log_level`** *(string)*: The minimum log level to capture. Must be one of: "CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", or "TRACE". Default: `"INFO"`.
+- <a id="properties/derived_aem_pack_topic"></a>**`derived_aem_pack_topic`** *(string, required)*: Topic for events informing about derived AEMPacks.
+
+  Examples:
+  ```json
+  "derived-aempacks"
+  ```
+
+- <a id="properties/original_aem_pack_topic"></a>**`original_aem_pack_topic`** *(string, required)*: Topic informing about new ingress AEMPacks.
+
+  Examples:
+  ```json
+  "original-aempacks"
+  ```
+
 - <a id="properties/service_name"></a>**`service_name`** *(string)*: Short name of this service. Default: `"ets"`.
-- <a id="properties/service_instance_id"></a>**`service_instance_id`** *(string, required)*: A string that uniquely identifies this instance across all instances of this service. A globally unique Kafka client ID will be created by concatenating the service_name and the service_instance_id.
+- <a id="properties/service_instance_id"></a>**`service_instance_id`** *(string, required)*: A string that uniquely identifies this instance across all instances of this service. This is included in log messages.
 
   Examples:
   ```json
   "germany-bw-instance-001"
-  ```
-
-- <a id="properties/log_format"></a>**`log_format`**: If set, will replace JSON formatting with the specified string format. If not set, has no effect. In addition to the standard attributes, the following can also be specified: timestamp, service, instance, level, correlation_id, and details. Default: `null`.
-  - **Any of**
-    - <a id="properties/log_format/anyOf/0"></a>*string*
-    - <a id="properties/log_format/anyOf/1"></a>*null*
-
-  Examples:
-  ```json
-  "%(timestamp)s - %(service)s - %(level)s - %(message)s"
-  ```
-
-  ```json
-  "%(asctime)s - Severity: %(levelno)s - %(msg)s"
-  ```
-
-- <a id="properties/log_traceback"></a>**`log_traceback`** *(boolean)*: Whether to include exception tracebacks in log messages. Default: `true`.
-- <a id="properties/mongo_dsn"></a>**`mongo_dsn`** *(string, format: multi-host-uri, required)*: MongoDB connection string. Might include credentials. For more information see: https://naiveskill.com/mongodb-connection-string/. Length must be at least 1.
-
-  Examples:
-  ```json
-  "mongodb://localhost:27017"
-  ```
-
-- <a id="properties/db_name"></a>**`db_name`** *(string, required)*: Name of the database located on the MongoDB server.
-
-  Examples:
-  ```json
-  "my-database"
-  ```
-
-- <a id="properties/mongo_timeout"></a>**`mongo_timeout`**: Timeout in seconds for API calls to MongoDB. The timeout applies to all steps needed to complete the operation, including server selection, connection checkout, serialization, and server-side execution. When the timeout expires, PyMongo raises a timeout exception. If set to None, the operation will not time out (default MongoDB behavior). Default: `null`.
-  - **Any of**
-    - <a id="properties/mongo_timeout/anyOf/0"></a>*integer*: Exclusive minimum: `0`.
-    - <a id="properties/mongo_timeout/anyOf/1"></a>*null*
-
-  Examples:
-  ```json
-  300
-  ```
-
-  ```json
-  600
-  ```
-
-  ```json
-  null
   ```
 
 - <a id="properties/kafka_servers"></a>**`kafka_servers`** *(array, required)*: A list of connection strings to connect to Kafka bootstrap servers.
@@ -233,7 +198,57 @@ The service requires the following configuration parameters:
   5
   ```
 
+- <a id="properties/mongo_dsn"></a>**`mongo_dsn`** *(string, format: multi-host-uri, required)*: MongoDB connection string. Might include credentials. For more information see: https://naiveskill.com/mongodb-connection-string/. Length must be at least 1.
+
+  Examples:
+  ```json
+  "mongodb://localhost:27017"
+  ```
+
+- <a id="properties/db_name"></a>**`db_name`** *(string, required)*: Name of the database located on the MongoDB server.
+
+  Examples:
+  ```json
+  "my-database"
+  ```
+
+- <a id="properties/mongo_timeout"></a>**`mongo_timeout`**: Timeout in seconds for API calls to MongoDB. The timeout applies to all steps needed to complete the operation, including server selection, connection checkout, serialization, and server-side execution. When the timeout expires, PyMongo raises a timeout exception. If set to None, the operation will not time out (default MongoDB behavior). Default: `null`.
+  - **Any of**
+    - <a id="properties/mongo_timeout/anyOf/0"></a>*integer*: Exclusive minimum: `0`.
+    - <a id="properties/mongo_timeout/anyOf/1"></a>*null*
+
+  Examples:
+  ```json
+  300
+  ```
+
+  ```json
+  600
+  ```
+
+  ```json
+  null
+  ```
+
+- <a id="properties/log_level"></a>**`log_level`** *(string)*: The minimum log level to capture. Must be one of: "CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", or "TRACE". Default: `"INFO"`.
+- <a id="properties/log_format"></a>**`log_format`**: If set, will replace JSON formatting with the specified string format. If not set, has no effect. In addition to the standard attributes, the following can also be specified: timestamp, service, instance, level, correlation_id, and details. Default: `null`.
+  - **Any of**
+    - <a id="properties/log_format/anyOf/0"></a>*string*
+    - <a id="properties/log_format/anyOf/1"></a>*null*
+
+  Examples:
+  ```json
+  "%(timestamp)s - %(service)s - %(level)s - %(message)s"
+  ```
+
+  ```json
+  "%(asctime)s - Severity: %(levelno)s - %(msg)s"
+  ```
+
+- <a id="properties/log_traceback"></a>**`log_traceback`** *(boolean)*: Whether to include exception tracebacks in log messages. Default: `true`.
 - <a id="properties/input_config_path"></a>**`input_config_path`** *(string, format: path, required)*: Path to the transformation config file used to populate the database.
+- <a id="properties/sleep_for"></a>**`sleep_for`** *(integer)*: Seconds to sleep when no unprocessed AEMPacks are found. Default: `60`.
+- <a id="properties/worker_id"></a>**`worker_id`** *(string, required)*: Unique identifier for a service instance used specifically for the reclamation logic.
 
 ### Usage:
 

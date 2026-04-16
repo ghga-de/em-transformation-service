@@ -15,16 +15,21 @@
 
 """KafkaEventSubscriber receiving events."""
 
-from uuid import UUID
+import logging
 
 from hexkit.protocols.daosub import DaoSubscriberProtocol
 
-from ets.adapters.inbound.event_schemas import AEMPack, AEMPackEventConfig
+from ets.adapters.inbound.temporary_event_schemas import (
+    AEMPackEventConfig,
+    OriginalAEMPack,
+)
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 
+log = logging.getLogger(__name__)
 
-class EventSubTranslatorConfig(AEMPackEventConfig):
-    """Config for the event subscriber."""
+
+class AEMPackTranslatorConfig(AEMPackEventConfig):
+    """Config for the AEMPack event subscriber."""
 
 
 class EventSubTranslator(DaoSubscriberProtocol):
@@ -32,30 +37,25 @@ class EventSubTranslator(DaoSubscriberProtocol):
 
     event_topic: str
 
-    dto_model = AEMPack
+    dto_model = OriginalAEMPack
 
     def __init__(
         self,
-        config: EventSubTranslatorConfig,
+        config: AEMPackTranslatorConfig,
         aem_pack_registry: AEMPackRegistryPort,
     ):
         """Initialize with config parameters and core dependencies."""
-        self.event_topic = config.aem_pack_upsert_topic
-
+        self.event_topic = config.original_aem_pack_topic
         self._aem_pack_registry = aem_pack_registry
         self._config = config
 
-    async def changed(self, resource_id: str, update: AEMPack) -> None:
-        """Consume a change event (created or updated) for the AEMPack"""
-        aem_pack = AEMPack(
-            id=update.id,
-            model_name=update.model_name,
-            original_id=update.original_id,
-            data=update.data,
-            annotation=update.annotation,
-        )
-        await self._aem_pack_registry.upsert_aem_pack(aem_pack)
+    async def changed(self, resource_id: str, update: OriginalAEMPack) -> None:
+        """Consume a change event (created or updated) for the AEMPack."""
+        await self._aem_pack_registry.queue_unprocessed(update)
 
     async def deleted(self, resource_id: str) -> None:
-        """Consume an event indicating the deletion of an AEMPack"""
-        await self._aem_pack_registry.delete_aem_pack(aem_pack_id=UUID(resource_id))
+        """Consume a deletion event for an AEMPack."""
+        log.warning(
+            "Received deletion event for resource '%s', but deletion is not yet implemented.",
+            resource_id,
+        )

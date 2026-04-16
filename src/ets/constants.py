@@ -13,24 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Entrypoint of the package"""
+"""Service-wide constants."""
 
-import asyncio
+INCOMING_AEM_PACK_COLLECTION = "incoming_aem_packs"
 
-import typer
-
-from ets.main import consume_events, process_aem_packs
-
-cli = typer.Typer()
-
-
-@cli.command(name="consume-events")
-def sync_consume_events(run_forever: bool = True):
-    """Run an event consumer listening to the specified topic."""
-    asyncio.run(consume_events(run_forever=run_forever))
-
-
-@cli.command(name="process-aempacks")
-def sync_process_aem_packs():
-    """Run processing on incoming annotated experimental metadata that has been stored in the database."""
-    asyncio.run(process_aem_packs())
+PROCESSOR_FIELD = "processor"
+PROCESSED_AT_FIELD = "processed_at"
+NEEDS_REPROCESSING_FIELD = "needs_reprocessing"

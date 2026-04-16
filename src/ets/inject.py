@@ -24,13 +24,21 @@ from hexkit.providers.akafka import (
     KafkaEventPublisher,
     KafkaEventSubscriber,
 )
-from hexkit.providers.mongodb import MongoDbDaoFactory
+from hexkit.providers.mongodb import ConfiguredMongoClient, MongoDbDaoFactory
+from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
 
 from ets.adapters.inbound.event_sub import EventSubTranslator
-from ets.adapters.outbound import dao
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
 from ets.adapters.outbound.config_writer import ConfigWriterAdapter
+from ets.adapters.outbound.dao import (
+    get_aem_pack_dao,
+    get_persisted_model_dao,
+    get_route_dao,
+    get_workflow_dao,
+)
+from ets.adapters.outbound.incoming_aem_pack_queue import IncomingAEMPackQueue
 from ets.config import Config
+from ets.constants import INCOMING_AEM_PACK_COLLECTION
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
@@ -52,9 +60,9 @@ async def prepare_config_adapters(*, config: Config) -> AsyncGenerator[ConfigAda
     Factored out for better testability.
     """
     async with MongoDbDaoFactory.construct(config=config) as dao_factory:
-        model_dao = await dao.get_persisted_model_dao(dao_factory=dao_factory)
-        route_dao = await dao.get_route_dao(dao_factory=dao_factory)
-        workflow_dao = await dao.get_workflow_dao(dao_factory=dao_factory)
+        model_dao = await get_persisted_model_dao(dao_factory=dao_factory)
+        route_dao = await get_route_dao(dao_factory=dao_factory)
+        workflow_dao = await get_workflow_dao(dao_factory=dao_factory)
         yield ConfigAdapters(
             loader=ConfigLoaderAdapter(
                 model_dao=model_dao,
@@ -75,11 +83,26 @@ async def prepare_aem_pack_registry(
     config: Config,
 ) -> AsyncGenerator[AEMPackRegistryPort]:
     """Constructs and initializes core components and their outbound dependencies."""
-    async with MongoDbDaoFactory.construct(config=config) as dao_factory:
-        aem_pack_dao = await dao.get_aem_pack_dao(
-            dao_factory=dao_factory,
+    async with (
+        prepare_config_adapters(config=config) as config_adapters,
+        MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
+        ConfiguredMongoClient(config=config) as mongo_client,
+    ):
+        aem_pack_dao = await get_aem_pack_dao(
+            dao_publisher_factory=dao_pub_factory,
+            topic=config.derived_aem_pack_topic,
         )
-        yield AEMPackRegistry(aem_pack_dao=aem_pack_dao)
+        incoming_aem_pack_queue = IncomingAEMPackQueue(
+            collection=mongo_client[config.db_name][INCOMING_AEM_PACK_COLLECTION],
+            worker_id=config.worker_id,
+        )
+
+        yield AEMPackRegistry(
+            config=config,
+            aem_pack_dao=aem_pack_dao,
+            config_loader=config_adapters.loader,
+            incoming_aem_pack_queue=incoming_aem_pack_queue,
+        )
 
 
 def prepare_aem_pack_registry_with_override(

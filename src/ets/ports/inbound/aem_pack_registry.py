@@ -13,13 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Interface for managing annotated em pack operations."""
+"""Interface for managing Annotated EM Pack operations."""
 
 from abc import ABC, abstractmethod
 
 from pydantic import UUID4
 
-from ets.adapters.inbound.event_schemas import AEMPack
+from ets.core.models import AEMPack
 
 
 class AEMPackRegistryPort(ABC):
@@ -27,9 +27,8 @@ class AEMPackRegistryPort(ABC):
 
     This port defines the interface for:
     - Upserting AEMPacks (insert or update)
-    - Deleting AEMPacks TODO
+    - Transforming an original AEMPack into all derived representations
     - Validating AEMPack data against schemas TODO
-    - Triggering data transformation TODO
     """
 
     class ModelNotFoundError(RuntimeError):
@@ -39,17 +38,8 @@ class AEMPackRegistryPort(ABC):
             message = f"Model '{model_name}' not found in configuration."
             super().__init__(message)
 
-    class AEMPackNotFoundError(RuntimeError):
-        """Raised when an AEMPack does not exist in the data storage.
-        Triggered if deletion is attempted on a non-existing AEMPack.
-        """
-
-        def __init__(self, *, aem_pack_id: UUID4):
-            message = f"AEMPack with ID '{aem_pack_id}' not found in storage."
-            super().__init__(message)
-
     class DataPackValidationError(RuntimeError):
-        """Raised when a DataPack of a AEMPack does not conform to its schema."""
+        """Raised when a DataPack of an AEMPack does not conform to its schema."""
 
         def __init__(self, *, aem_pack_id: UUID4, model_name: str):
             message = (
@@ -59,27 +49,9 @@ class AEMPackRegistryPort(ABC):
             super().__init__(message)
 
     @abstractmethod
-    async def upsert_aem_pack(self, aem_pack: AEMPack) -> None:
-        """Upsert AEMPack. Inserts a new AEMPack or updates an existing one.
-
-        Args:
-            aem_pack (AEMPack): The AEMPack to process.
-
-        Raises:
-            ModelNotFoundError: If the model referenced doesn't exist in configuration.
-            DataPackValidationError: If the data doesn't conform to the model schema.
-            UpsertionError: If the database operation fails.
-        """
-        ...
+    async def queue_unprocessed(self, aem_pack: AEMPack):
+        """Put new AEMPacks from event subscriber into the processing queue."""
 
     @abstractmethod
-    async def delete_aem_pack(self, aem_pack_id: UUID4) -> None:
-        """Delete an existing AEMPack.
-
-        Args:
-            aem_pack_id (UUID4): The id of the AEMPack to delete.
-
-        Raises:
-            AEMPackNotFoundError: If the AEMPack does not exist.
-        """
-        ...
+    async def process_aem_packs(self):
+        """Derives AEMPacks from incoming AEMPacks."""

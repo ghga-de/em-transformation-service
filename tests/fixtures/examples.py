@@ -30,6 +30,7 @@ INVALID_CONFIG_DIR = CONFIG_DIR / "invalid_on_validation"
 INVALID_ON_LOAD_CONFIG_DIR = CONFIG_DIR / "invalid_on_loading"
 MODEL_DERIVATION_DIR = CONFIG_DIR / "model_derivation"
 PRUNING_DIR = CONFIG_DIR / "pruning"
+AEM_PACK_REGISTRY_DIR = CONFIG_DIR / "aem_pack_registry"
 
 MOCK_JSON_PATH = BASE_DIR / "mock.schemapack.json"
 
@@ -74,5 +75,7 @@ INVALID_MODEL_DERIVATION_CONFIGS = list_examples_in_dir(
 )
 
 PRUNING_CASES = list_examples_in_dir(PRUNING_DIR)
+
+AEM_PACK_REGISTRY_CONFIGS = list_examples_in_dir(AEM_PACK_REGISTRY_DIR)
 
 MOCK_SCHEMA = read_mock_schema(MOCK_JSON_PATH)
