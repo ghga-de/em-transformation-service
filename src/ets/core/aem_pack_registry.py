@@ -162,7 +162,12 @@ class AEMPackRegistry(AEMPackRegistryPort):
         transformed_map: dict[str, AEMPack],
         config: PersistedConfig,
     ) -> tuple[list[AEMPack], dict[str, UUID4]]:
-        """Traverse the transformation graph in topological order and apply workflows."""
+        """Traverse the transformation graph in topological order and apply workflows.
+
+        Returns a tuple, where the first element contains a list of derived AEMPacks
+        and the second element the remaining items from the dirty map that are now stale
+        and need to be removed.
+        """
         aem_packs_to_publish: list[AEMPack] = []
         models_by_name = {model.name: model for model in config.models}
         model_order = {model.name: model.order for model in config.models}
