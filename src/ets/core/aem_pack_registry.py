@@ -71,11 +71,10 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
         # Ensure model name exists
         matching_model = None
-        for model in config.models:
-            if model.name == aem_pack.model_name:
-                matching_model = model
-                break
-        else:
+        f = filter(lambda model: model.name == aem_pack.model_name, config.models)
+        matching_model = next(f, None)
+
+        if not matching_model:
             model_lookup_error = ValueError(
                 f"No model with name {aem_pack.model_name} registered for AEMPack with id {aem_pack.id}."
             )
