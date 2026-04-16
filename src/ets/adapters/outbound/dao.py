@@ -16,10 +16,18 @@
 """DAO translators for accessing the database."""
 
 from hexkit.protocols.dao import DaoFactoryProtocol
+from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
+from hexkit.providers.mongodb import MongoDbIndex
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
-from ets.adapters.inbound.event_schemas import AEMPack
 from ets.core import models
-from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
+from ets.core.models import AEMPack
+from ets.ports.outbound.dao import (
+    ModelDao,
+    RouteDao,
+    WorkflowDao,
+)
 
 
 async def get_persisted_model_dao(*, dao_factory: DaoFactoryProtocol) -> ModelDao:
@@ -43,6 +51,26 @@ async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
     )
 
 
-async def get_aem_pack_dao(*, dao_factory: DaoFactoryProtocol) -> AEMPackDao:
-    """Setup the AEMPack DAO using the specified provider of the DaoFactoryProtocol."""
-    return await dao_factory.get_dao(name="aem_packs", dto_model=AEMPack, id_field="id")
+class AEMPackDaoConfig(BaseSettings):
+    """Config for the AEMPack event publisher adapter."""
+
+    derived_aem_pack_topic: str = Field(
+        default=...,
+        description="Topic for events informing about derived AEMPacks.",
+        examples=["derived-aempacks"],
+    )
+
+
+async def get_aem_pack_dao(
+    *, dao_publisher_factory: DaoPublisherFactoryProtocol, topic: str
+) -> DaoPublisher[AEMPack]:
+    """Construct an outbox DAO for AEMPack objects."""
+    return await dao_publisher_factory.get_dao(
+        name="aem_packs",
+        id_field="id",
+        dto_model=AEMPack,
+        dto_to_event=lambda aem_pack: aem_pack.model_dump(mode="json"),
+        event_topic=topic,
+        autopublish=True,
+        indexes=[MongoDbIndex(fields={"pid": 1, "model_name": 1})],
+    )

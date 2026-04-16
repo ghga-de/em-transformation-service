@@ -13,25 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Interface for managing Annotated EM Pack operations."""
+"""Service-wide constants."""
 
-from abc import ABC, abstractmethod
+INCOMING_AEM_PACK_COLLECTION = "incoming_aem_packs"
 
-from ets.core.models import AEMPack
-
-
-class AEMPackRegistryPort(ABC):
-    """Port for managing AEMPack lifecycle and transformation operations.
-
-    This port defines the interface for:
-    - Upserting AEMPacks (insert or update)
-    - Transforming an original AEMPack into all derived representations
-    """
-
-    @abstractmethod
-    async def queue_unprocessed(self, aem_pack: AEMPack):
-        """Put new AEMPacks from event subscriber into the processing queue."""
-
-    @abstractmethod
-    async def process_aem_packs(self):
-        """Derives AEMPacks from incoming AEMPacks."""
+PROCESSOR_FIELD = "processor"
+PROCESSED_AT_FIELD = "processed_at"
+NEEDS_REPROCESSING_FIELD = "needs_reprocessing"

@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
 from ets.core.config_comparator import ConfigComparator
 from ets.core.models import Model, PersistedConfig, RawConfig
 from tests.fixtures.examples import MOCK_SCHEMA, VALID_CONFIGS
@@ -91,9 +92,9 @@ async def test_load_and_compare(
     )
 
 
-def test_compare_is_order_insensitive(joint_fixture: JointFixture):
+def test_compare_is_order_insensitive(loader: ConfigLoaderAdapter):
     """Ensure list ordering does not affect config comparison outcome."""
-    raw_config = joint_fixture.loader.load_config_from_file(BASIC_TEST_CONFIG_PATH)
+    raw_config = loader.load_config_from_file(BASIC_TEST_CONFIG_PATH)
 
     persisted_models: list[Model] = []
     for order, raw_model in enumerate(raw_config.models):

@@ -13,25 +13,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Interface for managing Annotated EM Pack operations."""
+"""Port for the incoming AEMPack processing queue."""
 
 from abc import ABC, abstractmethod
 
-from ets.core.models import AEMPack
+from pydantic import UUID4
+
+from ets.core.models import AEMPack, IncomingAEMPack
 
 
-class AEMPackRegistryPort(ABC):
-    """Port for managing AEMPack lifecycle and transformation operations.
+class IncomingAEMPackQueuePort(ABC):
+    """Port for the incoming AEMPack processing queue.
 
-    This port defines the interface for:
-    - Upserting AEMPacks (insert or update)
-    - Transforming an original AEMPack into all derived representations
+    Guarantees that each pack is claimed by exactly one processor at a time.
     """
 
     @abstractmethod
-    async def queue_unprocessed(self, aem_pack: AEMPack):
-        """Put new AEMPacks from event subscriber into the processing queue."""
+    async def queue(self, aem_pack: AEMPack) -> None:
+        """Upsert an AEMPack into the queue."""
 
     @abstractmethod
-    async def process_aem_packs(self):
-        """Derives AEMPacks from incoming AEMPacks."""
+    async def claim_next(self) -> IncomingAEMPack | None:
+        """Claim the next available AEMPack for processing."""
+
+    @abstractmethod
+    async def mark_processed(self, aem_pack_id: UUID4) -> None:
+        """Mark an AEMPack as successfully processed."""

@@ -17,11 +17,15 @@
 
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from typing import cast
 
 import pytest_asyncio
 from hexkit.providers.akafka import KafkaEventSubscriber
 from hexkit.providers.akafka.testutils import KafkaFixture
+from hexkit.providers.mongodb import ConfiguredMongoClient
 from hexkit.providers.mongodb.testutils import MongoDbFixture
+from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
+from pymongo.asynchronous.collection import AsyncCollection
 
 from ets.adapters.outbound.dao import (
     get_aem_pack_dao,
@@ -30,12 +34,13 @@ from ets.adapters.outbound.dao import (
     get_workflow_dao,
 )
 from ets.config import Config
+from ets.constants import INCOMING_AEM_PACK_COLLECTION
+from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.inject import (
     prepare_aem_pack_registry,
     prepare_config_adapters,
     prepare_event_subscriber,
 )
-from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
 from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
@@ -56,10 +61,11 @@ class DAOs:
 class JointFixture:
     """Returned by the `joint_fixture`."""
 
-    aem_pack_registry: AEMPackRegistryPort
+    aem_pack_registry: AEMPackRegistry
     config: Config
     daos: DAOs
     event_subscriber: KafkaEventSubscriber
+    incoming_aem_pack_collection: AsyncCollection
     kafka: KafkaFixture
     loader: ConfigLoaderPort
     writer: ConfigWriterPort
@@ -73,33 +79,43 @@ async def joint_fixture(
     """A fixture that embeds all other fixtures for integration testing."""
     # merge configs from different sources with the default one:
     config = get_config(sources=[mongodb.config, kafka.config], kafka_enable_dlq=True)
-    aem_pack_dao = await get_aem_pack_dao(
-        dao_factory=mongodb.dao_factory,
-    )
     model_dao = await get_persisted_model_dao(dao_factory=mongodb.dao_factory)
     route_dao = await get_route_dao(dao_factory=mongodb.dao_factory)
     workflow_dao = await get_workflow_dao(dao_factory=mongodb.dao_factory)
-    daos = DAOs(
-        aem_pack_dao=aem_pack_dao,
-        model_dao=model_dao,
-        route_dao=route_dao,
-        workflow_dao=workflow_dao,
-    )
 
     async with (
-        prepare_aem_pack_registry(config=config) as aem_pack_registry,
-        prepare_event_subscriber(
-            config=config, core_override=aem_pack_registry
-        ) as event_subscriber,
-        prepare_config_adapters(config=config) as config_adapters,
+        MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
+        ConfiguredMongoClient(config=config) as async_mongo_client,
     ):
-        yield JointFixture(
-            aem_pack_registry=aem_pack_registry,
-            daos=daos,
-            config=config,
-            event_subscriber=event_subscriber,
-            kafka=kafka,
-            loader=config_adapters.loader,
-            writer=config_adapters.writer,
-            mongodb=mongodb,
+        aem_pack_dao = await get_aem_pack_dao(
+            dao_publisher_factory=dao_pub_factory,
+            topic=config.derived_aem_pack_topic,
         )
+        incoming_aem_pack_collection = async_mongo_client[config.db_name][
+            INCOMING_AEM_PACK_COLLECTION
+        ]
+        daos = DAOs(
+            aem_pack_dao=aem_pack_dao,
+            model_dao=model_dao,
+            route_dao=route_dao,
+            workflow_dao=workflow_dao,
+        )
+
+        async with (
+            prepare_aem_pack_registry(config=config) as aem_pack_registry,
+            prepare_event_subscriber(
+                config=config, core_override=aem_pack_registry
+            ) as event_subscriber,
+            prepare_config_adapters(config=config) as config_adapters,
+        ):
+            yield JointFixture(
+                aem_pack_registry=cast(AEMPackRegistry, aem_pack_registry),
+                config=config,
+                daos=daos,
+                event_subscriber=event_subscriber,
+                incoming_aem_pack_collection=incoming_aem_pack_collection,
+                kafka=kafka,
+                loader=config_adapters.loader,
+                writer=config_adapters.writer,
+                mongodb=mongodb,
+            )

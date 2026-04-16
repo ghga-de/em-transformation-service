@@ -13,25 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Interface for managing Annotated EM Pack operations."""
+"""Temporary models and config for KafkaEventSubscriber to be replaced by ghga_event_schemas."""
 
-from abc import ABC, abstractmethod
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 from ets.core.models import AEMPack
 
 
-class AEMPackRegistryPort(ABC):
-    """Port for managing AEMPack lifecycle and transformation operations.
+class AEMPackEventConfig(BaseSettings):
+    """Config for events communicating changes in AEMPacks.
 
-    This port defines the interface for:
-    - Upserting AEMPacks (insert or update)
-    - Transforming an original AEMPack into all derived representations
+    The event types are hardcoded by `hexkit`.
     """
 
-    @abstractmethod
-    async def queue_unprocessed(self, aem_pack: AEMPack):
-        """Put new AEMPacks from event subscriber into the processing queue."""
+    original_aem_pack_topic: str = Field(
+        default=...,
+        description="Topic informing about new ingress AEMPacks.",
+        examples=["original-aempacks"],
+    )
 
-    @abstractmethod
-    async def process_aem_packs(self):
-        """Derives AEMPacks from incoming AEMPacks."""
+
+class OriginalAEMPack(AEMPack):
+    """Model for the incoming AEMPack payload."""
