@@ -17,8 +17,6 @@
 
 from abc import ABC, abstractmethod
 
-from pydantic import UUID4
-
 from ets.core.models import AEMPack
 
 
@@ -28,25 +26,7 @@ class AEMPackRegistryPort(ABC):
     This port defines the interface for:
     - Upserting AEMPacks (insert or update)
     - Transforming an original AEMPack into all derived representations
-    - Validating AEMPack data against schemas TODO
     """
-
-    class ModelNotFoundError(RuntimeError):
-        """Raised when a referenced model does not exist in the configuration."""
-
-        def __init__(self, *, model_name: str):
-            message = f"Model '{model_name}' not found in configuration."
-            super().__init__(message)
-
-    class DataPackValidationError(RuntimeError):
-        """Raised when a DataPack of an AEMPack does not conform to its schema."""
-
-        def __init__(self, *, aem_pack_id: UUID4, model_name: str):
-            message = (
-                f"DataPack validation failed for AEMPack '{aem_pack_id}' "
-                f"against model '{model_name}'"
-            )
-            super().__init__(message)
 
     @abstractmethod
     async def queue_unprocessed(self, aem_pack: AEMPack):
