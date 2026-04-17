@@ -16,6 +16,8 @@
 """Service-wide constants."""
 
 INCOMING_AEM_PACK_COLLECTION = "incoming_aem_packs"
+CONFIG_LOCK_COLLECTION = "config_locks"
+CONFIG_LOCK_ID = "config_update_lock"
 
 PROCESSOR_FIELD = "processor"
 PROCESSED_AT_FIELD = "processed_at"

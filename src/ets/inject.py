@@ -29,6 +29,7 @@ from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
 
 from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
+from ets.adapters.outbound.config_lock import ConfigLockAdapter
 from ets.adapters.outbound.config_writer import ConfigWriterAdapter
 from ets.adapters.outbound.dao import (
     get_aem_pack_dao,
@@ -38,10 +39,11 @@ from ets.adapters.outbound.dao import (
 )
 from ets.adapters.outbound.incoming_aem_pack_queue import IncomingAEMPackQueue
 from ets.config import Config
-from ets.constants import INCOMING_AEM_PACK_COLLECTION
+from ets.constants import CONFIG_LOCK_COLLECTION, INCOMING_AEM_PACK_COLLECTION
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
+from ets.ports.outbound.config_lock import ConfigLockPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
 
 
@@ -65,15 +67,25 @@ async def prepare_config_adapters(*, config: Config) -> AsyncGenerator[ConfigAda
         workflow_dao = await get_workflow_dao(dao_factory=dao_factory)
         yield ConfigAdapters(
             loader=ConfigLoaderAdapter(
-                model_dao=model_dao,
-                route_dao=route_dao,
-                workflow_dao=workflow_dao,
+                model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
             ),
             writer=ConfigWriterAdapter(
-                model_dao=model_dao,
-                route_dao=route_dao,
-                workflow_dao=workflow_dao,
+                model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
             ),
+        )
+
+
+@asynccontextmanager
+async def prepare_config_lock(*, config: Config) -> AsyncGenerator[ConfigLockPort]:
+    """Construct a ConfigLockAdapter backed by the config_lock collection."""
+    async with ConfiguredMongoClient(config=config) as mongo_client:
+        collection = mongo_client[config.db_name][CONFIG_LOCK_COLLECTION]
+        yield ConfigLockAdapter(
+            collection=collection,
+            worker_id=config.worker_id,
+            lock_expiry_seconds=config.lock_expiry_seconds,
+            poll_interval=config.lock_poll_interval,
+            timeout=config.lock_timeout,
         )
 
 
@@ -85,6 +97,7 @@ async def prepare_aem_pack_registry(
     """Constructs and initializes core components and their outbound dependencies."""
     async with (
         prepare_config_adapters(config=config) as config_adapters,
+        prepare_config_lock(config=config) as config_lock,
         MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
         ConfiguredMongoClient(config=config) as mongo_client,
     ):
@@ -96,11 +109,11 @@ async def prepare_aem_pack_registry(
             collection=mongo_client[config.db_name][INCOMING_AEM_PACK_COLLECTION],
             worker_id=config.worker_id,
         )
-
         yield AEMPackRegistry(
             config=config,
             aem_pack_dao=aem_pack_dao,
             config_loader=config_adapters.loader,
+            config_lock=config_lock,
             incoming_aem_pack_queue=incoming_aem_pack_queue,
         )
 

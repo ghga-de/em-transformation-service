@@ -49,3 +49,15 @@ class Config(
         default=...,
         description="Unique identifier for a service instance used specifically for the reclamation logic.",
     )
+    lock_expiry_seconds: int = Field(
+        default=120,
+        description="TTL in seconds for the config lock document. MongoDB automatically removes stale locks after this duration.",
+    )
+    lock_poll_interval: int = Field(
+        default=5,
+        description="Seconds between polls when waiting for the config lock to be released.",
+    )
+    lock_timeout: int = Field(
+        default=300,
+        description="Maximum seconds to wait for the config lock to be released before raising a TimeoutError.",
+    )

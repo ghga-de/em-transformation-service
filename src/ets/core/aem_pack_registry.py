@@ -35,6 +35,7 @@ from ets.ports.inbound.aem_pack_registry import (
     AEMPackRegistryPort,
 )
 from ets.ports.outbound.config_loader import ConfigLoaderPort
+from ets.ports.outbound.config_lock import ConfigLockPort
 from ets.ports.outbound.dao import AEMPackDao
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
@@ -56,17 +57,19 @@ class AEMPackRegistry(AEMPackRegistryPort):
         config: Config,
         aem_pack_dao: AEMPackDao,
         config_loader: ConfigLoaderPort,
+        config_lock: ConfigLockPort,
         incoming_aem_pack_queue: IncomingAEMPackQueuePort,
     ):
         self._config = config
         self._aem_pack_dao = aem_pack_dao
         self._config_loader = config_loader
+        self._config_lock = config_lock
         self._incoming_aem_pack_queue = incoming_aem_pack_queue
         self._transformation_registry = get_transformation_registry()
 
     async def queue_unprocessed(self, aem_pack: AEMPack):
         """Fetch new AEMPacks via event subscriber and put them into the queue for processing."""
-        # For now, just load. Reloading will be dealt with in the config lock + update ticket
+        await self._config_lock.wait_for_lock_release()
         config = await self._config_loader.load_config_from_db()
 
         # Ensure model name exists
@@ -96,6 +99,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         config = await self._config_loader.load_config_from_db()
 
         while True:
+            await self._config_lock.wait_for_lock_release()
             claimed = await self._incoming_aem_pack_queue.claim_next()
             if claimed:
                 await self._process_next_aem_pack(
@@ -127,6 +131,8 @@ class AEMPackRegistry(AEMPackRegistryPort):
             transformed_map=transformed_map,
             config=config,
         )
+
+        await self._config_lock.wait_for_lock_release()
 
         async with set_correlation_id(correlation_id):
             if dirty_map:
