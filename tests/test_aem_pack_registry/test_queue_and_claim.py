@@ -173,7 +173,7 @@ async def _assert_pack_claimed_during_processing(
     """Helper to assert that a pack is claimed during process_aem_packs."""
     claimed: list[IncomingAEMPack] = []
 
-    async def capture_and_stop(*, incoming_aem, correlation_id, config):
+    async def capture_and_stop(*, incoming_aem, correlation_id):
         claimed.append(incoming_aem)
         raise RuntimeError("STOP, testing time!")
 
@@ -207,7 +207,7 @@ async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
     joint_fixture: JointFixture,
 ):
     """Ensure processing publishes results even when a new version was queued concurrently, and leaves the doc for reprocessing."""
-    config = await populate_db_config(
+    await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
@@ -237,7 +237,6 @@ async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
         correlation_id=unprocessed.correlation_id,
-        config=config,
     )
 
     derived = [

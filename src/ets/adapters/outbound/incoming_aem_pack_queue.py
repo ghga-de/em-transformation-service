@@ -140,7 +140,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
             {
                 "$set": {
                     PROCESSOR_FIELD: None,
-                    NEEDS_REPROCESSING_FIELD: None,
+                    NEEDS_REPROCESSING_FIELD: False,
                 }
             },
         )

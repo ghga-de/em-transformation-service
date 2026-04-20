@@ -33,7 +33,7 @@ pytestmark = pytest.mark.asyncio
 
 async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
     """Ensure re-processing the same ingress pack reuses existing derived pack UUIDs."""
-    config = await populate_db_config(
+    await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
@@ -51,7 +51,6 @@ async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
         correlation_id=unprocessed.correlation_id,
-        config=config,
     )
 
     derived = [
@@ -69,7 +68,6 @@ async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
         correlation_id=unprocessed.correlation_id,
-        config=config,
     )
 
     derived = [
@@ -90,7 +88,7 @@ async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
 
 async def test_first_processing_generates_fresh_ids(joint_fixture: JointFixture):
     """Ensure processing generates unique UUIDs for all derived packs."""
-    config = await populate_db_config(
+    await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
@@ -105,7 +103,6 @@ async def test_first_processing_generates_fresh_ids(joint_fixture: JointFixture)
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
         correlation_id=unprocessed.correlation_id,
-        config=config,
     )
 
     derived = [
