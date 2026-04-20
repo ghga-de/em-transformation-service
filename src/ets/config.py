@@ -58,6 +58,6 @@ class Config(
         description="Seconds between polls when waiting for the config lock to be released.",
     )
     lock_timeout: int = Field(
-        default=300,
+        default=150,
         description="Maximum seconds to wait for the config lock to be released before raising a TimeoutError.",
     )

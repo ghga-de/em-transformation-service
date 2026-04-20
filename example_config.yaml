@@ -17,7 +17,7 @@ kafka_ssl_keyfile: ''
 kafka_ssl_password: ''
 lock_expiry_seconds: 120
 lock_poll_interval: 5
-lock_timeout: 300
+lock_timeout: 150
 log_format: null
 log_level: INFO
 log_traceback: true

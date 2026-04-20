@@ -279,7 +279,7 @@
       "type": "integer"
     },
     "lock_timeout": {
-      "default": 300,
+      "default": 150,
       "description": "Maximum seconds to wait for the config lock to be released before raising a TimeoutError.",
       "title": "Lock Timeout",
       "type": "integer"
