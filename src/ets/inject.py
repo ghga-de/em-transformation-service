@@ -30,6 +30,7 @@ from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
 from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
 from ets.adapters.outbound.config_lock import ConfigLockAdapter
+from ets.adapters.outbound.config_version import ConfigVersion
 from ets.adapters.outbound.config_writer import ConfigWriterAdapter
 from ets.adapters.outbound.dao import (
     get_aem_pack_dao,
@@ -39,20 +40,26 @@ from ets.adapters.outbound.dao import (
 )
 from ets.adapters.outbound.incoming_aem_pack_queue import IncomingAEMPackQueue
 from ets.config import Config
-from ets.constants import CONFIG_LOCK_COLLECTION, INCOMING_AEM_PACK_COLLECTION
+from ets.constants import (
+    CONFIG_LOCK_COLLECTION,
+    CONFIG_VERSION_COLLECTION,
+    INCOMING_AEM_PACK_COLLECTION,
+)
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
+from ets.ports.outbound.config_version import ConfigVersionPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
 
 
 @dataclass
 class ConfigAdapters:
-    """Holds the config loader and writer adapters sharing the same DAO instances."""
+    """Holds the config loader, writer, and version adapters sharing the same DAO instances."""
 
     loader: ConfigLoaderPort
     writer: ConfigWriterPort
+    version: ConfigVersionPort
 
 
 @asynccontextmanager
@@ -61,17 +68,27 @@ async def prepare_config_adapters(*, config: Config) -> AsyncGenerator[ConfigAda
 
     Factored out for better testability.
     """
-    async with MongoDbDaoFactory.construct(config=config) as dao_factory:
+    async with (
+        MongoDbDaoFactory.construct(config=config) as dao_factory,
+        ConfiguredMongoClient(config=config) as mongo_client,
+    ):
         model_dao = await get_persisted_model_dao(dao_factory=dao_factory)
         route_dao = await get_route_dao(dao_factory=dao_factory)
         workflow_dao = await get_workflow_dao(dao_factory=dao_factory)
+        config_version = ConfigVersion(
+            collection=mongo_client[config.db_name][CONFIG_VERSION_COLLECTION]
+        )
+        config_loader = ConfigLoaderAdapter(
+            model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
+        )
+        config_writer = ConfigWriterAdapter(
+            model_dao=model_dao,
+            route_dao=route_dao,
+            workflow_dao=workflow_dao,
+            config_version=config_version,
+        )
         yield ConfigAdapters(
-            loader=ConfigLoaderAdapter(
-                model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
-            ),
-            writer=ConfigWriterAdapter(
-                model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
-            ),
+            loader=config_loader, writer=config_writer, version=config_version
         )
 
 
@@ -114,6 +131,7 @@ async def prepare_aem_pack_registry(
             aem_pack_dao=aem_pack_dao,
             config_loader=config_adapters.loader,
             config_lock=config_lock,
+            config_version=config_adapters.version,
             incoming_aem_pack_queue=incoming_aem_pack_queue,
         )
 

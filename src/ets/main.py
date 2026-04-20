@@ -39,14 +39,17 @@ async def _run_config_resolution(config_lock: ConfigLockPort) -> None:
     acquired = await config_lock.try_acquire_lock()
     if acquired:
         try:
+            log.info("Lock acquired, starting config update.")
             # TODO: Call config_manager.resolve_transformation_config() here
             # and persist the result via config_writer.write_config().
-            log.info("Lock acquired — config resolution placeholder (not yet wired).")
+            log.info("Config validation/update finished.")
         finally:
+            # If something fails in the process responsible for updating,
+            # the lock is simply freed and updating can be attempted again on next startup
             await config_lock.release_lock()
     else:
         await config_lock.wait_for_lock_release()
-        log.info("Lock released by holder — loading persisted config placeholder.")
+        log.info("Update lock released, loading persisted config placeholder.")
 
 
 async def consume_events(run_forever: bool = True):

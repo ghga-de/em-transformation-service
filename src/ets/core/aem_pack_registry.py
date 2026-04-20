@@ -36,6 +36,7 @@ from ets.ports.inbound.aem_pack_registry import (
 )
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
+from ets.ports.outbound.config_version import ConfigVersionPort
 from ets.ports.outbound.dao import AEMPackDao
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
@@ -51,31 +52,51 @@ class _AnnotationModel(BaseModel):
 class AEMPackRegistry(AEMPackRegistryPort):
     """Core service for managing AEMPack transformations."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         config: Config,
         aem_pack_dao: AEMPackDao,
         config_loader: ConfigLoaderPort,
         config_lock: ConfigLockPort,
+        config_version: ConfigVersionPort,
         incoming_aem_pack_queue: IncomingAEMPackQueuePort,
     ):
         self._config = config
         self._aem_pack_dao = aem_pack_dao
         self._config_loader = config_loader
         self._config_lock = config_lock
+        self._config_version = config_version
         self._incoming_aem_pack_queue = incoming_aem_pack_queue
         self._transformation_registry = get_transformation_registry()
+        self._known_config_version: int = 0
+        self._cached_config: PersistedConfig | None = None
+
+    async def _reload_config_if_changed(self) -> PersistedConfig:
+        """Check config version and reload from DB if it changed."""
+        current_version = await self._config_version.get_version()
+        if self._cached_config is None:
+            log.info("Loading initial config (version %d).", current_version)
+            self._cached_config = await self._config_loader.load_config_from_db()
+            self._known_config_version = current_version
+        elif current_version != self._known_config_version:
+            log.info(
+                "Config version changed (%d -> %d), reloading.",
+                self._known_config_version,
+                current_version,
+            )
+            self._cached_config = await self._config_loader.load_config_from_db()
+            self._known_config_version = current_version
+        return self._cached_config
 
     async def queue_unprocessed(self, aem_pack: AEMPack):
         """Fetch new AEMPacks via event subscriber and put them into the queue for processing."""
         await self._config_lock.wait_for_lock_release()
-        config = await self._config_loader.load_config_from_db()
+        config = await self._reload_config_if_changed()
 
-        # Ensure model name exists
-        matching_model = None
-        f = filter(lambda model: model.name == aem_pack.model_name, config.models)
-        matching_model = next(f, None)
+        matching_model = next(
+            (m for m in config.models if m.name == aem_pack.model_name), None
+        )
 
         if not matching_model:
             model_lookup_error = ValueError(
@@ -96,10 +117,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
     async def process_aem_packs(self) -> None:
         """Derives AEMPacks from incoming AEMPacks."""
-        config = await self._config_loader.load_config_from_db()
-
         while True:
             await self._config_lock.wait_for_lock_release()
+            config = await self._reload_config_if_changed()
             claimed = await self._incoming_aem_pack_queue.claim_next()
             if claimed:
                 await self._process_next_aem_pack(
@@ -133,6 +153,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         )
 
         await self._config_lock.wait_for_lock_release()
+        await self._reload_config_if_changed()
 
         async with set_correlation_id(correlation_id):
             if dirty_map:
