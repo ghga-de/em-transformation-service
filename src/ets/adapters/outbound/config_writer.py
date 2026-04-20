@@ -34,12 +34,12 @@ class ConfigWriterAdapter(ConfigWriterPort):
         model_dao: ModelDao,
         route_dao: RouteDao,
         workflow_dao: WorkflowDao,
-        config_version: ConfigVersionerPort,
+        config_versioner: ConfigVersionerPort,
     ):
         self._model_dao = model_dao
         self._route_dao = route_dao
         self._workflow_dao = workflow_dao
-        self._config_version = config_version
+        self._config_versioner = config_versioner
 
     async def write_config(self, config: PersistedConfig) -> None:
         """Upsert all models, routes, and workflows from the given config.
@@ -55,5 +55,5 @@ class ConfigWriterAdapter(ConfigWriterPort):
             await self._route_dao.upsert(route)
         for workflow in config.workflows:
             await self._workflow_dao.upsert(workflow)
-        await self._config_version.increment_version()
+        await self._config_versioner.increment_version()
         log.info("Transformation configuration persisted successfully.")

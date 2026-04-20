@@ -85,7 +85,7 @@ async def prepare_config_adapters(*, config: Config) -> AsyncGenerator[ConfigAda
             model_dao=model_dao,
             route_dao=route_dao,
             workflow_dao=workflow_dao,
-            config_version=config_version,
+            config_versioner=config_version,
         )
         yield ConfigAdapters(
             loader=config_loader, writer=config_writer, version=config_version
