@@ -18,7 +18,7 @@
 import logging
 
 from ets.core.models import PersistedConfig
-from ets.ports.outbound.config_version import ConfigVersionPort
+from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
 from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 
@@ -34,7 +34,7 @@ class ConfigWriterAdapter(ConfigWriterPort):
         model_dao: ModelDao,
         route_dao: RouteDao,
         workflow_dao: WorkflowDao,
-        config_version: ConfigVersionPort,
+        config_version: ConfigVersionerPort,
     ):
         self._model_dao = model_dao
         self._route_dao = route_dao

@@ -39,3 +39,7 @@ class IncomingAEMPackQueuePort(ABC):
     @abstractmethod
     async def mark_processed(self, aem_pack_id: UUID4) -> None:
         """Mark an AEMPack as successfully processed."""
+
+    @abstractmethod
+    async def free(self, aem_pack_id: UUID4) -> None:
+        """Release an AEMPack back to the queue without marking it processed."""

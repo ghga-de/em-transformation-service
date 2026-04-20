@@ -89,11 +89,11 @@ class ConfigLockAdapter(ConfigLockPort):
                     "acquired_at": now_utc_ms_prec(),
                 }
             )
-            log.info("Config lock acquired by worker %s.", self._worker_id)
+            log.info("Config lock acquired by worker '%s'.", self._worker_id)
             return True
         except DuplicateKeyError:
             log.info(
-                "Config lock already held, worker %s could not acquire it.",
+                "Config lock already held, worker '%s' could not acquire it.",
                 self._worker_id,
             )
             return False
@@ -107,10 +107,10 @@ class ConfigLockAdapter(ConfigLockPort):
             {"_id": CONFIG_LOCK_ID, "worker_id": self._worker_id}
         )
         if result.deleted_count:
-            log.info("Config lock released by worker %s.", self._worker_id)
+            log.info("Config lock released by worker '%s'.", self._worker_id)
         else:
             log.warning(
-                "Config lock release failed for worker %s.\nEither the worker doesn't hold the lock "
+                "Config lock release failed for worker '%s'.\nEither the worker doesn't hold the lock "
                 + "or it already expired via TTL.",
                 self._worker_id,
             )
@@ -129,7 +129,7 @@ class ConfigLockAdapter(ConfigLockPort):
                 return
 
             log.info(
-                "Worker %s waiting for config lock release (%ds elapsed of %ds).",
+                "Worker '%s' waiting for config lock release (%ds elapsed of %ds).",
                 self._worker_id,
                 elapsed,
                 self._timeout,

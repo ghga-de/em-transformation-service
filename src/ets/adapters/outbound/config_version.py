@@ -21,12 +21,12 @@ from pymongo import ReturnDocument
 from pymongo.asynchronous.collection import AsyncCollection
 
 from ets.constants import CONFIG_VERSION_ID
-from ets.ports.outbound.config_version import ConfigVersionPort
+from ets.ports.outbound.config_version import ConfigVersionerPort
 
 log = logging.getLogger(__name__)
 
 
-class ConfigVersion(ConfigVersionPort):
+class ConfigVersioner(ConfigVersionerPort):
     """MongoDB-backed config version tracker.
 
     Uses a single document with a fixed _id and an integer `version` field.

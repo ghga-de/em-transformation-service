@@ -36,7 +36,7 @@ from ets.ports.inbound.aem_pack_registry import (
 )
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
-from ets.ports.outbound.config_version import ConfigVersionPort
+from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.dao import AEMPackDao
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
@@ -59,14 +59,14 @@ class AEMPackRegistry(AEMPackRegistryPort):
         aem_pack_dao: AEMPackDao,
         config_loader: ConfigLoaderPort,
         config_lock: ConfigLockPort,
-        config_version: ConfigVersionPort,
+        config_versioner: ConfigVersionerPort,
         incoming_aem_pack_queue: IncomingAEMPackQueuePort,
     ):
         self._config = config
         self._aem_pack_dao = aem_pack_dao
         self._config_loader = config_loader
         self._config_lock = config_lock
-        self._config_version = config_version
+        self._config_versioner = config_versioner
         self._incoming_aem_pack_queue = incoming_aem_pack_queue
         self._transformation_registry = get_transformation_registry()
         self._known_config_version: int = 0
@@ -83,13 +83,13 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
     async def _reload_config_if_changed(self) -> bool:
         """Check config version and reload from DB if it changed."""
-        current_version = await self._config_version.get_version()
+        current_version = await self._config_versioner.get_version()
         if self._graph_config is None:
             log.info("Loading initial config (version %d).", current_version)
             self._graph_config = await self._config_loader.load_config_from_db()
             self._known_config_version = current_version
             return True
-        elif current_version != self._known_config_version:
+        elif self._known_config_version < current_version:
             log.info(
                 "Config version changed (%d -> %d), reloading.",
                 self._known_config_version,
@@ -98,6 +98,14 @@ class AEMPackRegistry(AEMPackRegistryPort):
             self._graph_config = await self._config_loader.load_config_from_db()
             self._known_config_version = current_version
             return True
+        elif self._known_config_version > current_version:
+            inconsistent_version = ValueError(
+                "Encountered inconsistent current config version: %i. Worker config version: %i.",
+                current_version,
+                self._known_config_version,
+            )
+            log.critical(inconsistent_version)
+            raise inconsistent_version
         return False
 
     async def queue_unprocessed(self, aem_pack: AEMPack):
@@ -159,7 +167,16 @@ class AEMPackRegistry(AEMPackRegistryPort):
         )
 
         await self._config_lock.wait_for_lock_release()
-        await self._reload_config_if_changed()
+        config_changed = await self._reload_config_if_changed()
+
+        if config_changed:
+            log.info(
+                "Graph config changed while processing AEMPack '%s'.\n"
+                + "Discarding changes and freeing for reprocessing with new config",
+                incoming_aem.id,
+            )
+            await self._incoming_aem_pack_queue.free(incoming_aem.id)
+            return
 
         async with set_correlation_id(correlation_id):
             if dirty_map:

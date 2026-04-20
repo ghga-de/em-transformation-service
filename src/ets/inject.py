@@ -30,7 +30,7 @@ from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
 from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
 from ets.adapters.outbound.config_lock import ConfigLockAdapter
-from ets.adapters.outbound.config_version import ConfigVersion
+from ets.adapters.outbound.config_version import ConfigVersioner
 from ets.adapters.outbound.config_writer import ConfigWriterAdapter
 from ets.adapters.outbound.dao import (
     get_aem_pack_dao,
@@ -49,7 +49,7 @@ from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
-from ets.ports.outbound.config_version import ConfigVersionPort
+from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
 
 
@@ -59,7 +59,7 @@ class ConfigAdapters:
 
     loader: ConfigLoaderPort
     writer: ConfigWriterPort
-    version: ConfigVersionPort
+    version: ConfigVersionerPort
 
 
 @asynccontextmanager
@@ -75,7 +75,7 @@ async def prepare_config_adapters(*, config: Config) -> AsyncGenerator[ConfigAda
         model_dao = await get_persisted_model_dao(dao_factory=dao_factory)
         route_dao = await get_route_dao(dao_factory=dao_factory)
         workflow_dao = await get_workflow_dao(dao_factory=dao_factory)
-        config_version = ConfigVersion(
+        config_version = ConfigVersioner(
             collection=mongo_client[config.db_name][CONFIG_VERSION_COLLECTION]
         )
         config_loader = ConfigLoaderAdapter(
@@ -131,7 +131,7 @@ async def prepare_aem_pack_registry(
             aem_pack_dao=aem_pack_dao,
             config_loader=config_adapters.loader,
             config_lock=config_lock,
-            config_version=config_adapters.version,
+            config_versioner=config_adapters.version,
             incoming_aem_pack_queue=incoming_aem_pack_queue,
         )
 

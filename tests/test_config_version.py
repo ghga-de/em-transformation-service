@@ -19,12 +19,12 @@ import pytest
 from hexkit.providers.mongodb import ConfiguredMongoClient
 from hexkit.providers.mongodb.testutils import MongoDbFixture
 
-from ets.adapters.outbound.config_version import ConfigVersion
+from ets.adapters.outbound.config_version import ConfigVersioner
 from ets.constants import CONFIG_VERSION_COLLECTION
 
 
-def _make_version_tracker(collection) -> ConfigVersion:
-    return ConfigVersion(collection=collection)
+def _make_version_tracker(collection) -> ConfigVersioner:
+    return ConfigVersioner(collection=collection)
 
 
 @pytest.mark.asyncio()

@@ -18,7 +18,7 @@
 from abc import ABC, abstractmethod
 
 
-class ConfigVersionPort(ABC):
+class ConfigVersionerPort(ABC):
     """Port for tracking the monotonically increasing config version.
 
     The version is incremented each time a new config is persisted.
