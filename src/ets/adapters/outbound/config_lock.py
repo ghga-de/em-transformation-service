@@ -77,7 +77,10 @@ class ConfigLockAdapter(ConfigLockPort):
             )
 
     async def try_acquire_lock(self) -> bool:
-        """Attempt to acquire the config update lock via atomic insert."""
+        """Attempt to acquire the config update lock.
+
+        Returns True if the lock was acquired, False if another instance holds it.
+        """
         try:
             await self._collection.insert_one(
                 {
@@ -90,13 +93,16 @@ class ConfigLockAdapter(ConfigLockPort):
             return True
         except DuplicateKeyError:
             log.info(
-                "Config lock already held, worker %s could not acquire.",
+                "Config lock already held, worker %s could not acquire it.",
                 self._worker_id,
             )
             return False
 
     async def release_lock(self) -> None:
-        """Release the lock only if held by this worker."""
+        """Release the config update lock held by this instance.
+
+        Only deletes the lock document if this instance is the holder.
+        """
         result = await self._collection.delete_one(
             {"_id": CONFIG_LOCK_ID, "worker_id": self._worker_id}
         )
@@ -104,13 +110,17 @@ class ConfigLockAdapter(ConfigLockPort):
             log.info("Config lock released by worker %s.", self._worker_id)
         else:
             log.warning(
-                "Config lock release failed for worker %s — either the worker doesn't hold the lock "
+                "Config lock release failed for worker %s.\nEither the worker doesn't hold the lock "
                 + "or it already expired via TTL.",
                 self._worker_id,
             )
 
     async def wait_for_lock_release(self) -> None:
-        """Poll until the lock document is gone or timeout is reached."""
+        """Poll until the config lock is released or timeout is reached.
+
+        Raises:
+            TimeoutError: If the lock is not released within the configured timeout.
+        """
         elapsed = 0
 
         while elapsed <= self._timeout:

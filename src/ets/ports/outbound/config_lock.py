@@ -27,6 +27,14 @@ class ConfigLockPort(ABC):
     """
 
     @abstractmethod
+    async def setup_index(self) -> None:
+        """Create or update the TTL index on acquired_at for automatic lock expiry.
+
+        If the index already exists with a different expireAfterSeconds value,
+        uses collMod to update the TTL rather than dropping and recreating.
+        """
+
+    @abstractmethod
     async def try_acquire_lock(self) -> bool:
         """Attempt to acquire the config update lock.
 

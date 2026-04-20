@@ -40,6 +40,7 @@ async def _run_config_resolution(config_lock: ConfigLockPort) -> None:
     if acquired:
         try:
             log.info("Lock acquired, starting config update.")
+            await config_lock.setup_index()
             # TODO: Call config_manager.resolve_transformation_config() here
             # and persist the result via config_writer.write_config().
             log.info("Config validation/update finished.")
