@@ -249,6 +249,9 @@ The service requires the following configuration parameters:
 - <a id="properties/input_config_path"></a>**`input_config_path`** *(string, format: path, required)*: Path to the transformation config file used to populate the database.
 - <a id="properties/sleep_for"></a>**`sleep_for`** *(integer)*: Seconds to sleep when no unprocessed AEMPacks are found. Default: `60`.
 - <a id="properties/worker_id"></a>**`worker_id`** *(string, required)*: Unique identifier for a service instance used specifically for the reclamation logic.
+- <a id="properties/lock_expiry_seconds"></a>**`lock_expiry_seconds`** *(integer)*: TTL in seconds for the config lock document. MongoDB automatically removes stale locks after this duration. Default: `120`.
+- <a id="properties/lock_poll_interval"></a>**`lock_poll_interval`** *(integer)*: Seconds between polls when waiting for the config lock to be released. Default: `5`.
+- <a id="properties/lock_timeout"></a>**`lock_timeout`** *(integer)*: Maximum seconds to wait for the config lock to be released before raising a TimeoutError. Default: `300`.
 
 ### Usage:
 
