@@ -16,9 +16,9 @@
 """KafkaEventSubscriber receiving events."""
 
 import logging
+from uuid import UUID
 
 from hexkit.protocols.daosub import DaoSubscriberProtocol
-from pydantic import UUID4
 
 from ets.adapters.inbound.temporary_event_schemas import (
     AEMPackEventConfig,
@@ -54,6 +54,11 @@ class EventSubTranslator(DaoSubscriberProtocol):
         """Consume a change event (created or updated) for the AEMPack."""
         await self._aem_pack_registry.queue_unprocessed(update)
 
-    async def deleted(self, resource_id: str, delete: UUID4) -> None:
+    async def deleted(self, resource_id: str) -> None:
         """Consume a deletion event for an AEMPack."""
-        await self._aem_pack_registry.delete_aem_packs(delete)
+        log.info(
+            "Received deletion outbox event for an incoming aem_pack %s",
+            resource_id,
+        )
+        aem_pack_id = UUID(resource_id)  # this ID is canonically a UUID4
+        await self._aem_pack_registry.delete_aem_packs(aem_pack_id)
