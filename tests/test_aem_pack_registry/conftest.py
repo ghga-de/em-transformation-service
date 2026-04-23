@@ -13,11 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Service-wide constants."""
+"""Shared fixtures for aem_pack_registry tests."""
 
-INCOMING_AEM_PACK_COLLECTION = "incoming_aem_packs"
+import pytest_asyncio
 
-PROCESSOR_FIELD = "processor"
-PROCESSED_AT_FIELD = "processed_at"
-NEEDS_REPROCESSING_FIELD = "needs_reprocessing"
-TOMBSTONED_FIELD = "tombstoned"
+from ets.core.aem_pack_registry import AEMPackRegistry
+from tests.fixtures.aem_pack_registry import populate_db_config
+from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
+from tests.fixtures.joint import JointFixture
+
+
+@pytest_asyncio.fixture
+async def registry(joint_fixture: JointFixture) -> AEMPackRegistry:
+    """Populate DB with single_route config and return the AEM pack registry."""
+    await populate_db_config(
+        daos=joint_fixture.daos,
+        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["single_route"],
+    )
+    return joint_fixture.aem_pack_registry

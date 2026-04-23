@@ -21,7 +21,12 @@ from pydantic import UUID4
 from pymongo import ReturnDocument
 from pymongo.asynchronous.collection import AsyncCollection
 
-from ets.constants import NEEDS_REPROCESSING_FIELD, PROCESSED_AT_FIELD, PROCESSOR_FIELD
+from ets.constants import (
+    NEEDS_REPROCESSING_FIELD,
+    PROCESSED_AT_FIELD,
+    PROCESSOR_FIELD,
+    TOMBSTONED_FIELD,
+)
 from ets.core.models import AEMPack, IncomingAEMPack
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
@@ -89,12 +94,17 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
             {
                 PROCESSOR_FIELD: self._worker_id,
                 PROCESSED_AT_FIELD: None,
+                TOMBSTONED_FIELD: {"$ne": True},
             }
         )
         if not doc:
-            # No abandoned packs; try to claim a fresh one
+            # No abandoned packs; try to claim a fresh one (skip tombstoned)
             doc = await self._collection.find_one_and_update(
-                filter={PROCESSOR_FIELD: None, PROCESSED_AT_FIELD: None},
+                filter={
+                    PROCESSOR_FIELD: None,
+                    PROCESSED_AT_FIELD: None,
+                    TOMBSTONED_FIELD: {"$ne": True},
+                },
                 update={"$set": {PROCESSOR_FIELD: self._worker_id}},
                 return_document=ReturnDocument.AFTER,
             )
@@ -104,6 +114,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 filter={
                     PROCESSED_AT_FIELD: {"$ne": None},
                     NEEDS_REPROCESSING_FIELD: True,
+                    TOMBSTONED_FIELD: {"$ne": True},
                 },
                 update={
                     "$set": {
@@ -132,3 +143,25 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 }
             },
         )
+
+    async def mark_for_deletion(self, aem_pack_id: UUID4) -> None:
+        """Mark the AEMPack for deletion."""
+        await self._collection.update_one(
+            {"_id": aem_pack_id}, {"$set": {TOMBSTONED_FIELD: True}}
+        )
+
+    async def is_marked_for_deletion(self, aem_pack_id: UUID4) -> bool:
+        """Check if an AEMPack is marked for deletion."""
+        doc = await self._collection.find_one(
+            filter={"_id": aem_pack_id, TOMBSTONED_FIELD: True}
+        )
+        return bool(doc)
+
+    async def is_deleted(self, aem_pack_id: UUID4) -> bool:
+        """Check if an AEMPack is already deleted. Treats missing as deleted."""
+        doc = await self._collection.find_one({"_id": aem_pack_id})
+        return doc is None
+
+    async def delete_marked(self, aem_pack_id: UUID4) -> None:
+        """Delete an AEMPack marked for deletion from the queue."""
+        await self._collection.delete_one({"_id": aem_pack_id, TOMBSTONED_FIELD: True})

@@ -18,6 +18,7 @@
 import logging
 
 from hexkit.protocols.daosub import DaoSubscriberProtocol
+from pydantic import UUID4
 
 from ets.adapters.inbound.temporary_event_schemas import (
     AEMPackEventConfig,
@@ -53,9 +54,6 @@ class EventSubTranslator(DaoSubscriberProtocol):
         """Consume a change event (created or updated) for the AEMPack."""
         await self._aem_pack_registry.queue_unprocessed(update)
 
-    async def deleted(self, resource_id: str) -> None:
+    async def deleted(self, resource_id: str, delete: UUID4) -> None:
         """Consume a deletion event for an AEMPack."""
-        log.warning(
-            "Received deletion event for resource '%s', but deletion is not yet implemented.",
-            resource_id,
-        )
+        await self._aem_pack_registry.delete_aem_packs(delete)

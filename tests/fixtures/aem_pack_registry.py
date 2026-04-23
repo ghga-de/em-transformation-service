@@ -134,6 +134,7 @@ def make_ingress_pack(
     *,
     aem_id: UUID4 | None = None,
     pid: str | None = None,
+    data: DataPack | None = None,
     annotation: dict | None = None,
     correlation_id: UUID4 | None = None,
 ) -> IncomingAEMPack:
@@ -142,22 +143,27 @@ def make_ingress_pack(
         id=aem_id or uuid4(),
         pid=pid or str(uuid4()),
         model_name=model_name,
-        data=TEST_DATAPACK,
+        data=data or TEST_DATAPACK,
         annotation=annotation or {},
         correlation_id=correlation_id or uuid4(),
     )
+
+
+async def queue_pack(
+    registry: AEMPackRegistry,
+    pack: IncomingAEMPack,
+) -> None:
+    """Queue a pack without claiming it."""
+    async with set_correlation_id(pack.correlation_id):
+        await registry.queue_unprocessed(pack)
 
 
 async def queue_and_claim(
     registry: AEMPackRegistry,
     pack: IncomingAEMPack,
 ) -> IncomingAEMPack:
-    """Queue an unprocessed pack and atomically claim it for processing.
-
-    Mirrors the claim step performed by process_aem_packs().
-    """
-    async with set_correlation_id(pack.correlation_id):
-        await registry.queue_unprocessed(pack)
+    """Queue a pack and atomically claim it for processing."""
+    await queue_pack(registry, pack)
     claimed = await registry._incoming_aem_pack_queue.claim_next()
     assert claimed is not None, f"Failed to claim unprocessed pack {pack.id}"
     return claimed
