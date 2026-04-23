@@ -17,10 +17,10 @@
 
 import json
 from collections.abc import Mapping
-from datetime import datetime
 from typing import Annotated, Any
 
 from annotated_types import MinLen
+from ghga_service_commons.utils.utc_dates import UTCDatetime
 from metldata.workflow.base import Workflow as MetldataWorkflow
 from pydantic import (
     UUID4,
@@ -304,7 +304,7 @@ class IncomingAEMPack(AEMPack):
         default=None,
         description="ID of the service instance that is currently processing this AEMPack.",
     )
-    processed_at: datetime | None = Field(
+    processed_at: UTCDatetime | None = Field(
         default=None,
         description="When this AEMPack was successfully processed. None if not yet processed.",
     )

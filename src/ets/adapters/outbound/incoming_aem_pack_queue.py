@@ -98,7 +98,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
             }
         )
         if not doc:
-            # No abandoned packs; try to claim a fresh one (skip tombstoned)
+            # No abandoned packs; try to claim a fresh one
             doc = await self._collection.find_one_and_update(
                 filter={
                     PROCESSOR_FIELD: None,
