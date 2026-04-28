@@ -129,17 +129,28 @@ async def test_wait_returns_after_release(mongodb: MongoDbFixture):
 
 @pytest.mark.asyncio()
 async def test_wait_raises_timeout(mongodb: MongoDbFixture):
-    """wait_for_lock_release raises TimeoutError when lock persists."""
+    """wait_for_lock_release raises TimeoutError at timeout, not timeout+poll_interval."""
+    poll_interval = 1
+    timeout = 2
     async with ConfiguredMongoClient(config=mongodb.config) as client:
         collection = client[mongodb.config.db_name][CONFIG_LOCK_COLLECTION]
         holder = _make_lock(collection, worker_id="holder")
-        waiter = _make_lock(collection, worker_id="waiter", poll_interval=1, timeout=2)
+        waiter = _make_lock(
+            collection,
+            worker_id="waiter",
+            poll_interval=poll_interval,
+            timeout=timeout,
+        )
         await holder.setup_index()
-
         await holder.try_acquire_lock()
 
-        with pytest.raises(TimeoutError, match="2 seconds"):
+        start = asyncio.get_event_loop().time()
+        with pytest.raises(TimeoutError, match=f"{timeout} seconds"):
             await waiter.wait_for_lock_release()
+        elapsed = asyncio.get_event_loop().time() - start
+
+        # Ensure this did not wait an extra poll_interval.
+        assert elapsed < timeout + poll_interval
 
 
 @pytest.mark.asyncio()
@@ -151,9 +162,33 @@ async def test_ttl_index_exists(mongodb: MongoDbFixture):
         await lock.setup_index()
 
         indexes = await collection.index_information()
-        ttl_indexes = {
-            name: info for name, info in indexes.items() if "expireAfterSeconds" in info
-        }
+        ttl_indexes = [
+            info for info in indexes.values() if "expireAfterSeconds" in info
+        ]
         assert len(ttl_indexes) == 1
-        ttl_info = next(iter(ttl_indexes.values()))
-        assert ttl_info["expireAfterSeconds"] == 60
+        assert ttl_indexes[0]["expireAfterSeconds"] == 60
+
+
+@pytest.mark.asyncio()
+async def test_setup_index_updates_ttl_via_collmod(mongodb: MongoDbFixture):
+    """Calling setup_index a second time with a different TTL updates the index in-place."""
+    async with ConfiguredMongoClient(config=mongodb.config) as client:
+        collection = client[mongodb.config.db_name][CONFIG_LOCK_COLLECTION]
+        lock_first = _make_lock(collection)
+        await lock_first.setup_index()
+
+        lock_updated = ConfigLockAdapter(
+            collection=collection,
+            worker_id="worker-1",
+            lock_expiry_seconds=300,
+            poll_interval=1,
+            timeout=3,
+        )
+        await lock_updated.setup_index()
+
+        indexes = await collection.index_information()
+        ttl_indexes = [
+            info for info in indexes.values() if "expireAfterSeconds" in info
+        ]
+        assert len(ttl_indexes) == 1
+        assert ttl_indexes[0]["expireAfterSeconds"] == 300

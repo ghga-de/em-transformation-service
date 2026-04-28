@@ -110,11 +110,14 @@ async def prepare_config_lock(*, config: Config) -> AsyncGenerator[ConfigLockPor
 async def prepare_aem_pack_registry(
     *,
     config: Config,
+    config_lock_override: ConfigLockPort | None = None,
 ) -> AsyncGenerator[AEMPackRegistryPort]:
     """Constructs and initializes core components and their outbound dependencies."""
     async with (
         prepare_config_adapters(config=config) as config_adapters,
-        prepare_config_lock(config=config) as config_lock,
+        nullcontext(config_lock_override)
+        if config_lock_override
+        else prepare_config_lock(config=config) as config_lock,
         MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
         ConfiguredMongoClient(config=config) as mongo_client,
     ):

@@ -144,7 +144,8 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 )
             else:
                 log.info(
-                    f"No new AEM found, sleeping for {self._config.sleep_for} seconds."
+                    "No new AEM found, sleeping for %d seconds.",
+                    self._config.sleep_for,
                 )
                 await asyncio.sleep(self._config.sleep_for)
 
@@ -198,7 +199,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
                     await self._aem_pack_dao.delete(aem_pack_id)
 
             for aem_pack in aem_packs_to_publish:
-                log.info(f"Upserting derived AEMPack {aem_pack.id}")
+                log.info("Upserting derived AEMPack %s.", aem_pack.id)
                 await self._aem_pack_dao.upsert(aem_pack)
 
         await self._incoming_aem_pack_queue.mark_processed(incoming_aem.id)

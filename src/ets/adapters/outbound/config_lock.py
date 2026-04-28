@@ -111,7 +111,7 @@ class ConfigLockAdapter(ConfigLockPort):
         else:
             log.warning(
                 "Config lock release failed for worker '%s'.\nEither the worker doesn't hold the lock "
-                + "or it already expired via TTL.",
+                "or it already expired via TTL.",
                 self._worker_id,
             )
 
@@ -123,7 +123,7 @@ class ConfigLockAdapter(ConfigLockPort):
         """
         elapsed = 0
 
-        while elapsed <= self._timeout:
+        while elapsed < self._timeout:
             doc = await self._collection.find_one({"_id": CONFIG_LOCK_ID})
             if doc is None:
                 return

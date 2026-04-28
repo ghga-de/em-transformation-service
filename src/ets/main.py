@@ -74,7 +74,9 @@ async def process_aem_packs():
 
     async with (
         prepare_config_lock(config=config) as config_lock,
-        prepare_aem_pack_registry(config=config) as aem_pack_registry,
+        prepare_aem_pack_registry(
+            config=config, config_lock_override=config_lock
+        ) as aem_pack_registry,
     ):
         await _run_config_resolution(config_lock)
         # load config from DB here
