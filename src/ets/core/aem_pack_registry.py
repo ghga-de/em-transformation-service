@@ -100,9 +100,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
             return True
         elif self._known_config_version > current_version:
             inconsistent_version = ValueError(
-                "Encountered inconsistent current config version: %i. Worker config version: %i.",
-                current_version,
-                self._known_config_version,
+                f"Encountered inconsistent current config version: {current_version}. Worker config version: {self._known_config_version}"
             )
             log.critical(inconsistent_version)
             raise inconsistent_version
