@@ -39,7 +39,7 @@ def _make_lock(
 
 @pytest.mark.asyncio()
 async def test_acquire_lock_succeeds(mongodb: MongoDbFixture):
-    """First acquire on empty collection returns True."""
+    """Ensure first acquire on empty collection returns True."""
     async with ConfiguredMongoClient(config=mongodb.config) as client:
         collection = client[mongodb.config.db_name][CONFIG_LOCK_COLLECTION]
         lock = _make_lock(collection)
@@ -54,7 +54,7 @@ async def test_acquire_lock_succeeds(mongodb: MongoDbFixture):
 
 @pytest.mark.asyncio()
 async def test_acquire_lock_fails_when_held(mongodb: MongoDbFixture):
-    """Second acquire while lock held returns False."""
+    """Ensure second acquire while lock held returns False."""
     async with ConfiguredMongoClient(config=mongodb.config) as client:
         collection = client[mongodb.config.db_name][CONFIG_LOCK_COLLECTION]
         lock1 = _make_lock(collection, worker_id="worker-1")
@@ -67,7 +67,7 @@ async def test_acquire_lock_fails_when_held(mongodb: MongoDbFixture):
 
 @pytest.mark.asyncio()
 async def test_release_then_acquire(mongodb: MongoDbFixture):
-    """After release, another worker can acquire."""
+    """Ensure another worker can acquire after release."""
     async with ConfiguredMongoClient(config=mongodb.config) as client:
         collection = client[mongodb.config.db_name][CONFIG_LOCK_COLLECTION]
         lock1 = _make_lock(collection, worker_id="worker-1")
@@ -81,7 +81,7 @@ async def test_release_then_acquire(mongodb: MongoDbFixture):
 
 @pytest.mark.asyncio()
 async def test_release_by_wrong_worker_is_noop(mongodb: MongoDbFixture):
-    """Release by non-holder does not remove lock."""
+    """Ensure release by non-holder does not remove lock."""
     async with ConfiguredMongoClient(config=mongodb.config) as client:
         collection = client[mongodb.config.db_name][CONFIG_LOCK_COLLECTION]
         lock1 = _make_lock(collection, worker_id="worker-1")
@@ -98,7 +98,7 @@ async def test_release_by_wrong_worker_is_noop(mongodb: MongoDbFixture):
 
 @pytest.mark.asyncio()
 async def test_wait_returns_immediately_when_unlocked(mongodb: MongoDbFixture):
-    """wait_for_lock_release returns immediately if no lock exists."""
+    """Ensure wait_for_lock_release returns immediately if no lock exists."""
     async with ConfiguredMongoClient(config=mongodb.config) as client:
         collection = client[mongodb.config.db_name][CONFIG_LOCK_COLLECTION]
         lock = _make_lock(collection, timeout=2)
@@ -109,7 +109,7 @@ async def test_wait_returns_immediately_when_unlocked(mongodb: MongoDbFixture):
 
 @pytest.mark.asyncio()
 async def test_wait_returns_after_release(mongodb: MongoDbFixture):
-    """wait_for_lock_release returns once another task releases the lock."""
+    """Ensure wait_for_lock_release returns once another task releases the lock."""
     async with ConfiguredMongoClient(config=mongodb.config) as client:
         collection = client[mongodb.config.db_name][CONFIG_LOCK_COLLECTION]
         holder = _make_lock(collection, worker_id="holder")
@@ -129,7 +129,7 @@ async def test_wait_returns_after_release(mongodb: MongoDbFixture):
 
 @pytest.mark.asyncio()
 async def test_wait_raises_timeout(mongodb: MongoDbFixture):
-    """wait_for_lock_release raises TimeoutError at timeout, not timeout+poll_interval."""
+    """Ensure wait_for_lock_release raises TimeoutError."""
     poll_interval = 1
     timeout = 2
     async with ConfiguredMongoClient(config=mongodb.config) as client:
@@ -155,7 +155,7 @@ async def test_wait_raises_timeout(mongodb: MongoDbFixture):
 
 @pytest.mark.asyncio()
 async def test_ttl_index_exists(mongodb: MongoDbFixture):
-    """setup_indexes creates the TTL index on acquired_at."""
+    """Ensure setup_index creates the TTL index on acquired_at."""
     async with ConfiguredMongoClient(config=mongodb.config) as client:
         collection = client[mongodb.config.db_name][CONFIG_LOCK_COLLECTION]
         lock = _make_lock(collection)
@@ -171,7 +171,7 @@ async def test_ttl_index_exists(mongodb: MongoDbFixture):
 
 @pytest.mark.asyncio()
 async def test_setup_index_updates_ttl_via_collmod(mongodb: MongoDbFixture):
-    """Calling setup_index a second time with a different TTL updates the index in-place."""
+    """Ensure calling setup_index a second time with a different TTL updates the index in-place."""
     async with ConfiguredMongoClient(config=mongodb.config) as client:
         collection = client[mongodb.config.db_name][CONFIG_LOCK_COLLECTION]
         lock_first = _make_lock(collection)
