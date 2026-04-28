@@ -34,7 +34,7 @@ pytestmark = pytest.mark.asyncio
 
 async def test_chained_routes(joint_fixture: JointFixture):
     """Ensure only derived AEMPacks with publish=True are collected for publishing."""
-    config = await populate_db_config(
+    await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel3"},
@@ -49,7 +49,6 @@ async def test_chained_routes(joint_fixture: JointFixture):
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
         correlation_id=unprocessed.correlation_id,
-        config=config,
     )
 
     derived_and_published = [
@@ -72,7 +71,7 @@ async def test_chained_routes(joint_fixture: JointFixture):
 
 async def test_forking_graph(joint_fixture: JointFixture):
     """Ensure a forking graph produces one derived pack per branch."""
-    config = await populate_db_config(
+    await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["forking_routes"],
         publish_models={"DerivedModel1", "DerivedModel2"},
@@ -87,7 +86,6 @@ async def test_forking_graph(joint_fixture: JointFixture):
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
         correlation_id=unprocessed.correlation_id,
-        config=config,
     )
 
     derived_and_published = [
@@ -110,7 +108,7 @@ async def test_forking_graph(joint_fixture: JointFixture):
 )
 async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
     """Ensure both ingress nodes route through the bottleneck produce derived packs."""
-    config = await populate_db_config(
+    await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["bottleneck"],
         publish_models={"DerivedModel1", "DerivedModel2"},
@@ -125,7 +123,6 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
         correlation_id=unprocessed.correlation_id,
-        config=config,
     )
 
     derived_and_published = [
@@ -152,7 +149,7 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
 
 async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):
     """Ensure independent ingress packs produce separate derived packs with distinct IDs."""
-    config = await populate_db_config(
+    await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
@@ -167,7 +164,7 @@ async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):
         pack=ingress_1,
     )
     await registry._process_next_aem_pack(
-        incoming_aem=claimed_1, correlation_id=claimed_1.correlation_id, config=config
+        incoming_aem=claimed_1, correlation_id=claimed_1.correlation_id
     )
 
     claimed_2 = await queue_and_claim(
@@ -175,7 +172,7 @@ async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):
         pack=ingress_2,
     )
     await registry._process_next_aem_pack(
-        incoming_aem=claimed_2, correlation_id=claimed_2.correlation_id, config=config
+        incoming_aem=claimed_2, correlation_id=claimed_2.correlation_id
     )
 
     derived_1 = [
@@ -211,7 +208,7 @@ async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):
 
 async def test_correlation_id_propagated_to_derived_packs(joint_fixture: JointFixture):
     """Ensure derived pack events carry the correlation ID of the originating ingress."""
-    config = await populate_db_config(
+    await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
@@ -233,7 +230,6 @@ async def test_correlation_id_propagated_to_derived_packs(joint_fixture: JointFi
         await registry._process_next_aem_pack(
             incoming_aem=unprocessed,
             correlation_id=unprocessed.correlation_id,
-            config=config,
         )
 
     events = recorder.recorded_events

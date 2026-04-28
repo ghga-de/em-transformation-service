@@ -75,7 +75,7 @@ class ConfigLoaderAdapter(ConfigLoaderPort):
 
     async def load_config_from_db(self) -> PersistedConfig:
         """Fetch config fields from persistence layer and sort them by name."""
-        log.info("Fetching old config from persistence layer.")
+        log.info("Fetching config from persistence layer.")
         models = [model async for model in self.model_dao.find_all(mapping={})]
         routes = [route async for route in self.route_dao.find_all(mapping={})]
         workflows = [

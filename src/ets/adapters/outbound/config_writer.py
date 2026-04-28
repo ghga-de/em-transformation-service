@@ -18,6 +18,7 @@
 import logging
 
 from ets.core.models import PersistedConfig
+from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
 from ets.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 
@@ -28,11 +29,17 @@ class ConfigWriterAdapter(ConfigWriterPort):
     """Adapter for upserting transformation config entities to the database."""
 
     def __init__(
-        self, *, model_dao: ModelDao, route_dao: RouteDao, workflow_dao: WorkflowDao
+        self,
+        *,
+        model_dao: ModelDao,
+        route_dao: RouteDao,
+        workflow_dao: WorkflowDao,
+        config_versioner: ConfigVersionerPort,
     ):
         self._model_dao = model_dao
         self._route_dao = route_dao
         self._workflow_dao = workflow_dao
+        self._config_versioner = config_versioner
 
     async def write_config(self, config: PersistedConfig) -> None:
         """Upsert all models, routes, and workflows from the given config.
@@ -48,4 +55,5 @@ class ConfigWriterAdapter(ConfigWriterPort):
             await self._route_dao.upsert(route)
         for workflow in config.workflows:
             await self._workflow_dao.upsert(workflow)
+        await self._config_versioner.increment_version()
         log.info("Transformation configuration persisted successfully.")
