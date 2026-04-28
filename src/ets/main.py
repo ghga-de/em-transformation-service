@@ -36,11 +36,11 @@ async def _run_config_resolution(config_lock: ConfigLockPort) -> None:
     If the lock is acquired, this instance is responsible for config validation/derivation.
     If not, it just waits for the holder to finish.
     """
+    await config_lock.setup_index()
     acquired = await config_lock.try_acquire_lock()
     if acquired:
         try:
             log.info("Lock acquired, starting config update.")
-            await config_lock.setup_index()
             # TODO: Call config_manager.resolve_transformation_config() here
             # and persist the result via config_writer.write_config().
             log.info("Config validation/update finished.")
