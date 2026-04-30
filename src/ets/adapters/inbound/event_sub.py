@@ -16,6 +16,7 @@
 """KafkaEventSubscriber receiving events."""
 
 import logging
+from uuid import UUID
 
 from hexkit.protocols.daosub import DaoSubscriberProtocol
 
@@ -55,7 +56,9 @@ class EventSubTranslator(DaoSubscriberProtocol):
 
     async def deleted(self, resource_id: str) -> None:
         """Consume a deletion event for an AEMPack."""
-        log.warning(
-            "Received deletion event for resource '%s', but deletion is not yet implemented.",
+        log.info(
+            "Received deletion outbox event for an incoming aem_pack %s",
             resource_id,
         )
+        aem_pack_id = UUID(resource_id)  # this ID is canonically a UUID4
+        await self._aem_pack_registry.delete_aem_pack_and_descendants(aem_pack_id)

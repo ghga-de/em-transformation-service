@@ -177,6 +177,13 @@ class AEMPackRegistry(AEMPackRegistryPort):
             await self._incoming_aem_pack_queue.free(incoming_aem.id)
             return
 
+        aem_packs_to_publish = await self._prune_derived_aem_packs_on_delete(
+            incoming_aem_id=incoming_aem.id,
+            pid=incoming_aem.pid,
+            aem_packs_to_publish=aem_packs_to_publish,
+            dirty_map=dirty_map,
+        )
+
         async with set_correlation_id(correlation_id):
             if dirty_map:
                 # Check if there are corresponding models remaining or if they have been removed from the config.
@@ -203,6 +210,41 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 await self._aem_pack_dao.upsert(aem_pack)
 
         await self._incoming_aem_pack_queue.mark_processed(incoming_aem.id)
+
+    async def _prune_derived_aem_packs_on_delete(
+        self,
+        incoming_aem_id: UUID4,
+        pid: str,
+        aem_packs_to_publish: list[AEMPack],
+        dirty_map: dict[str, UUID4],
+    ) -> list[AEMPack]:
+        """Prune derived AEMPacks when the original AEMPack is marked for deletion.
+        This handles the case where an original AEMPack is marked for deletion after
+        it was claimed for processing but before the processing is completed.
+        Mutates dirty_map in place to include all existing derived AEMPacks for deletion.
+        """
+        if not aem_packs_to_publish:
+            return aem_packs_to_publish
+
+        if not await self._incoming_aem_pack_queue.is_marked_or_deleted(
+            incoming_aem_id
+        ):
+            return aem_packs_to_publish
+
+        log.warning(
+            f"Original AEMPack with id {incoming_aem_id} is marked for deletion. Pruning derived AEMPacks."
+        )
+
+        # Mark only packs that already exist in the DAO for deletion.
+        # Newly-derived packs (never upserted) are simply dropped.
+        dirty_map.update(
+            {
+                pack.model_name: pack.id
+                async for pack in self._aem_pack_dao.find_all(mapping={"pid": pid})
+            }
+        )
+
+        return []
 
     def _traverse_graph(
         self,
@@ -313,3 +355,28 @@ class AEMPackRegistry(AEMPackRegistryPort):
             data=data,
             annotation=annotation,
         )
+
+    async def delete_aem_pack_and_descendants(self, incoming_aem_id: UUID4):
+        """Delete an incoming AEMPack and all AEMPacks derived from it.
+
+        First marks the AEMPack for deletion to prevent it from being claimed for processing.
+        This also signals to any ongoing processing that derived AEMPacks should not be published.
+        Then hard-deletes the incoming AEMPack along with all its descendants, if any.
+        """
+        # clean up the queue
+        await self._soft_delete_aem_pack(incoming_aem_id)
+        await self._hard_delete_aem_pack(incoming_aem_id)
+
+        # clean up the aem_packs derived from the deleted one
+        async for aem_pack in self._aem_pack_dao.find_all(
+            mapping={"pid": str(incoming_aem_id)}
+        ):
+            await self._aem_pack_dao.delete(aem_pack.id)
+
+    async def _soft_delete_aem_pack(self, incoming_aem_id: UUID4):
+        """Mark an AEMPack for deletion."""
+        await self._incoming_aem_pack_queue.mark_for_deletion(incoming_aem_id)
+
+    async def _hard_delete_aem_pack(self, incoming_aem_id: UUID4):
+        """Delete an AEMPack from the queue."""
+        await self._incoming_aem_pack_queue.delete_marked(incoming_aem_id)

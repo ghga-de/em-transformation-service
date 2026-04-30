@@ -17,6 +17,8 @@
 
 from abc import ABC, abstractmethod
 
+from pydantic import UUID4
+
 from ets.core.models import AEMPack
 
 
@@ -35,3 +37,7 @@ class AEMPackRegistryPort(ABC):
     @abstractmethod
     async def process_aem_packs(self):
         """Derives AEMPacks from incoming AEMPacks."""
+
+    @abstractmethod
+    async def delete_aem_pack_and_descendants(self, incoming_aem_id: UUID4):
+        """Delete an AEMPack and all derived AEMPacks."""

@@ -41,5 +41,17 @@ class IncomingAEMPackQueuePort(ABC):
         """Mark an AEMPack as successfully processed."""
 
     @abstractmethod
+    async def mark_for_deletion(self, aem_pack_id: UUID4) -> None:
+        """Mark an AEMPack for deletion."""
+
+    @abstractmethod
+    async def is_marked_or_deleted(self, aem_pack_id: UUID4) -> bool:
+        """Check if an AEMPack is marked for deletion or already deleted."""
+
+    @abstractmethod
+    async def delete_marked(self, aem_pack_id: UUID4) -> None:
+        """Delete an AEMPack from the queue."""
+
+    @abstractmethod
     async def free(self, aem_pack_id: UUID4) -> None:
         """Release an AEMPack back to the queue without marking it processed."""
