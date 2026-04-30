@@ -237,7 +237,7 @@ async def test_claimed_aem_pack_deleted_before_processing_not_publish(
     joint_fixture: JointFixture,
 ):
     """Ensure that if an aem_pack is claimed for processing, then marked for deletion
-    before processing, the result is not published to the transformed aem-pack collection.
+    before processing finishes, the result is not published to the transformed aem-pack collection.
     """
     config = await populate_db_config(
         daos=joint_fixture.daos,
