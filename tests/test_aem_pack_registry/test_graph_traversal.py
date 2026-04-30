@@ -21,8 +21,8 @@ import pytest
 from pydantic import UUID4
 
 from ets.core.models import AEMPack, PersistedConfig
-from tests.fixtures.aem_pack_registry import TEST_DATAPACK, load_aem_pack_config
-from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
+from tests.fixtures.aem_pack import TEST_DATAPACK, load_aem_pack_config
+from tests.fixtures.config_examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
 pytestmark = pytest.mark.asyncio

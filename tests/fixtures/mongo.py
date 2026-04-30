@@ -13,8 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utils for Fixture handling."""
+"""Shared MongoDB fixtures for unit tests of single-collection adapters."""
 
-from pathlib import Path
+from collections.abc import AsyncGenerator
 
-BASE_DIR = Path(__file__).parent.resolve()
+import pytest_asyncio
+from hexkit.providers.mongodb import ConfiguredMongoClient
+from hexkit.providers.mongodb.testutils import MongoDbFixture
+from pymongo.asynchronous.collection import AsyncCollection
+
+
+@pytest_asyncio.fixture
+async def mongo_collection(
+    request, mongodb: MongoDbFixture
+) -> AsyncGenerator[AsyncCollection]:
+    """Yield a single MongoDB collection by name (passed via ``indirect``)."""
+    async with ConfiguredMongoClient(config=mongodb.config) as client:
+        yield client[mongodb.config.db_name][request.param]

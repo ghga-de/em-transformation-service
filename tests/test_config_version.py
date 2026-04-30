@@ -16,63 +16,46 @@
 """Tests for the config version tracker."""
 
 import pytest
-from hexkit.providers.mongodb import ConfiguredMongoClient
-from hexkit.providers.mongodb.testutils import MongoDbFixture
+from pymongo.asynchronous.collection import AsyncCollection
 
 from ets.adapters.outbound.config_version import ConfigVersioner
 from ets.constants import CONFIG_VERSION_COLLECTION
 
+pytestmark = [
+    pytest.mark.asyncio(),
+    pytest.mark.parametrize(
+        "mongo_collection", [CONFIG_VERSION_COLLECTION], indirect=True
+    ),
+]
 
-def _make_version_tracker(collection) -> ConfigVersioner:
-    return ConfigVersioner(collection=collection)
 
-
-@pytest.mark.asyncio()
-async def test_get_version_returns_zero_when_empty(mongodb: MongoDbFixture):
+async def test_get_version_returns_zero_when_empty(mongo_collection: AsyncCollection):
     """get_version returns 0 when no version document exists."""
-    async with ConfiguredMongoClient(config=mongodb.config) as client:
-        collection = client[mongodb.config.db_name][CONFIG_VERSION_COLLECTION]
-        tracker = _make_version_tracker(collection)
-
-        assert await tracker.get_version() == 0
+    assert await ConfigVersioner(collection=mongo_collection).get_version() == 0
 
 
-@pytest.mark.asyncio()
-async def test_increment_from_zero(mongodb: MongoDbFixture):
-    """First increment creates document with version 1."""
-    async with ConfiguredMongoClient(config=mongodb.config) as client:
-        collection = client[mongodb.config.db_name][CONFIG_VERSION_COLLECTION]
-        tracker = _make_version_tracker(collection)
-
-        result = await tracker.increment_version()
-        assert result == 1
-        assert await tracker.get_version() == 1
+async def test_increment_from_zero(mongo_collection: AsyncCollection):
+    """First increment creates the document with version 1."""
+    tracker = ConfigVersioner(collection=mongo_collection)
+    assert await tracker.increment_version() == 1
+    assert await tracker.get_version() == 1
 
 
-@pytest.mark.asyncio()
-async def test_increment_is_monotonic(mongodb: MongoDbFixture):
+async def test_increment_is_monotonic(mongo_collection: AsyncCollection):
     """Multiple increments produce strictly increasing values."""
-    async with ConfiguredMongoClient(config=mongodb.config) as client:
-        collection = client[mongodb.config.db_name][CONFIG_VERSION_COLLECTION]
-        tracker = _make_version_tracker(collection)
-
-        for expected in range(1, 6):
-            result = await tracker.increment_version()
-            assert result == expected
+    tracker = ConfigVersioner(collection=mongo_collection)
+    for expected in range(1, 6):
+        assert await tracker.increment_version() == expected
 
 
-@pytest.mark.asyncio()
-async def test_multiple_trackers_share_version(mongodb: MongoDbFixture):
+async def test_multiple_trackers_share_version(mongo_collection: AsyncCollection):
     """Two tracker instances pointing at the same collection see the same version."""
-    async with ConfiguredMongoClient(config=mongodb.config) as client:
-        collection = client[mongodb.config.db_name][CONFIG_VERSION_COLLECTION]
-        tracker_a = _make_version_tracker(collection)
-        tracker_b = _make_version_tracker(collection)
+    tracker_a = ConfigVersioner(collection=mongo_collection)
+    tracker_b = ConfigVersioner(collection=mongo_collection)
 
-        await tracker_a.increment_version()
-        await tracker_a.increment_version()
+    await tracker_a.increment_version()
+    await tracker_a.increment_version()
+    assert await tracker_b.get_version() == 2
 
-        assert await tracker_b.get_version() == 2
-
-        await tracker_b.increment_version()
-        assert await tracker_a.get_version() == 3
+    await tracker_b.increment_version()
+    assert await tracker_a.get_version() == 3

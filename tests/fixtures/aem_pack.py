@@ -30,7 +30,7 @@ from ets.core.models import (
     IncomingAEMPack,
     PersistedConfig,
 )
-from tests.fixtures.examples import load_model_derivation_config
+from tests.fixtures.config_examples import load_validated_config
 from tests.fixtures.joint import DAOs
 
 # Fixed UUID used in parametrized tests
@@ -91,7 +91,7 @@ def load_aem_pack_config(
     publish_models: set[str] | None = None,
 ) -> PersistedConfig:
     """Load a YAML config, derive schemas, and return a PersistedConfig."""
-    validated = load_model_derivation_config(path)
+    validated = load_validated_config(path)
     deriver = ModelDeriver(config=validated)
     models = deriver.derive_models()
 

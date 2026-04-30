@@ -30,8 +30,11 @@ from ets.ports.inbound.config_validator import (
     ConfigValidationError,
     ConfigValidatorPort,
 )
-from tests.fixtures.config_manager import pruning_fixture  # noqa: F401
-from tests.fixtures.examples import PRUNING_CASES, VALID_CONFIGS
+from tests.fixtures.config_examples import (
+    PRUNING_CASES,
+    VALID_CONFIGS,
+    pruning_fixture,  # noqa: F401
+)
 
 
 @dataclass
