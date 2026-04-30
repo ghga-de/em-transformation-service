@@ -27,7 +27,7 @@ from ets.constants import (
     NEEDS_REPROCESSING_FIELD,
     PROCESSED_AT_FIELD,
     PROCESSOR_FIELD,
-    TOMBSTONED_FIELD,
+    TOMBSTONE_FIELD,
 )
 from ets.core.models import AEMPack, IncomingAEMPack
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
@@ -98,7 +98,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
             {
                 PROCESSOR_FIELD: self._worker_id,
                 PROCESSED_AT_FIELD: None,
-                TOMBSTONED_FIELD: {"$ne": True},
+                TOMBSTONE_FIELD: {"$ne": True},
             }
         )
         if not doc:
@@ -107,7 +107,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 filter={
                     PROCESSOR_FIELD: None,
                     PROCESSED_AT_FIELD: None,
-                    TOMBSTONED_FIELD: {"$ne": True},
+                    TOMBSTONE_FIELD: {"$ne": True},
                 },
                 update={"$set": {PROCESSOR_FIELD: self._worker_id}},
                 return_document=ReturnDocument.AFTER,
@@ -118,7 +118,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 filter={
                     PROCESSED_AT_FIELD: {"$ne": None},
                     NEEDS_REPROCESSING_FIELD: True,
-                    TOMBSTONED_FIELD: {"$ne": True},
+                    TOMBSTONE_FIELD: {"$ne": True},
                 },
                 update={
                     "$set": {
@@ -151,18 +151,18 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
     async def mark_for_deletion(self, aem_pack_id: UUID4) -> None:
         """Mark the AEMPack for deletion."""
         await self._collection.update_one(
-            {"_id": aem_pack_id}, {"$set": {TOMBSTONED_FIELD: True}}
+            {"_id": aem_pack_id}, {"$set": {TOMBSTONE_FIELD: True}}
         )
 
     async def is_marked_or_deleted(self, aem_pack_id: UUID4) -> bool:
         """Check if an AEMPack is marked for deletion or already deleted."""
         doc = await self._collection.find_one({"_id": aem_pack_id})
-        return doc is None or bool(doc.get(TOMBSTONED_FIELD))
+        return doc is None or bool(doc.get(TOMBSTONE_FIELD))
 
     async def delete_marked(self, aem_pack_id: UUID4) -> None:
         """Delete an AEMPack marked for deletion from the queue."""
         result = await self._collection.delete_one(
-            {"_id": aem_pack_id, TOMBSTONED_FIELD: True}
+            {"_id": aem_pack_id, TOMBSTONE_FIELD: True}
         )
         if result.deleted_count:
             log.info("AEMPack %s successfully deleted from the queue.", aem_pack_id)
