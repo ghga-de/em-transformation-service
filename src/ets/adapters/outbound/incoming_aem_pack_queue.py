@@ -15,6 +15,8 @@
 
 """MongoDB adapter for the incoming AEMPack processing queue."""
 
+import logging
+
 from hexkit.correlation import get_correlation_id
 from hexkit.utils import now_utc_ms_prec
 from pydantic import UUID4
@@ -29,6 +31,8 @@ from ets.constants import (
 )
 from ets.core.models import AEMPack, IncomingAEMPack
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
+
+log = logging.getLogger(__name__)
 
 
 class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
@@ -150,18 +154,20 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
             {"_id": aem_pack_id}, {"$set": {TOMBSTONED_FIELD: True}}
         )
 
-    async def is_marked_for_deletion(self, aem_pack_id: UUID4) -> bool:
-        """Check if an AEMPack is marked for deletion."""
-        doc = await self._collection.find_one(
-            filter={"_id": aem_pack_id, TOMBSTONED_FIELD: True}
-        )
-        return bool(doc)
-
-    async def is_deleted(self, aem_pack_id: UUID4) -> bool:
-        """Check if an AEMPack is already deleted. Treats missing as deleted."""
+    async def is_marked_or_deleted(self, aem_pack_id: UUID4) -> bool:
+        """Check if an AEMPack is marked for deletion or already deleted."""
         doc = await self._collection.find_one({"_id": aem_pack_id})
-        return doc is None
+        return doc is None or bool(doc.get(TOMBSTONED_FIELD))
 
     async def delete_marked(self, aem_pack_id: UUID4) -> None:
         """Delete an AEMPack marked for deletion from the queue."""
-        await self._collection.delete_one({"_id": aem_pack_id, TOMBSTONED_FIELD: True})
+        result = await self._collection.delete_one(
+            {"_id": aem_pack_id, TOMBSTONED_FIELD: True}
+        )
+        if result.deleted_count:
+            log.info("AEMPack %s successfully deleted from the queue.", aem_pack_id)
+        else:
+            log.warning(
+                "AEMPack %s not found in the queue for deletion, presumed already deleted.",
+                aem_pack_id,
+            )

@@ -227,7 +227,7 @@ async def test_queue_rejects_marked_for_deletion(registry: AEMPackRegistry):
     pack = make_ingress_pack(model_name="IngressModel")
     await queue_pack(registry, pack)
 
-    await registry._soft_delete_aem_packs(incoming_aem_id=pack.id)
+    await registry._soft_delete_aem_pack(pack.id)
 
     claimed = await registry._incoming_aem_pack_queue.claim_next()
     assert claimed is None
@@ -252,7 +252,7 @@ async def test_claimed_aem_pack_deleted_before_processing_not_publish(
     claimed = await queue_and_claim(registry=registry, pack=pack)
 
     # Simulate deletion after claiming, but before processing
-    await registry._soft_delete_aem_packs(incoming_aem_id=aem_id)
+    await registry._soft_delete_aem_pack(aem_id)
 
     # Process the claimed pack, shouldn't publish
     await registry._process_next_aem_pack(

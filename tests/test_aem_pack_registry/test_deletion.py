@@ -41,7 +41,7 @@ async def test_mark_for_deletion_sets_tombstone(
     pack = make_ingress_pack(model_name="IngressModel")
     await queue_pack(registry, pack)
 
-    await registry._soft_delete_aem_packs(incoming_aem_id=pack.id)
+    await registry._soft_delete_aem_pack(pack.id)
 
     raw = await joint_fixture.incoming_aem_pack_collection.find_one(
         {"_id": pack.id, TOMBSTONED_FIELD: True}
@@ -56,8 +56,8 @@ async def test_hard_delete_removes_marked_document(
     pack = make_ingress_pack(model_name="IngressModel")
     await queue_pack(registry, pack)
 
-    await registry._soft_delete_aem_packs(incoming_aem_id=pack.id)
-    await registry._hard_delete_aem_packs(incoming_aem_id=pack.id)
+    await registry._soft_delete_aem_pack(pack.id)
+    await registry._hard_delete_aem_pack(pack.id)
 
     raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": pack.id})
     assert raw is None
@@ -72,9 +72,9 @@ async def test_hard_delete_only_deletes_marked(
     await queue_pack(registry, pack_1)
     await queue_pack(registry, pack_2)
 
-    await registry._soft_delete_aem_packs(incoming_aem_id=pack_1.id)
-    await registry._hard_delete_aem_packs(incoming_aem_id=pack_1.id)
-    await registry._hard_delete_aem_packs(incoming_aem_id=pack_2.id)
+    await registry._soft_delete_aem_pack(pack_1.id)
+    await registry._hard_delete_aem_pack(pack_1.id)
+    await registry._hard_delete_aem_pack(pack_2.id)
 
     raw_1 = await joint_fixture.incoming_aem_pack_collection.find_one(
         {"_id": pack_1.id}
@@ -93,7 +93,7 @@ async def test_delete_nonexistent_pack_is_idempotent(
     """Ensure delete_aem_packs does not raise when the pack was never queued."""
     aem_id = uuid4()
 
-    await registry.delete_aem_packs(incoming_aem_id=aem_id)
+    await registry.delete_aem_pack_and_descendants(incoming_aem_id=aem_id)
 
     raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": aem_id})
     assert raw is None
@@ -130,7 +130,7 @@ async def test_published_aem_packs_deleted_after_processing(
     assert len(derived_before) == 1
 
     async with set_correlation_id(unprocessed.correlation_id):
-        await registry.delete_aem_packs(incoming_aem_id=aem_id)
+        await registry.delete_aem_pack_and_descendants(incoming_aem_id=aem_id)
 
     derived_after = [
         p

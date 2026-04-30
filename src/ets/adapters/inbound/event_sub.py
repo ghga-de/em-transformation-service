@@ -61,4 +61,4 @@ class EventSubTranslator(DaoSubscriberProtocol):
             resource_id,
         )
         aem_pack_id = UUID(resource_id)  # this ID is canonically a UUID4
-        await self._aem_pack_registry.delete_aem_packs(aem_pack_id)
+        await self._aem_pack_registry.delete_aem_pack_and_descendants(aem_pack_id)

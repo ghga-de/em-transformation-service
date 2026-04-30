@@ -39,5 +39,5 @@ class AEMPackRegistryPort(ABC):
         """Derives AEMPacks from incoming AEMPacks."""
 
     @abstractmethod
-    async def delete_aem_packs(self, incoming_aem_id: UUID4):
+    async def delete_aem_pack_and_descendants(self, incoming_aem_id: UUID4):
         """Delete an AEMPack and all derived AEMPacks."""
