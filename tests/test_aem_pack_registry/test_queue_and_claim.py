@@ -251,7 +251,7 @@ async def test_claimed_aem_pack_deleted_before_processing_not_publish(
     pack = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
     claimed = await queue_and_claim(registry=registry, pack=pack)
 
-    # Simulate deletion after the claim but before the processing
+    # Simulate deletion after claiming, but before processing
     await registry._soft_delete_aem_packs(incoming_aem_id=aem_id)
 
     # Process the claimed pack, shouldn't publish
