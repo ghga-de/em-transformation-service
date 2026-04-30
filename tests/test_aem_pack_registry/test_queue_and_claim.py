@@ -140,7 +140,7 @@ async def _assert_pack_claimed_during_processing(
     """Helper to assert that a pack is claimed during process_aem_packs."""
     claimed: list[IncomingAEMPack] = []
 
-    async def capture_and_stop(*, incoming_aem, correlation_id, config):
+    async def capture_and_stop(*, incoming_aem, correlation_id):
         claimed.append(incoming_aem)
         raise RuntimeError("STOP, testing time!")
 
@@ -174,7 +174,7 @@ async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
     joint_fixture: JointFixture,
 ):
     """Ensure processing publishes results even when a new version was queued concurrently, and leaves the doc for reprocessing."""
-    config = await populate_db_config(
+    await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
@@ -203,7 +203,6 @@ async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
         correlation_id=unprocessed.correlation_id,
-        config=config,
     )
 
     derived = [
@@ -239,10 +238,9 @@ async def test_claimed_aem_pack_deleted_before_processing_not_publish(
     """Ensure that if an aem_pack is claimed for processing, then marked for deletion
     before processing finishes, the result is not published to the transformed aem-pack collection.
     """
-    config = await populate_db_config(
+    await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["single_route"],
-        publish_models={"DerivedModel1"},
     )
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
@@ -258,7 +256,6 @@ async def test_claimed_aem_pack_deleted_before_processing_not_publish(
     await registry._process_next_aem_pack(
         incoming_aem=claimed,
         correlation_id=claimed.correlation_id,
-        config=config,
     )
 
     # There should be no derived packs published for this pid

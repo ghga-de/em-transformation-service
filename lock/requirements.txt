@@ -73,15 +73,15 @@ attrs==26.1.0 \
     #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
-boto3==1.42.94 \
-    --hash=sha256:56d53bce75629cc7c78a32da8b62de74cee3e2a3d54a2b60ba1a65f9f1b129da \
-    --hash=sha256:5b6056a661c19e974aaea3cb97690ddbe30d10c31e4f887df3bff06574f34510
+boto3==1.42.97 \
+    --hash=sha256:2833dbeda3670ea610ad48dff7d27cdc829dbbfcdfbc6b750b673948e949b6f0 \
+    --hash=sha256:966e49f0510af9a64057a902b7df53d4348c447de0d3df4cc855dfd85e058fcd
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit
-botocore==1.42.94 \
-    --hash=sha256:41c6b3b11b073221a41f52b222ba387be34459fb77cdc506e8b74cdaf24bdcce \
-    --hash=sha256:a2143742132ed0f6cdb90204d667b89d0301068b1045e8bc099efa267bf1b348
+botocore==1.42.97 \
+    --hash=sha256:5c0bb00e32d16ff6d278cc8c9e10dc3672d9c1d569031635ac3c908a60de8310 \
+    --hash=sha256:77d2c8ce1bc592d3fbd7c01c35836f4a5b0cac2ca03ccdf6ffc60faa16b5fadc
     # via
     #   -c lock/requirements-dev.txt
     #   boto3
@@ -251,9 +251,9 @@ email-validator==2.3.0 \
     # via
     #   -c lock/requirements-dev.txt
     #   pydantic
-fastapi==0.136.0 \
-    --hash=sha256:8793d44ec7378e2be07f8a013cf7f7aa47d6327d0dfe9804862688ec4541a6b4 \
-    --hash=sha256:cf08e067cc66e106e102d9ba659463abfac245200752f8a5b7b1e813de4ff73e
+fastapi==0.136.1 \
+    --hash=sha256:7af665ad7acfa0a3baf8983d393b6b471b9da10ede59c60045f49fbc89a0fa7f \
+    --hash=sha256:a6e9d7eeada96c93a4d69cb03836b44fa34e2854accb7244a1ece36cd4781c3f
     # via
     #   -c lock/requirements-dev.txt
     #   ghga-service-commons
@@ -520,15 +520,15 @@ metldata==5.1.1 \
     # via
     #   -c lock/requirements-dev.txt
     #   ets (pyproject.toml)
-opentelemetry-api==1.41.0 \
-    --hash=sha256:0e77c806e6a89c9e4f8d372034622f3e1418a11bdbe1c80a50b3d3397ad0fa4f \
-    --hash=sha256:9421d911326ec12dee8bc933f7839090cad7a3f13fcfb0f9e82f8174dc003c09
+opentelemetry-api==1.41.1 \
+    --hash=sha256:0ad1814d73b875f84494387dae86ce0b12c68556331ce6ce8fe789197c949621 \
+    --hash=sha256:a22df900e75c76dc08440710e51f52f1aa6b451b429298896023e60db5b3139f
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit
-packaging==26.1 \
-    --hash=sha256:5d9c0669c6285e491e0ced2eee587eaf67b670d94a19e94e3984a481aba6802f \
-    --hash=sha256:f042152b681c4bfac5cae2742a55e103d27ab2ec0f3d88037136b6bfe7c9c5de
+packaging==26.2 \
+    --hash=sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e \
+    --hash=sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661
     # via
     #   -c lock/requirements-dev.txt
     #   aiokafka
@@ -1094,9 +1094,9 @@ starlette==1.0.0 \
     # via
     #   -c lock/requirements-dev.txt
     #   fastapi
-typer==0.24.2 \
-    --hash=sha256:b618bc3d721f9a8d30f3e05565be26416d06e9bcc29d49bc491dc26aba674fa8 \
-    --hash=sha256:ec070dcfca1408e85ee203c6365001e818c3b7fffe686fd07ff2d68095ca0480
+typer==0.25.0 \
+    --hash=sha256:123eaf9f19bb40fd268310e12a542c0c6b4fab9c98d9d23342a01ff95e3ce930 \
+    --hash=sha256:ac01b48823d3db9a83c9e164338057eadbb1c9957a2a6b4eeb486669c560b5dc
     # via
     #   -c lock/requirements-dev.txt
     #   ets (pyproject.toml)

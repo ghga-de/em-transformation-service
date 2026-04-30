@@ -51,3 +51,7 @@ class IncomingAEMPackQueuePort(ABC):
     @abstractmethod
     async def delete_marked(self, aem_pack_id: UUID4) -> None:
         """Delete an AEMPack from the queue."""
+
+    @abstractmethod
+    async def free(self, aem_pack_id: UUID4) -> None:
+        """Release an AEMPack back to the queue without marking it processed."""

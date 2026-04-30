@@ -103,10 +103,9 @@ async def test_published_aem_packs_deleted_after_processing(
     joint_fixture: JointFixture,
 ):
     """Test that published AEM packs derived from an incoming pack are deleted when the incoming pack is deleted."""
-    config = await populate_db_config(
+    await populate_db_config(
         daos=joint_fixture.daos,
         config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["single_route"],
-        publish_models={"DerivedModel1"},
     )
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
@@ -118,7 +117,6 @@ async def test_published_aem_packs_deleted_after_processing(
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
         correlation_id=unprocessed.correlation_id,
-        config=config,
     )
 
     derived_before = [

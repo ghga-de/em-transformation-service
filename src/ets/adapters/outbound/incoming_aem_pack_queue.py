@@ -171,3 +171,15 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 "AEMPack %s not found in the queue for deletion, presumed already deleted.",
                 aem_pack_id,
             )
+
+    async def free(self, aem_pack_id: UUID4) -> None:
+        """Release an AEMPack back to the queue without marking it processed."""
+        await self._collection.update_one(
+            {"_id": aem_pack_id},
+            {
+                "$set": {
+                    PROCESSOR_FIELD: None,
+                    NEEDS_REPROCESSING_FIELD: False,
+                }
+            },
+        )

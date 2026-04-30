@@ -13,15 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Service-wide constants."""
+"""Port for the config version tracker."""
 
-INCOMING_AEM_PACK_COLLECTION = "incoming_aem_packs"
-CONFIG_LOCK_COLLECTION = "config_locks"
-CONFIG_LOCK_ID = "config_update_lock"
-CONFIG_VERSION_COLLECTION = "config_version"
-CONFIG_VERSION_ID = "current"
+from abc import ABC, abstractmethod
 
-PROCESSOR_FIELD = "processor"
-PROCESSED_AT_FIELD = "processed_at"
-NEEDS_REPROCESSING_FIELD = "needs_reprocessing"
-TOMBSTONED_FIELD = "is_deleted"
+
+class ConfigVersionerPort(ABC):
+    """Port for tracking the monotonically increasing config version.
+
+    The version is incremented each time a new config is persisted.
+    Processing checkpoints compare their stored version against the
+    current version to detect config changes.
+    """
+
+    @abstractmethod
+    async def get_version(self) -> int:
+        """Return the current config version.
+
+        Returns 0 if no version document exists yet.
+        """
+
+    @abstractmethod
+    async def increment_version(self) -> int:
+        """Increment the config version and return the new value."""

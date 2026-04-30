@@ -69,12 +69,12 @@ async def test_clears_dirty_map(
     )
     dirty_map: dict[str, UUID4] = {name: uuid4() for name in dirty_names}
 
+    joint_fixture.aem_pack_registry._graph_config = aem_pack_config
     aem_packs_to_publish, remaining_dirty = (
         joint_fixture.aem_pack_registry._traverse_graph(
             incoming=incoming,
             dirty_map=dirty_map,
             transformed_map={incoming.model_name: incoming},
-            config=aem_pack_config,
         )
     )
 
@@ -107,12 +107,12 @@ async def test_respects_topological_order(joint_fixture: JointFixture):
         "DerivedModel2": uuid4(),
     }
 
+    joint_fixture.aem_pack_registry._graph_config = aem_pack_config
     aem_packs_to_publish, remaining_dirty = (
         joint_fixture.aem_pack_registry._traverse_graph(
             incoming=incoming,
             dirty_map=dirty_map,
             transformed_map={incoming.model_name: incoming},
-            config=aem_pack_config,
         )
     )
 
@@ -146,11 +146,11 @@ async def test_reuses_dirty_map_ids(joint_fixture: JointFixture):
         "DerivedModel2": existing_id_2,
     }
 
+    joint_fixture.aem_pack_registry._graph_config = aem_pack_config
     published, _ = joint_fixture.aem_pack_registry._traverse_graph(
         incoming=incoming,
         dirty_map=dirty_map,
         transformed_map={incoming.model_name: incoming},
-        config=aem_pack_config,
     )
 
     published_ids = {pack.id for pack in published}
@@ -173,11 +173,11 @@ async def test_generates_new_id_when_no_dirty_entry(joint_fixture: JointFixture)
         annotation={},
     )
 
+    joint_fixture.aem_pack_registry._graph_config = aem_pack_config
     published, _ = joint_fixture.aem_pack_registry._traverse_graph(
         incoming=incoming,
         dirty_map={},
         transformed_map={incoming.model_name: incoming},
-        config=aem_pack_config,
     )
 
     assert len(published) == 1
@@ -229,11 +229,11 @@ async def test_bottleneck_topology(
         "DerivedModel2": existing_d2,
     }
 
+    joint_fixture.aem_pack_registry._graph_config = aem_pack_config
     published, remaining_dirty = joint_fixture.aem_pack_registry._traverse_graph(
         incoming=incoming,
         dirty_map=dirty_map,
         transformed_map={incoming.model_name: incoming},
-        config=aem_pack_config,
     )
 
     # All downstream dirty entries cleared
