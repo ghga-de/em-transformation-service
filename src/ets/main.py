@@ -24,13 +24,17 @@ from ets.inject import (
     prepare_aem_pack_registry,
     prepare_config_lock,
     prepare_event_subscriber,
+    prepare_incoming_aem_pack_queue,
 )
 from ets.ports.outbound.config_lock import ConfigLockPort
+from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 log = logging.getLogger(__name__)
 
 
-async def _run_config_resolution(config_lock: ConfigLockPort) -> None:
+async def _run_config_resolution(
+    config_lock: ConfigLockPort, aem_pack_queue: IncomingAEMPackQueuePort
+) -> None:
     """Acquire the config lock on startup and run config resolution.
 
     If the lock is acquired, this instance is responsible for config validation/derivation.
@@ -43,6 +47,11 @@ async def _run_config_resolution(config_lock: ConfigLockPort) -> None:
             log.info("Lock acquired, starting config update.")
             # TODO: Call config_manager.resolve_transformation_config() here
             # and persist the result via config_writer.write_config().
+
+            # in the case of a config change, mark all the processed original AEMPacks
+            # for reprocessing before the lock release
+            await aem_pack_queue.mark_all_for_reprocessing()
+
             log.info("Config validation/update finished.")
         finally:
             # If something fails in the process responsible for updating,
@@ -60,9 +69,12 @@ async def consume_events(run_forever: bool = True):
 
     async with (
         prepare_config_lock(config=config) as config_lock,
-        prepare_event_subscriber(config=config) as event_subscriber,
+        prepare_incoming_aem_pack_queue(config=config) as aem_pack_queue,
+        prepare_event_subscriber(
+            config=config, aem_pack_queue_override=aem_pack_queue
+        ) as event_subscriber,
     ):
-        await _run_config_resolution(config_lock)
+        await _run_config_resolution(config_lock, aem_pack_queue)
         # load config from DB here
         await event_subscriber.run(forever=run_forever)
 
@@ -74,10 +86,13 @@ async def process_aem_packs():
 
     async with (
         prepare_config_lock(config=config) as config_lock,
+        prepare_incoming_aem_pack_queue(config=config) as aem_pack_queue,
         prepare_aem_pack_registry(
-            config=config, config_lock_override=config_lock
+            config=config,
+            config_lock_override=config_lock,
+            aem_pack_queue_override=aem_pack_queue,
         ) as aem_pack_registry,
     ):
-        await _run_config_resolution(config_lock)
+        await _run_config_resolution(config_lock, aem_pack_queue)
         # load config from DB here
         await aem_pack_registry.process_aem_packs()

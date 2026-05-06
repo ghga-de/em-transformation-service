@@ -183,3 +183,10 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 }
             },
         )
+
+    async def mark_all_for_reprocessing(self) -> None:
+        """Flag all processed AEMPacks for reprocessing."""
+        await self._collection.update_many(
+            {PROCESSED_AT_FIELD: {"$ne": None}, TOMBSTONE_FIELD: {"$ne": True}},
+            {"$set": {NEEDS_REPROCESSING_FIELD: True}},
+        )
