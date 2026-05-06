@@ -47,6 +47,7 @@ from ets.inject import (
 )
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
+from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
 from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
 from tests.fixtures.config import get_config
@@ -74,6 +75,7 @@ class JointFixture:
     incoming_aem_pack_collection: AsyncCollection
     kafka: KafkaFixture
     loader: ConfigLoaderPort
+    versioner: ConfigVersionerPort
     writer: ConfigWriterPort
     mongodb: MongoDbFixture
 
@@ -134,6 +136,7 @@ async def joint_fixture(
                 incoming_aem_pack_collection=incoming_aem_pack_collection,
                 kafka=kafka,
                 loader=config_adapters.loader,
+                versioner=config_adapters.version,
                 writer=config_adapters.writer,
                 mongodb=mongodb,
             )

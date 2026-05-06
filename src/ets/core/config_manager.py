@@ -25,6 +25,8 @@ from ets.ports.inbound.config_validator import (
     ConfigValidationError,
     ConfigValidatorPort,
 )
+from ets.ports.outbound.config_loader import ConfigLoaderPort
+from ets.ports.outbound.config_version import ConfigVersionerPort
 
 log = logging.getLogger(__name__)
 
@@ -33,10 +35,43 @@ class ConfigManager(ConfigManagerPort):
     """Manages loading, comparison, validation and selection of an active config."""
 
     def __init__(
-        self, validator: ConfigValidatorPort, comparator: ConfigComparatorPort
+        self,
+        *,
+        config_loader: ConfigLoaderPort,
+        config_versioner: ConfigVersionerPort,
+        validator: ConfigValidatorPort,
+        comparator: ConfigComparatorPort,
     ):
+        self._config_loader = config_loader
+        self._config_versioner = config_versioner
         self.validator = validator
         self.comparator = comparator
+        self._known_version: int = 0
+        self._current_config: PersistedConfig | None = None
+
+    async def get_current_config(self) -> tuple[PersistedConfig, int]:
+        """Return the active config and its version, reloading from DB if the version changed."""
+        current_version = await self._config_versioner.get_version()
+        if self._current_config is None:
+            log.info("Loading initial config (version %d).", current_version)
+            self._current_config = await self._config_loader.load_config_from_db()
+            self._known_version = current_version
+        elif self._known_version < current_version:
+            log.info(
+                "Config version changed (%d -> %d), reloading.",
+                self._known_version,
+                current_version,
+            )
+            self._current_config = await self._config_loader.load_config_from_db()
+            self._known_version = current_version
+        elif self._known_version > current_version:
+            inconsistent_version = ValueError(
+                f"Encountered inconsistent current config version: {current_version}."
+                f" Worker config version: {self._known_version}"
+            )
+            log.critical(inconsistent_version)
+            raise inconsistent_version
+        return self._current_config, self._known_version
 
     def resolve_transformation_config(self) -> PersistedConfig | ValidatedConfig:
         """Resolve the given transformation config.

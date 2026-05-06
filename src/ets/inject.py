@@ -46,6 +46,9 @@ from ets.constants import (
     INCOMING_AEM_PACK_COLLECTION,
 )
 from ets.core.aem_pack_registry import AEMPackRegistry
+from ets.core.config_comparator import ConfigComparator
+from ets.core.config_manager import ConfigManager
+from ets.core.config_validator import ConfigValidator
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
@@ -129,12 +132,25 @@ async def prepare_aem_pack_registry(
             collection=mongo_client[config.db_name][INCOMING_AEM_PACK_COLLECTION],
             worker_id=config.worker_id,
         )
+        raw_config = config_adapters.loader.load_config_from_file(
+            config.input_config_path
+        )
+        # persisted_config is also loaded by ConfigManager.get_current_config() on first call;
+        # the double read is intentional — the comparator needs it at construction time.
+        persisted_config = await config_adapters.loader.load_config_from_db()
+        config_manager = ConfigManager(
+            config_loader=config_adapters.loader,
+            config_versioner=config_adapters.version,
+            validator=ConfigValidator(),
+            comparator=ConfigComparator(
+                raw_config=raw_config, persisted_config=persisted_config
+            ),
+        )
         yield AEMPackRegistry(
             config=config,
             aem_pack_dao=aem_pack_dao,
-            config_loader=config_adapters.loader,
+            config_manager=config_manager,
             config_lock=config_lock,
-            config_versioner=config_adapters.version,
             incoming_aem_pack_queue=incoming_aem_pack_queue,
         )
 

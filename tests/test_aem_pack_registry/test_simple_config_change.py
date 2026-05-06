@@ -16,11 +16,14 @@
 """Tests for behavior when the config changes between processing runs."""
 
 import logging
+from typing import cast
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
 
 from ets.core.aem_pack_registry import AEMPackRegistry
+from ets.core.config_manager import ConfigManager
 from ets.core.models import PersistedConfig
 from tests.fixtures.aem_pack_registry import (
     make_ingress_pack,
@@ -84,9 +87,9 @@ async def test_unreachable_pack_deleted_after_route_removal(
         registry=registry,
         pack=ingress,
     )
-    # Inject the modified config directly — _reload_config_if_changed won't overwrite it
+    # Inject the modified config directly — get_current_config won't overwrite it
     # because the DB version hasn't changed.
-    registry._graph_config = new_config
+    cast(ConfigManager, registry._config_manager)._current_config = new_config
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="ets.core.aem_pack_registry"):
         await registry._process_next_aem_pack(
@@ -165,7 +168,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         registry=registry,
         pack=ingress,
     )
-    registry._graph_config = new_config
+    cast(ConfigManager, registry._config_manager)._current_config = new_config
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         await registry._process_next_aem_pack(
@@ -209,10 +212,18 @@ async def test_pack_freed_when_config_changes_mid_processing(
     ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
     claimed = await queue_and_claim(registry=registry, pack=ingress)
 
-    # Simulate a config change occurring while the pack is being processed
-    await registry._config_versioner.increment_version()
-
-    with caplog.at_level(logging.INFO, logger="ets.core.aem_pack_registry"):
+    # Simulate a config change occurring during traversal: first call returns the current
+    # state, second call returns the same config with a bumped version.
+    config_manager = cast(ConfigManager, registry._config_manager)
+    config, version = await config_manager.get_current_config()
+    with (
+        patch.object(
+            config_manager,
+            "get_current_config",
+            AsyncMock(side_effect=[(config, version), (config, version + 1)]),
+        ),
+        caplog.at_level(logging.INFO, logger="ets.core.aem_pack_registry"),
+    ):
         await registry._process_next_aem_pack(
             incoming_aem=claimed,
             correlation_id=claimed.correlation_id,

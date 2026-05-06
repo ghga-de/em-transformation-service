@@ -15,11 +15,13 @@
 
 """Tests for error conditions and edge cases."""
 
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
 
 from ets.core.aem_pack_registry import AEMPackRegistry
+from ets.core.config_manager import ConfigManager
 from tests.fixtures.aem_pack_registry import (
     make_ingress_pack,
     populate_db_config,
@@ -51,8 +53,9 @@ async def test_nonexistent_model_raises_error_in_pipeline(
             ]
         }
     )
+    config_manager = cast(ConfigManager, registry._config_manager)
     monkeypatch.setattr(
-        registry._config_loader,
+        config_manager._config_loader,
         "load_config_from_db",
         AsyncMock(return_value=permissive_config),
     )
@@ -61,7 +64,7 @@ async def test_nonexistent_model_raises_error_in_pipeline(
         pack=ingress,
     )
     # Inject the original (non-permissive) config so processing sees NonExistent as missing
-    registry._graph_config = config
+    config_manager._current_config = config
     with pytest.raises(ValueError, match="No model with name NonExistent"):
         await registry._process_next_aem_pack(
             incoming_aem=unprocessed,

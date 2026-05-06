@@ -28,6 +28,10 @@ class ConfigManagerPort(ABC):
     """Port for managing transformation config related operations."""
 
     @abstractmethod
+    async def get_current_config(self) -> tuple[PersistedConfig, int]:
+        """Return the active config and its version, reloading from DB if the version changed."""
+
+    @abstractmethod
     def resolve_transformation_config(self) -> PersistedConfig | ValidatedConfig:
         """Resolve the given transformation config.
 
@@ -35,5 +39,11 @@ class ConfigManagerPort(ABC):
         - Comparing raw config with the persisted config
         - If they are the same, return the persisted config
         - If they differ, validate the raw config, prune unproductive subgraphs and return it
-        - If validation fails, fall back to the persisted config
+        - If validation fails:
+          - If a valid persisted config exists, log a warning and fall back to it
+          - If no valid persisted config exists, raise ConfigManagerError and stop the service
+
+        Raises:
+            ConfigManagerError: If the new config fails validation and no previous
+                valid config exists in the database.
         """
