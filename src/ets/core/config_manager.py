@@ -49,7 +49,21 @@ class ConfigManager(ConfigManagerPort):
         self._known_version: int = 0
         self._current_config: PersistedConfig | None = None
 
-    async def get_current_config(self) -> tuple[PersistedConfig, int]:
+    @property
+    def current_config(self) -> PersistedConfig:
+        """Return the currently loaded active config."""
+        if self._current_config is None:
+            raise ConfigManagerError(
+                "Current config has not been loaded yet. Call update_config() first."
+            )
+        return self._current_config
+
+    @property
+    def known_version(self) -> int:
+        """Return the version of the currently loaded active config."""
+        return self._known_version
+
+    async def update_config(self):
         """Return the active config and its version, reloading from DB if the version changed."""
         current_version = await self._config_versioner.get_version()
         if self._current_config is None:
@@ -65,13 +79,12 @@ class ConfigManager(ConfigManagerPort):
             self._current_config = await self._config_loader.load_config_from_db()
             self._known_version = current_version
         elif self._known_version > current_version:
-            inconsistent_version = ValueError(
+            inconsistent_version = ConfigManagerError(
                 f"Encountered inconsistent current config version: {current_version}."
                 f" Worker config version: {self._known_version}"
             )
             log.critical(inconsistent_version)
             raise inconsistent_version
-        return self._current_config, self._known_version
 
     def resolve_transformation_config(self) -> PersistedConfig | ValidatedConfig:
         """Resolve the given transformation config.

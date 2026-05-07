@@ -87,7 +87,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
         registry=registry,
         pack=ingress,
     )
-    # Inject the modified config directly — get_current_config won't overwrite it
+    # Inject the modified config directly — update_config won't overwrite it
     # because the DB version hasn't changed.
     cast(ConfigManager, registry._config_manager)._current_config = new_config
     caplog.clear()
@@ -212,15 +212,16 @@ async def test_pack_freed_when_config_changes_mid_processing(
     ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
     claimed = await queue_and_claim(registry=registry, pack=ingress)
 
-    # Simulate a config change occurring during traversal: first call returns the current
-    # state, second call returns the same config with a bumped version.
+    # Simulate a config change occurring mid-processing by bumping the version
+    # the versioner reports on its second call.
     config_manager = cast(ConfigManager, registry._config_manager)
-    config, version = await config_manager.get_current_config()
+    await config_manager.update_config()
+    version = config_manager.known_version
     with (
         patch.object(
-            config_manager,
-            "get_current_config",
-            AsyncMock(side_effect=[(config, version), (config, version + 1)]),
+            config_manager._config_versioner,
+            "get_version",
+            AsyncMock(side_effect=[version, version + 1]),
         ),
         caplog.at_level(logging.INFO, logger="ets.core.aem_pack_registry"),
     ):

@@ -27,8 +27,18 @@ class ConfigManagerError(RuntimeError):
 class ConfigManagerPort(ABC):
     """Port for managing transformation config related operations."""
 
+    @property
     @abstractmethod
-    async def get_current_config(self) -> tuple[PersistedConfig, int]:
+    def current_config(self) -> PersistedConfig:
+        """Return the currently loaded active config."""
+
+    @property
+    @abstractmethod
+    def known_version(self) -> int:
+        """Return the version of the currently loaded active config."""
+
+    @abstractmethod
+    async def update_config(self):
         """Return the active config and its version, reloading from DB if the version changed."""
 
     @abstractmethod
