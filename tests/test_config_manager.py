@@ -30,6 +30,8 @@ from ets.ports.inbound.config_validator import (
     ConfigValidationError,
     ConfigValidatorPort,
 )
+from ets.ports.outbound.config_loader import ConfigLoaderPort
+from ets.ports.outbound.config_version import ConfigVersionerPort
 from tests.fixtures.config_manager import pruning_fixture  # noqa: F401
 from tests.fixtures.examples import PRUNING_CASES, VALID_CONFIGS
 
@@ -207,7 +209,10 @@ def test_resolve_transformation_config(
         validator.validate.return_value = validated_config
 
     result = ConfigManager(
-        validator=validator, comparator=comparator
+        config_loader=MagicMock(spec=ConfigLoaderPort),
+        config_versioner=MagicMock(spec=ConfigVersionerPort),
+        validator=validator,
+        comparator=comparator,
     ).resolve_transformation_config()
 
     if compare_returns_raw and not validation_raises:
@@ -257,7 +262,12 @@ def test_resolve_transformation_config_stops_when_no_persisted_config(
     validator = MagicMock(spec=ConfigValidatorPort)
     validator.validate.side_effect = ConfigValidationError("invalid")
 
-    manager = ConfigManager(validator=validator, comparator=comparator)
+    manager = ConfigManager(
+        config_loader=MagicMock(spec=ConfigLoaderPort),
+        config_versioner=MagicMock(spec=ConfigVersionerPort),
+        validator=validator,
+        comparator=comparator,
+    )
 
     with pytest.raises(ConfigManagerError, match="no previous valid config"):
         manager.resolve_transformation_config()
