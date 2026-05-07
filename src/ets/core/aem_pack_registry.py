@@ -70,7 +70,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
     async def queue_unprocessed(self, aem_pack: AEMPack):
         """Fetch new AEMPacks via event subscriber and put them into the queue for processing."""
         await self._config_lock.wait_for_lock_release()
-        config, _ = await self._config_manager.get_current_config()
+        # load the most recent config
+        await self._config_manager.update_config()
+        config = self._config_manager.current_config
 
         matching_model = next(
             (m for m in config.models if m.name == aem_pack.model_name), None
@@ -97,9 +99,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         """Derives AEMPacks from incoming AEMPacks."""
         while True:
             await self._config_lock.wait_for_lock_release()
-            await (
-                self._config_manager.get_current_config()
-            )  # warm cache before claiming
+
             claimed = await self._incoming_aem_pack_queue.claim_next()
             if claimed:
                 await self._process_next_aem_pack(
@@ -124,7 +124,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
         }
         transformed_map: dict[str, AEMPack] = {incoming_aem.model_name: incoming_aem}
 
-        config, version_before = await self._config_manager.get_current_config()
+        await self._config_manager.update_config()
+        config = self._config_manager.current_config
+        version_before = self._config_manager.known_version
 
         aem_packs_to_publish, dirty_map = self._traverse_graph(
             incoming=incoming_aem,
@@ -134,7 +136,8 @@ class AEMPackRegistry(AEMPackRegistryPort):
         )
 
         await self._config_lock.wait_for_lock_release()
-        _, version_after = await self._config_manager.get_current_config()
+        await self._config_manager.update_config()
+        version_after = self._config_manager.known_version
 
         if version_after != version_before:
             log.info(
