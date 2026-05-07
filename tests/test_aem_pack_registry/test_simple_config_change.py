@@ -87,7 +87,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
         registry=registry,
         pack=ingress,
     )
-    # Inject the modified config directly — get_current_config won't overwrite it
+    # Inject the modified config directly — update_config won't overwrite it
     # because the DB version hasn't changed.
     cast(ConfigManager, registry._config_manager)._current_config = new_config
     caplog.clear()

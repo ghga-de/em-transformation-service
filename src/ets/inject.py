@@ -54,6 +54,7 @@ from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
+from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 
 @dataclass
@@ -110,10 +111,23 @@ async def prepare_config_lock(*, config: Config) -> AsyncGenerator[ConfigLockPor
 
 
 @asynccontextmanager
+async def prepare_incoming_aem_pack_queue(
+    *, config: Config
+) -> AsyncGenerator[IncomingAEMPackQueuePort]:
+    """Construct an IncomingAEMPackQueue backed by the incoming AEMPack collection."""
+    async with ConfiguredMongoClient(config=config) as mongo_client:
+        yield IncomingAEMPackQueue(
+            collection=mongo_client[config.db_name][INCOMING_AEM_PACK_COLLECTION],
+            worker_id=config.worker_id,
+        )
+
+
+@asynccontextmanager
 async def prepare_aem_pack_registry(
     *,
     config: Config,
     config_lock_override: ConfigLockPort | None = None,
+    aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
 ) -> AsyncGenerator[AEMPackRegistryPort]:
     """Constructs and initializes core components and their outbound dependencies."""
     async with (
@@ -122,20 +136,18 @@ async def prepare_aem_pack_registry(
         if config_lock_override
         else prepare_config_lock(config=config) as config_lock,
         MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
-        ConfiguredMongoClient(config=config) as mongo_client,
+        nullcontext(aem_pack_queue_override)
+        if aem_pack_queue_override
+        else prepare_incoming_aem_pack_queue(config=config) as incoming_aem_pack_queue,
     ):
         aem_pack_dao = await get_aem_pack_dao(
             dao_publisher_factory=dao_pub_factory,
             topic=config.derived_aem_pack_topic,
         )
-        incoming_aem_pack_queue = IncomingAEMPackQueue(
-            collection=mongo_client[config.db_name][INCOMING_AEM_PACK_COLLECTION],
-            worker_id=config.worker_id,
-        )
         raw_config = config_adapters.loader.load_config_from_file(
             config.input_config_path
         )
-        # persisted_config is also loaded by ConfigManager.get_current_config() on first call;
+        # persisted_config is also loaded by ConfigManager.update_config() on first call;
         # the double read is intentional — the comparator needs it at construction time.
         persisted_config = await config_adapters.loader.load_config_from_db()
         config_manager = ConfigManager(
@@ -146,6 +158,7 @@ async def prepare_aem_pack_registry(
                 raw_config=raw_config, persisted_config=persisted_config
             ),
         )
+
         yield AEMPackRegistry(
             config=config,
             aem_pack_dao=aem_pack_dao,
@@ -159,12 +172,15 @@ def prepare_aem_pack_registry_with_override(
     *,
     config: Config,
     core_override: AEMPackRegistryPort | None = None,
+    aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
 ):
     """Resolve the prepare_core context manager based on config and override (if any)."""
     return (
         nullcontext(core_override)
         if core_override
-        else prepare_aem_pack_registry(config=config)
+        else prepare_aem_pack_registry(
+            config=config, aem_pack_queue_override=aem_pack_queue_override
+        )
     )
 
 
@@ -173,6 +189,7 @@ async def prepare_event_subscriber(
     *,
     config: Config,
     core_override: AEMPackRegistryPort | None = None,
+    aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
 ) -> AsyncGenerator[KafkaEventSubscriber]:
     """Construct and initialize an event subscriber with all its dependencies.
     By default, the core dependencies are automatically prepared but you can also
@@ -180,7 +197,9 @@ async def prepare_event_subscriber(
     """
     async with (
         prepare_aem_pack_registry_with_override(
-            config=config, core_override=core_override
+            config=config,
+            core_override=core_override,
+            aem_pack_queue_override=aem_pack_queue_override,
         ) as aem_pack_registry,
         KafkaEventPublisher.construct(config=config) as dlq_publisher,
     ):

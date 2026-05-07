@@ -55,3 +55,12 @@ class IncomingAEMPackQueuePort(ABC):
     @abstractmethod
     async def free(self, aem_pack_id: UUID4) -> None:
         """Release an AEMPack back to the queue without marking it processed."""
+
+    @abstractmethod
+    async def mark_all_for_reprocessing(self) -> None:
+        """Flag all processed AEMPacks for reprocessing.
+
+        Sets needs_reprocessing=True on every non-tombstoned doc that has already
+        been processed, so claim_next will pick them up again.  Intended to be
+        called once after a config change, while the config lock is still held.
+        """
