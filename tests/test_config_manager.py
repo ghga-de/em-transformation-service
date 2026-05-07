@@ -16,22 +16,25 @@
 """Tests for the pruning logic in ConfigManager."""
 
 from dataclasses import dataclass, field
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from yaml import safe_load
 
 from ets.core.config_manager import ConfigManager
 from ets.core.config_pruning import prune_unproductive_subgraphs
-from ets.core.models import PersistedConfig, RawConfig, ValidatedConfig
+from ets.core.models import Model, PersistedConfig, RawConfig, ValidatedConfig
 from ets.ports.inbound.config_comparator import ConfigComparatorPort
 from ets.ports.inbound.config_manager import ConfigManagerError
 from ets.ports.inbound.config_validator import (
     ConfigValidationError,
     ConfigValidatorPort,
 )
+from ets.ports.inbound.model_derivation import ModelDeriverPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
+from ets.ports.outbound.config_writer import ConfigWriterPort
 from tests.fixtures.config_manager import pruning_fixture  # noqa: F401
 from tests.fixtures.examples import PRUNING_CASES, VALID_CONFIGS
 
@@ -177,15 +180,41 @@ def test_prune_unproductive_subgraphs_raises(
         prune_unproductive_subgraphs(pruning_fixture)
 
 
+def _make_manager(
+    *,
+    raw_config: RawConfig,
+    persisted_config: PersistedConfig,
+    comparator: ConfigComparatorPort,
+    validator: ConfigValidatorPort,
+    model_deriver: ModelDeriverPort,
+) -> tuple[ConfigManager, MagicMock, AsyncMock]:
+    loader = MagicMock(spec=ConfigLoaderPort)
+    loader.load_config_from_file.return_value = raw_config
+    loader.load_config_from_db = AsyncMock(return_value=persisted_config)
+
+    writer = MagicMock(spec=ConfigWriterPort)
+    writer.write_config = AsyncMock()
+
+    manager = ConfigManager(
+        input_config_path=Path("/fake/config.yaml"),
+        config_loader=loader,
+        validator=validator,
+        comparator=comparator,
+        model_deriver=model_deriver,
+        writer=writer,
+        config_versioner=MagicMock(spec=ConfigVersionerPort),
+    )
+    return manager, loader, writer
+
+
+@pytest.mark.asyncio()
 @pytest.mark.parametrize(
     "compare_returns_raw, validation_raises",
     [(True, False), (True, True), (False, False)],
     ids=["new_valid_config", "validation_fallback", "unchanged_config"],
 )
-def test_resolve_transformation_config(
-    compare_returns_raw: bool, validation_raises: bool
-):
-    """Confirm resolve_transformation_config handles the happy paths and validation fallback."""
+async def test_resolve_and_persist(compare_returns_raw: bool, validation_raises: bool):
+    """Confirm resolve_and_persist handles the happy paths and validation fallback."""
     with VALID_CONFIGS["basic_config"].open() as fh:
         raw_config = RawConfig.model_validate(safe_load(fh))
     with PRUNING_CASES["nothing_pruned"].open() as fh:
@@ -197,7 +226,6 @@ def test_resolve_transformation_config(
     persisted.workflows = [MagicMock()]
 
     comparator = MagicMock(spec=ConfigComparatorPort)
-    comparator.persisted_config = persisted
     comparator.compare_configs.return_value = (
         raw_config if compare_returns_raw else persisted
     )
@@ -208,20 +236,37 @@ def test_resolve_transformation_config(
     else:
         validator.validate.return_value = validated_config
 
-    result = ConfigManager(
-        config_loader=MagicMock(spec=ConfigLoaderPort),
-        config_versioner=MagicMock(spec=ConfigVersionerPort),
-        validator=validator,
+    derived_models = [MagicMock(spec=Model)]
+    model_deriver = MagicMock(spec=ModelDeriverPort)
+    model_deriver.derive_models.return_value = derived_models
+
+    manager, loader, writer = _make_manager(
+        raw_config=raw_config,
+        persisted_config=persisted,
         comparator=comparator,
-    ).resolve_transformation_config()
+        validator=validator,
+        model_deriver=model_deriver,
+    )
+
+    await manager.resolve_and_persist()
+
+    loader.load_config_from_file.assert_called_once()
+    loader.load_config_from_db.assert_awaited_once()
+    comparator.compare_configs.assert_called_once_with(raw_config, persisted)
+    writer.write_config.assert_awaited_once()
+    written = writer.write_config.await_args.args[0]
 
     if compare_returns_raw and not validation_raises:
         validator.validate.assert_called_once_with(raw_config)
-        assert isinstance(result, ValidatedConfig)
+        model_deriver.derive_models.assert_called_once()
+        assert isinstance(written, PersistedConfig)
+        assert written.models == derived_models
     else:
-        assert result is persisted
+        assert written is persisted
+        model_deriver.derive_models.assert_not_called()
 
 
+@pytest.mark.asyncio()
 @pytest.mark.parametrize(
     "models, routes, workflows",
     [
@@ -243,7 +288,7 @@ def test_resolve_transformation_config(
         "missing_models",
     ],
 )
-def test_resolve_transformation_config_stops_when_no_persisted_config(
+async def test_resolve_and_persist_stops_when_no_persisted_config(
     models, routes, workflows
 ):
     """When validation fails and no valid config is persisted, raise ConfigManagerError."""
@@ -256,18 +301,21 @@ def test_resolve_transformation_config_stops_when_no_persisted_config(
     incomplete_persisted.workflows = workflows
 
     comparator = MagicMock(spec=ConfigComparatorPort)
-    comparator.persisted_config = incomplete_persisted
     comparator.compare_configs.return_value = raw_config
 
     validator = MagicMock(spec=ConfigValidatorPort)
     validator.validate.side_effect = ConfigValidationError("invalid")
 
-    manager = ConfigManager(
-        config_loader=MagicMock(spec=ConfigLoaderPort),
-        config_versioner=MagicMock(spec=ConfigVersionerPort),
-        validator=validator,
+    model_deriver = MagicMock(spec=ModelDeriverPort)
+
+    manager, _, writer = _make_manager(
+        raw_config=raw_config,
+        persisted_config=incomplete_persisted,
         comparator=comparator,
+        validator=validator,
+        model_deriver=model_deriver,
     )
 
     with pytest.raises(ConfigManagerError, match="no previous valid config"):
-        manager.resolve_transformation_config()
+        await manager.resolve_and_persist()
+    writer.write_config.assert_not_awaited()

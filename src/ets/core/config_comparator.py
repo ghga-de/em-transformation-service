@@ -16,7 +16,6 @@
 """Contains functionality to compare transformation configs."""
 
 import logging
-from functools import cached_property
 
 from schemapack import is_equal_schemapack
 
@@ -35,55 +34,50 @@ log = logging.getLogger(__name__)
 class ConfigComparator(ConfigComparatorPort):
     """Compares new config with the persisted one to detect changes."""
 
-    def __init__(self, raw_config: RawConfig, persisted_config: PersistedConfig):
-        self._raw_config = raw_config.model_copy(
+    def compare_configs(
+        self, raw_config: RawConfig, persisted_config: PersistedConfig
+    ) -> PersistedConfig | RawConfig:
+        """Compare new config with the persisted one.
+
+        Returns:
+            RawConfig: when the configs differ, containing the new models, routes, and workflows
+                (sorted by name).
+            PersistedConfig: when the configs are equal, containing the persisted models, routes,
+                and workflows (sorted by name).
+        """
+        sorted_raw = raw_config.model_copy(
             update={
                 "models": sorted(raw_config.models, key=lambda m: m.name),
                 "routes": sorted(raw_config.routes, key=lambda r: r.name),
                 "workflows": sorted(raw_config.workflows, key=lambda w: w.name),
             }
         )
-        self._persisted_config = persisted_config
-
-    @cached_property
-    def persisted_config(self) -> PersistedConfig:
-        """Return the persisted config with sorted collections."""
-        return self._persisted_config.model_copy(
+        sorted_persisted = persisted_config.model_copy(
             update={
-                "models": sorted(self._persisted_config.models, key=lambda m: m.name),
-                "routes": sorted(self._persisted_config.routes, key=lambda r: r.name),
-                "workflows": sorted(
-                    self._persisted_config.workflows, key=lambda w: w.name
-                ),
+                "models": sorted(persisted_config.models, key=lambda m: m.name),
+                "routes": sorted(persisted_config.routes, key=lambda r: r.name),
+                "workflows": sorted(persisted_config.workflows, key=lambda w: w.name),
             }
         )
-
-    def compare_configs(self) -> PersistedConfig | RawConfig:
-        """Compare new config with the persisted one.
-
-        Returns:
-            RawConfig: when the configs differ, containing the new models, routes, and workflows.
-            PersistedConfig: when the configs are equal, containing the persisted models, routes, and workflows.
-        """
         try:
             log.info("Comparing models.")
-            self._compare_models()
+            self._compare_models(sorted_raw, sorted_persisted)
             log.info("Comparing routes.")
-            self._compare_routes()
+            self._compare_routes(sorted_raw, sorted_persisted)
             log.info("Comparing workflows.")
-            self._compare_workflows()
+            self._compare_workflows(sorted_raw, sorted_persisted)
         except ComparisonMismatchError as error:
             log.info(
                 f"Changes detected between configs, using new config.\nDetails:{error}"
             )
-            return self._raw_config
+            return sorted_raw
 
         log.info("No changes detected between configs, continuing with old config.")
-        return self.persisted_config
+        return sorted_persisted
 
-    def _compare_models(self):
-        new = self._raw_config.models
-        old = self.persisted_config.models
+    def _compare_models(self, raw: RawConfig, persisted: PersistedConfig) -> None:
+        new = raw.models
+        old = persisted.models
         if len(new) != len(old):
             raise ComparisonMismatchError("Different amount of model configs.")
         for new_model, old_model in zip(new, old, strict=True):
@@ -109,18 +103,18 @@ class ConfigComparator(ConfigComparatorPort):
                     f"Mismatching schema on EMIM model {new_model.name}."
                 )
 
-    def _compare_routes(self):
-        new = self._raw_config.routes
-        old = self.persisted_config.routes
+    def _compare_routes(self, raw: RawConfig, persisted: PersistedConfig) -> None:
+        new = raw.routes
+        old = persisted.routes
         if len(new) != len(old):
             raise ComparisonMismatchError("Different amount of routes.")
         for n, o in zip(new, old, strict=True):
             if n != o:
                 raise ComparisonMismatchError(f"Mismatching route: {n.name}.")
 
-    def _compare_workflows(self):
-        new = self._raw_config.workflows
-        old = self.persisted_config.workflows
+    def _compare_workflows(self, raw: RawConfig, persisted: PersistedConfig) -> None:
+        new = raw.workflows
+        old = persisted.workflows
         if len(new) != len(old):
             raise ComparisonMismatchError("Different amount of workflows.")
         for n, o in zip(new, old, strict=True):

@@ -49,7 +49,9 @@ from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.config_comparator import ConfigComparator
 from ets.core.config_manager import ConfigManager
 from ets.core.config_validator import ConfigValidator
+from ets.core.model_derivation import ModelDeriver
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
+from ets.ports.inbound.config_manager import ConfigManagerPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
@@ -97,6 +99,28 @@ async def prepare_config_adapters(*, config: Config) -> AsyncGenerator[ConfigAda
 
 
 @asynccontextmanager
+async def prepare_config_manager(
+    *, config: Config
+) -> AsyncGenerator[ConfigManagerPort]:
+    """Construct a fully wired ConfigManager.
+
+    Reuses prepare_config_adapters so loader, writer, and version share the same
+    DAO instances. Construction is I/O-free; the actual load/write happens when
+    resolve_and_persist() is called.
+    """
+    async with prepare_config_adapters(config=config) as adapters:
+        yield ConfigManager(
+            comparator=ConfigComparator(),
+            config_versioner=adapters.version,
+            input_config_path=config.input_config_path,
+            config_loader=adapters.loader,
+            model_deriver=ModelDeriver(),
+            validator=ConfigValidator(),
+            writer=adapters.writer,
+        )
+
+
+@asynccontextmanager
 async def prepare_config_lock(*, config: Config) -> AsyncGenerator[ConfigLockPort]:
     """Construct a ConfigLockAdapter backed by the config_lock collection."""
     async with ConfiguredMongoClient(config=config) as mongo_client:
@@ -131,10 +155,8 @@ async def prepare_aem_pack_registry(
 ) -> AsyncGenerator[AEMPackRegistryPort]:
     """Constructs and initializes core components and their outbound dependencies."""
     async with (
-        prepare_config_adapters(config=config) as config_adapters,
-        nullcontext(config_lock_override)
-        if config_lock_override
-        else prepare_config_lock(config=config) as config_lock,
+        prepare_config_adapters(config=config) as adapters,
+        prepare_config_lock(config=config) as config_lock,
         MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
         nullcontext(aem_pack_queue_override)
         if aem_pack_queue_override
@@ -144,19 +166,14 @@ async def prepare_aem_pack_registry(
             dao_publisher_factory=dao_pub_factory,
             topic=config.derived_aem_pack_topic,
         )
-        raw_config = config_adapters.loader.load_config_from_file(
-            config.input_config_path
-        )
-        # persisted_config is also loaded by ConfigManager.update_config() on first call;
-        # the double read is intentional — the comparator needs it at construction time.
-        persisted_config = await config_adapters.loader.load_config_from_db()
         config_manager = ConfigManager(
-            config_loader=config_adapters.loader,
-            config_versioner=config_adapters.version,
+            comparator=ConfigComparator(),
+            config_loader=adapters.loader,
+            config_versioner=adapters.version,
+            input_config_path=config.input_config_path,
+            model_deriver=ModelDeriver(),
             validator=ConfigValidator(),
-            comparator=ConfigComparator(
-                raw_config=raw_config, persisted_config=persisted_config
-            ),
+            writer=adapters.writer,
         )
 
         yield AEMPackRegistry(

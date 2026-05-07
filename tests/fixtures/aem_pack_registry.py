@@ -92,8 +92,7 @@ def load_aem_pack_config(
 ) -> PersistedConfig:
     """Load a YAML config, derive schemas, and return a PersistedConfig."""
     validated = load_model_derivation_config(path)
-    deriver = ModelDeriver(config=validated)
-    models = deriver.derive_models()
+    models = ModelDeriver().derive_models(validated)
 
     if publish_models:
         models = [

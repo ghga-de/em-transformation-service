@@ -16,7 +16,7 @@
 
 from abc import ABC, abstractmethod
 
-from ets.core.models import Model
+from ets.core.models import Model, ValidatedConfig
 
 
 class ModelDerivationError(RuntimeError):
@@ -35,7 +35,7 @@ class ModelDeriverPort(ABC):
     """Derives output schemas for all models in the transformation graph."""
 
     @abstractmethod
-    def derive_models(self) -> list[Model]:
+    def derive_models(self, config: ValidatedConfig) -> list[Model]:
         """Derive and return all models with populated schemas.
 
         Raises:

@@ -16,12 +16,13 @@
 """Contains functionality for SchemaPack derivation for non-EMIM models."""
 
 from metldata import get_transformation_registry
+from metldata.transform.base import TransformationDefinition
 from metldata.transform.exceptions import ModelAssumptionError, ModelTransformationError
 from metldata.transform.handling import TransformationHandler
 from schemapack import is_equivalent_schemapack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.core.models import Model, Route, ValidatedConfig
+from ets.core.models import Model, OrderedRawModel, Route, ValidatedConfig, Workflow
 from ets.ports.inbound.model_derivation import (
     ConsistencyError,
     ModelDerivationError,
@@ -32,34 +33,45 @@ from ets.ports.inbound.model_derivation import (
 class ModelDeriver(ModelDeriverPort):
     """Derives output schemas for all models in the transformation graph."""
 
-    def __init__(self, *, config: ValidatedConfig):
-        """Initialise the deriver.
+    def __init__(
+        self,
+        transformation_registry: dict[str, TransformationDefinition] | None = None,
+    ) -> None:
+        self._transformation_registry = (
+            transformation_registry
+            if transformation_registry is not None
+            else get_transformation_registry()
+        )
 
-        Args:
-            config: Validated transformation configuration containing models,
-                routes, and workflows.
-        """
-        self._models = config.models
-        self._routes = config.routes
-        self._transformation_registry = get_transformation_registry()
-        self._workflows_by_name = {w.name: w for w in config.workflows}
-
-    def derive_models(self) -> list[Model]:
+    def derive_models(self, config: ValidatedConfig) -> list[Model]:
         """Derive and return all models with populated schemas."""
+        workflows_by_name = {w.name: w for w in config.workflows}
         schemas: dict[str, SchemaPack] = {
             model.name: model.schema_  # type: ignore[misc]
-            for model in self._models
+            for model in config.models
             if model.is_ingress
         }
-        self._process_routes(schemas=schemas)
-        return self._update_models(schemas=schemas)
+        self._process_routes(
+            models=config.models,
+            routes=config.routes,
+            workflows_by_name=workflows_by_name,
+            schemas=schemas,
+        )
+        return self._update_models(models=config.models, schemas=schemas)
 
-    def _process_routes(self, *, schemas: dict[str, SchemaPack]) -> None:
+    def _process_routes(
+        self,
+        *,
+        models: list[OrderedRawModel],
+        routes: list[Route],
+        workflows_by_name: dict[str, Workflow],
+        schemas: dict[str, SchemaPack],
+    ) -> None:
         """Process each route in order, collecting derived output schemas."""
         topological_order: dict[str, int] = {
-            model.name: model.order for model in self._models
+            model.name: model.order for model in models
         }
-        for route in self._routes:
+        for route in routes:
             for model_name in (route.input_model_name, route.output_model_name):
                 if model_name not in topological_order:
                     raise ConsistencyError(
@@ -69,7 +81,7 @@ class ModelDeriver(ModelDeriverPort):
                         "caught by the config validator."
                     )
         routes_sorted = sorted(
-            self._routes,
+            routes,
             key=lambda route: topological_order[route.input_model_name],
         )
         for route in routes_sorted:
@@ -81,7 +93,9 @@ class ModelDeriver(ModelDeriverPort):
                     "This indicates an error in the topological ordering."
                 )
             derived_schema = self._apply_workflow(
-                route=route, input_schema=input_schema
+                route=route,
+                workflow=workflows_by_name[route.workflow_name],
+                input_schema=input_schema,
             )
             existing_schema = schemas.get(route.output_model_name)
             if existing_schema is not None and not is_equivalent_schemapack(
@@ -94,10 +108,10 @@ class ModelDeriver(ModelDeriverPort):
                 )
             schemas[route.output_model_name] = derived_schema
 
-    def _apply_workflow(self, *, route: Route, input_schema: SchemaPack) -> SchemaPack:
+    def _apply_workflow(
+        self, *, route: Route, workflow: Workflow, input_schema: SchemaPack
+    ) -> SchemaPack:
         """Apply every workflow step to the `input_schema` and return the derived schema."""
-        workflow = self._workflows_by_name[route.workflow_name]
-
         current_schema = input_schema
         for step in workflow.workflow.operations:
             transformation_def = self._transformation_registry[step.name]
@@ -117,24 +131,26 @@ class ModelDeriver(ModelDeriverPort):
 
         return current_schema
 
-    def _update_models(self, *, schemas: dict[str, SchemaPack]) -> list[Model]:
+    def _update_models(
+        self, *, models: list[OrderedRawModel], schemas: dict[str, SchemaPack]
+    ) -> list[Model]:
         """Build a list of `Model` objects and populate missing schemas."""
-        models = []
-        for raw_model in self._models:
-            if raw_model.name not in schemas:
+        result: list[Model] = []
+        for model in models:
+            if model.name not in schemas:
                 raise ModelDerivationError(
-                    f"Schema for model '{raw_model.name}' could not be derived. "
+                    f"Schema for model '{model.name}' could not be derived. "
                     "It is neither an ingress model nor the output of any route."
                 )
-            models.append(
+            result.append(
                 Model(
-                    name=raw_model.name,
-                    description=raw_model.description,
-                    is_ingress=raw_model.is_ingress,
-                    version=raw_model.version,
-                    publish=raw_model.publish,
-                    order=raw_model.order,
-                    schema_=schemas[raw_model.name],
+                    name=model.name,
+                    description=model.description,
+                    is_ingress=model.is_ingress,
+                    version=model.version,
+                    publish=model.publish,
+                    order=model.order,
+                    schema_=schemas[model.name],
                 )
             )
-        return models
+        return result

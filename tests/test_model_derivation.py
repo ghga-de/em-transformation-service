@@ -47,7 +47,9 @@ def test_valid_config_derives_successfully(
     model_derivation_fixture: ModelDerivationFixture,  # noqa: F811
 ):
     """Confirm valid configs produce models without raising."""
-    models = model_derivation_fixture.deriver.derive_models()
+    models = model_derivation_fixture.deriver.derive_models(
+        model_derivation_fixture.config
+    )
 
     assert models
     for model in models:
@@ -65,7 +67,7 @@ def test_invalid_config_raises(
 ):
     """Confirm invalid configs raise ModelDerivationError during derive_models."""
     with pytest.raises(ModelDerivationError):
-        model_derivation_fixture.deriver.derive_models()
+        model_derivation_fixture.deriver.derive_models(model_derivation_fixture.config)
 
 
 @pytest.mark.parametrize(
@@ -91,13 +93,16 @@ def test_apply_workflow_exception_handling(
     """Confirm expected metldata exceptions are wrapped in ModelDerivationError."""
     cfg = model_derivation_fixture.config
     deriver = model_derivation_fixture.deriver
+    workflow = next(w for w in cfg.workflows if w.name == cfg.routes[0].workflow_name)
 
     with patch(
         "ets.core.model_derivation.TransformationHandler",
         side_effect=side_effect_exc,
     ):
         with pytest.raises(expected_exc):
-            deriver._apply_workflow(route=cfg.routes[0], input_schema=FILE_SCHEMA)
+            deriver._apply_workflow(
+                route=cfg.routes[0], workflow=workflow, input_schema=FILE_SCHEMA
+            )
 
 
 @pytest.mark.parametrize(
@@ -198,7 +203,9 @@ def test_derive_models_produces_correct_schemas(
     expected_schemas: dict[str, SchemaPack],
 ):
     """Confirm derive_models assigns the correct schema to every model across various graph topologies."""
-    models = model_derivation_fixture.deriver.derive_models()
+    models = model_derivation_fixture.deriver.derive_models(
+        model_derivation_fixture.config
+    )
 
     assert len(models) == len(expected_schemas)
     by_name = {m.name: m for m in models}
@@ -217,7 +224,7 @@ def test_convergence_conflicting_schemas_raises(
 ):
     """Confirm converging paths that produce incompatible schemas at the output node raise."""
     with pytest.raises(ModelDerivationError, match="already has a derived schema"):
-        model_derivation_fixture.deriver.derive_models()
+        model_derivation_fixture.deriver.derive_models(model_derivation_fixture.config)
 
 
 @pytest.mark.parametrize(
@@ -243,12 +250,12 @@ def test_routes_processed_in_topological_order(
     """Confirm routes are processed in topological order regardless of fixture listing order."""
     call_order: list[str] = []
 
-    def record_call_order(*, route, input_schema):
+    def record_call_order(*, route, workflow, input_schema):
         call_order.append(f"{route.input_model_name}->{route.output_model_name}")
         return input_schema
 
     mock_apply_workflow.side_effect = record_call_order
-    model_derivation_fixture.deriver.derive_models()
+    model_derivation_fixture.deriver.derive_models(model_derivation_fixture.config)
 
     assert call_order == expected_order
 
@@ -270,7 +277,7 @@ def test_invalid_config_specific_error(
 ):
     """Confirm each invalid config raises ModelDerivationError with the expected message."""
     with pytest.raises(ModelDerivationError, match=expected_match):
-        model_derivation_fixture.deriver.derive_models()
+        model_derivation_fixture.deriver.derive_models(model_derivation_fixture.config)
 
 
 @pytest.mark.parametrize(
@@ -286,11 +293,14 @@ def test_route_references_unknown_model_raises_internal_error(
     ConsistencyError (the sanity check inside _process_routes).
 
     This state should be unreachable via the normal config-validation path;
-    it is triggered here by deliberately removing a model from the deriver's
-    internal list after construction.
+    it is triggered here by deliberately removing a model from the config
+    passed to derive_models.
     """
     deriver = model_derivation_fixture.deriver
+    cfg = model_derivation_fixture.config
     # Remove model 'B', which is referenced as the output of the A→B route
-    deriver._models = [m for m in deriver._models if m.name != "B"]
+    broken_config = cfg.model_copy(
+        update={"models": [m for m in cfg.models if m.name != "B"]}
+    )
     with pytest.raises(ConsistencyError, match="internal consistency error"):
-        deriver.derive_models()
+        deriver.derive_models(broken_config)

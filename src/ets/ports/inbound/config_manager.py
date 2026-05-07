@@ -17,8 +17,6 @@
 
 from abc import ABC, abstractmethod
 
-from ets.core.models import PersistedConfig, ValidatedConfig
-
 
 class ConfigManagerError(RuntimeError):
     """Raised when an unexpected error happens while handling the transformation configurations."""
@@ -42,8 +40,8 @@ class ConfigManagerPort(ABC):
         """Return the active config and its version, reloading from DB if the version changed."""
 
     @abstractmethod
-    def resolve_transformation_config(self) -> PersistedConfig | ValidatedConfig:
-        """Resolve the given transformation config.
+    async def resolve_and_persist(self) -> None:
+        """Load, resolve, and persist the transformation config.
 
         This includes:
         - Comparing raw config with the persisted config

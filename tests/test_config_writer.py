@@ -32,7 +32,7 @@ def persisted_config(joint_fixture: JointFixture) -> PersistedConfig:
     """Produce a fully resolved PersistedConfig through the real pipeline."""
     raw_config = joint_fixture.loader.load_config_from_file(BASIC_CONFIG_PATH)
     validated_config = ConfigValidator().validate(raw_config)
-    derived_models = ModelDeriver(config=validated_config).derive_models()
+    derived_models = ModelDeriver().derive_models(validated_config)
     return PersistedConfig(
         models=derived_models,
         routes=validated_config.routes,
