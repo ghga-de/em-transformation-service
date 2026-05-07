@@ -124,6 +124,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         }
         transformed_map: dict[str, AEMPack] = {incoming_aem.model_name: incoming_aem}
 
+        await self._config_lock.wait_for_lock_release()
         await self._config_manager.update_config()
         config = self._config_manager.current_config
         version_before = self._config_manager.known_version

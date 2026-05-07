@@ -79,7 +79,7 @@ class ConfigManager(ConfigManagerPort):
             self._current_config = await self._config_loader.load_config_from_db()
             self._known_version = current_version
         elif self._known_version > current_version:
-            inconsistent_version = ValueError(
+            inconsistent_version = ConfigManagerError(
                 f"Encountered inconsistent current config version: {current_version}."
                 f" Worker config version: {self._known_version}"
             )
