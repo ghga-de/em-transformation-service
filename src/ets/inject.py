@@ -158,20 +158,7 @@ async def prepare_aem_pack_registry(
                 raw_config=raw_config, persisted_config=persisted_config
             ),
         )
-        raw_config = config_adapters.loader.load_config_from_file(
-            config.input_config_path
-        )
-        # persisted_config is also loaded by ConfigManager.update_config() on first call;
-        # the double read is intentional — the comparator needs it at construction time.
-        persisted_config = await config_adapters.loader.load_config_from_db()
-        config_manager = ConfigManager(
-            config_loader=config_adapters.loader,
-            config_versioner=config_adapters.version,
-            validator=ConfigValidator(),
-            comparator=ConfigComparator(
-                raw_config=raw_config, persisted_config=persisted_config
-            ),
-        )
+
         yield AEMPackRegistry(
             config=config,
             aem_pack_dao=aem_pack_dao,
