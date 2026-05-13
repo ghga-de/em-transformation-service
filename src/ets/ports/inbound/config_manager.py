@@ -16,6 +16,9 @@
 """Interface for managing transformation config related operations."""
 
 from abc import ABC, abstractmethod
+from pathlib import Path
+
+from ets.core.models import PersistedConfig
 
 
 class ConfigManagerError(RuntimeError):
@@ -40,7 +43,7 @@ class ConfigManagerPort(ABC):
         """Return the active config and its version, reloading from DB if the version changed."""
 
     @abstractmethod
-    async def resolve_and_persist(self) -> None:
+    async def resolve_and_persist(self, input_config_path: Path) -> None:
         """Load, resolve, and persist the transformation config.
 
         This includes:

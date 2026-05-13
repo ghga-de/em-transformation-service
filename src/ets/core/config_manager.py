@@ -35,23 +35,21 @@ log = logging.getLogger(__name__)
 
 
 class ConfigManager(ConfigManagerPort):
-    """Wires the config pipeline: load → compare → validate/prune → derive → write."""
+    """Manages loading, comparison, validation and selection of an active config."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         comparator: ConfigComparatorPort,
-        config_loader: ConfigLoaderPort,
-        config_versioner: ConfigVersionerPort,
-        input_config_path: Path,
+        loader: ConfigLoaderPort,
+        versioner: ConfigVersionerPort,
         model_deriver: ModelDeriverPort,
         validator: ConfigValidatorPort,
         writer: ConfigWriterPort,
     ):
         self._comparator = comparator
-        self._config_versioner = config_versioner
-        self._input_config_path = input_config_path
-        self._loader = config_loader
+        self._versioner = versioner
+        self._loader = loader
         self._model_deriver = model_deriver
         self._writer = writer
         self._validator = validator
@@ -74,7 +72,7 @@ class ConfigManager(ConfigManagerPort):
 
     async def update_config(self):
         """Return the active config and its version, reloading from DB if the version changed."""
-        current_version = await self._config_versioner.get_version()
+        current_version = await self._versioner.get_version()
         if self._current_config is None:
             log.info("Loading initial config (version %d).", current_version)
             self._current_config = await self._loader.load_config_from_db()
@@ -95,7 +93,7 @@ class ConfigManager(ConfigManagerPort):
             log.critical(inconsistent_version)
             raise inconsistent_version
 
-    async def resolve_and_persist(self) -> None:
+    async def resolve_and_persist(self, input_config_path: Path) -> None:
         """Load, resolve, and persist the transformation config.
 
         - Loads the raw config from disk and the persisted one from the database.
@@ -110,17 +108,14 @@ class ConfigManager(ConfigManagerPort):
             ConfigManagerError: If the new config fails validation and no previous
                 valid config exists in the database.
         """
-        raw_config = self._loader.load_config_from_file(self._input_config_path)
+        raw_config = self._loader.load_config_from_file(input_config_path)
         persisted_config = await self._loader.load_config_from_db()
-
-        resolved = self._resolve(
+        
+        await self._resolve(
             raw_config=raw_config, persisted_config=persisted_config
         )
-        await self._writer.write_config(resolved)
 
-    def _resolve(
-        self, *, raw_config: RawConfig, persisted_config: PersistedConfig
-    ) -> PersistedConfig:
+    async def _resolve(self, *, raw_config: RawConfig, persisted_config: PersistedConfig):
         """Compare, validate/prune and derive schemas as needed."""
         match self._comparator.compare_configs(raw_config, persisted_config):
             case RawConfig():
@@ -138,7 +133,7 @@ class ConfigManager(ConfigManagerPort):
                             " valid config exists in the database."
                             " Stopping the service."
                         )
-                        log.critical(msg, exc_info=error)
+                        log.critical(msg)
                         raise ConfigManagerError(msg) from error
 
                     log.warning(
@@ -146,10 +141,11 @@ class ConfigManager(ConfigManagerPort):
                     )
                     return persisted_config
                 derived_models = self._model_deriver.derive_models(pruned)
-                return PersistedConfig(
+                resolved = PersistedConfig(
                     models=derived_models,
                     routes=pruned.routes,
                     workflows=pruned.workflows,
                 )
-            case PersistedConfig():
-                return persisted_config
+                await self._writer.write_config(resolved)
+            case PersistedConfig(): # keep around, so the match is exhaustive
+                return

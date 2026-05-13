@@ -197,12 +197,12 @@ def _make_manager(
 
     manager = ConfigManager(
         input_config_path=Path("/fake/config.yaml"),
-        config_loader=loader,
+        loader=loader,
         validator=validator,
         comparator=comparator,
         model_deriver=model_deriver,
         writer=writer,
-        config_versioner=MagicMock(spec=ConfigVersionerPort),
+        versioner=MagicMock(spec=ConfigVersionerPort),
     )
     return manager, loader, writer
 

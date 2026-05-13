@@ -219,7 +219,7 @@ async def test_pack_freed_when_config_changes_mid_processing(
     version = config_manager.known_version
     with (
         patch.object(
-            config_manager._config_versioner,
+            config_manager._versioner,
             "get_version",
             AsyncMock(side_effect=[version, version + 1]),
         ),

@@ -45,33 +45,30 @@ class ModelDeriver(ModelDeriverPort):
 
     def derive_models(self, config: ValidatedConfig) -> list[Model]:
         """Derive and return all models with populated schemas."""
-        workflows_by_name = {w.name: w for w in config.workflows}
         schemas: dict[str, SchemaPack] = {
             model.name: model.schema_  # type: ignore[misc]
             for model in config.models
             if model.is_ingress
         }
         self._process_routes(
-            models=config.models,
-            routes=config.routes,
-            workflows_by_name=workflows_by_name,
+            config=config,
             schemas=schemas,
         )
-        return self._update_models(models=config.models, schemas=schemas)
+        return self._update_models(raw_models=config.models, schemas=schemas)
 
     def _process_routes(
         self,
         *,
-        models: list[OrderedRawModel],
-        routes: list[Route],
-        workflows_by_name: dict[str, Workflow],
+        config: ValidatedConfig,
         schemas: dict[str, SchemaPack],
     ) -> None:
         """Process each route in order, collecting derived output schemas."""
         topological_order: dict[str, int] = {
-            model.name: model.order for model in models
+            model.name: model.order for model in config.models
         }
-        for route in routes:
+        workflows_by_name = {w.name: w for w in config.workflows}
+
+        for route in config.routes:
             for model_name in (route.input_model_name, route.output_model_name):
                 if model_name not in topological_order:
                     raise ConsistencyError(
@@ -81,7 +78,7 @@ class ModelDeriver(ModelDeriverPort):
                         "caught by the config validator."
                     )
         routes_sorted = sorted(
-            routes,
+            config.routes,
             key=lambda route: topological_order[route.input_model_name],
         )
         for route in routes_sorted:
@@ -132,25 +129,25 @@ class ModelDeriver(ModelDeriverPort):
         return current_schema
 
     def _update_models(
-        self, *, models: list[OrderedRawModel], schemas: dict[str, SchemaPack]
+        self, *, raw_models: list[OrderedRawModel], schemas: dict[str, SchemaPack]
     ) -> list[Model]:
         """Build a list of `Model` objects and populate missing schemas."""
-        result: list[Model] = []
-        for model in models:
-            if model.name not in schemas:
+        models = []
+        for raw_model in raw_models:
+            if raw_model.name not in schemas:
                 raise ModelDerivationError(
-                    f"Schema for model '{model.name}' could not be derived. "
+                    f"Schema for model '{raw_model.name}' could not be derived. "
                     "It is neither an ingress model nor the output of any route."
                 )
-            result.append(
+            models.append(
                 Model(
-                    name=model.name,
-                    description=model.description,
-                    is_ingress=model.is_ingress,
-                    version=model.version,
-                    publish=model.publish,
-                    order=model.order,
-                    schema_=schemas[model.name],
+                    name=raw_model.name,
+                    description=raw_model.description,
+                    is_ingress=raw_model.is_ingress,
+                    version=raw_model.version,
+                    publish=raw_model.publish,
+                    order=raw_model.order,
+                    schema_=schemas[raw_model.name],
                 )
             )
-        return result
+        return models

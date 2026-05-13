@@ -136,7 +136,7 @@ async def joint_fixture(
                 incoming_aem_pack_collection=incoming_aem_pack_collection,
                 kafka=kafka,
                 loader=config_adapters.loader,
-                versioner=config_adapters.version,
+                versioner=config_adapters.versioner,
                 writer=config_adapters.writer,
                 mongodb=mongodb,
             )

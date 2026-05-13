@@ -17,7 +17,7 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, nullcontext
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from hexkit.providers.akafka import (
     ComboTranslator,
@@ -51,7 +51,10 @@ from ets.core.config_manager import ConfigManager
 from ets.core.config_validator import ConfigValidator
 from ets.core.model_derivation import ModelDeriver
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
+from ets.ports.inbound.config_comparator import ConfigComparatorPort
 from ets.ports.inbound.config_manager import ConfigManagerPort
+from ets.ports.inbound.config_validator import ConfigValidatorPort
+from ets.ports.inbound.model_derivation import ModelDeriverPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
@@ -63,13 +66,18 @@ from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 class ConfigAdapters:
     """Holds the config loader, writer, and version adapters sharing the same DAO instances."""
 
+    comparator: ConfigComparatorPort
     loader: ConfigLoaderPort
+    model_deriver: ModelDeriverPort
+    validator: ConfigValidatorPort
+    versioner: ConfigVersionerPort
     writer: ConfigWriterPort
-    version: ConfigVersionerPort
 
 
 @asynccontextmanager
-async def prepare_config_adapters(*, config: Config) -> AsyncGenerator[ConfigAdapters]:
+async def prepare_config_adapters(
+    *, config: Config, mongo_client: ConfiguredMongoClient | None = None
+) -> AsyncGenerator[ConfigAdapters]:
     """Constructs config loader and writer instances sharing a single MongoDB connection.
 
     Factored out for better testability.
@@ -94,7 +102,12 @@ async def prepare_config_adapters(*, config: Config) -> AsyncGenerator[ConfigAda
             config_versioner=config_version,
         )
         yield ConfigAdapters(
-            loader=config_loader, writer=config_writer, version=config_version
+            comparator=ConfigComparator(),
+            loader=config_loader,
+            model_deriver=ModelDeriver(),
+            validator=ConfigValidator(),
+            versioner=config_version,
+            writer=config_writer,
         )
 
 
@@ -109,19 +122,13 @@ async def prepare_config_manager(
     resolve_and_persist() is called.
     """
     async with prepare_config_adapters(config=config) as adapters:
-        yield ConfigManager(
-            comparator=ConfigComparator(),
-            config_versioner=adapters.version,
-            input_config_path=config.input_config_path,
-            config_loader=adapters.loader,
-            model_deriver=ModelDeriver(),
-            validator=ConfigValidator(),
-            writer=adapters.writer,
-        )
+        yield ConfigManager(**asdict(adapters))
 
 
 @asynccontextmanager
-async def prepare_config_lock(*, config: Config) -> AsyncGenerator[ConfigLockPort]:
+async def prepare_config_lock(
+    *, config: Config, mongo_client: ConfiguredMongoClient | None = None
+) -> AsyncGenerator[ConfigLockPort]:
     """Construct a ConfigLockAdapter backed by the config_lock collection."""
     async with ConfiguredMongoClient(config=config) as mongo_client:
         collection = mongo_client[config.db_name][CONFIG_LOCK_COLLECTION]
@@ -136,7 +143,9 @@ async def prepare_config_lock(*, config: Config) -> AsyncGenerator[ConfigLockPor
 
 @asynccontextmanager
 async def prepare_incoming_aem_pack_queue(
-    *, config: Config
+    *,
+    config: Config,
+    mongo_client: ConfiguredMongoClient | None = None,
 ) -> AsyncGenerator[IncomingAEMPackQueuePort]:
     """Construct an IncomingAEMPackQueue backed by the incoming AEMPack collection."""
     async with ConfiguredMongoClient(config=config) as mongo_client:
@@ -150,7 +159,6 @@ async def prepare_incoming_aem_pack_queue(
 async def prepare_aem_pack_registry(
     *,
     config: Config,
-    config_lock_override: ConfigLockPort | None = None,
     aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
 ) -> AsyncGenerator[AEMPackRegistryPort]:
     """Constructs and initializes core components and their outbound dependencies."""
@@ -168,9 +176,8 @@ async def prepare_aem_pack_registry(
         )
         config_manager = ConfigManager(
             comparator=ConfigComparator(),
-            config_loader=adapters.loader,
-            config_versioner=adapters.version,
-            input_config_path=config.input_config_path,
+            loader=adapters.loader,
+            versioner=adapters.versioner,
             model_deriver=ModelDeriver(),
             validator=ConfigValidator(),
             writer=adapters.writer,

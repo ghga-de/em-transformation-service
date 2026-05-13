@@ -40,10 +40,8 @@ class ConfigComparator(ConfigComparatorPort):
         """Compare new config with the persisted one.
 
         Returns:
-            RawConfig: when the configs differ, containing the new models, routes, and workflows
-                (sorted by name).
-            PersistedConfig: when the configs are equal, containing the persisted models, routes,
-                and workflows (sorted by name).
+            RawConfig: when the configs differ, containing the new models, routes, and workflows.
+            PersistedConfig: when the configs are equal, containing the persisted models, routes, and workflows.
         """
         sorted_raw = raw_config.model_copy(
             update={
@@ -61,11 +59,11 @@ class ConfigComparator(ConfigComparatorPort):
         )
         try:
             log.info("Comparing models.")
-            self._compare_models(sorted_raw, sorted_persisted)
+            self._compare_models(raw=sorted_raw, persisted=sorted_persisted)
             log.info("Comparing routes.")
-            self._compare_routes(sorted_raw, sorted_persisted)
+            self._compare_routes(raw=sorted_raw, persisted=sorted_persisted)
             log.info("Comparing workflows.")
-            self._compare_workflows(sorted_raw, sorted_persisted)
+            self._compare_workflows(raw=sorted_raw, persisted=sorted_persisted)
         except ComparisonMismatchError as error:
             log.info(
                 f"Changes detected between configs, using new config.\nDetails:{error}"
@@ -75,7 +73,7 @@ class ConfigComparator(ConfigComparatorPort):
         log.info("No changes detected between configs, continuing with old config.")
         return sorted_persisted
 
-    def _compare_models(self, raw: RawConfig, persisted: PersistedConfig) -> None:
+    def _compare_models(self, *, raw: RawConfig, persisted: PersistedConfig) -> None:
         new = raw.models
         old = persisted.models
         if len(new) != len(old):
@@ -103,7 +101,7 @@ class ConfigComparator(ConfigComparatorPort):
                     f"Mismatching schema on EMIM model {new_model.name}."
                 )
 
-    def _compare_routes(self, raw: RawConfig, persisted: PersistedConfig) -> None:
+    def _compare_routes(self, *, raw: RawConfig, persisted: PersistedConfig) -> None:
         new = raw.routes
         old = persisted.routes
         if len(new) != len(old):
@@ -112,7 +110,7 @@ class ConfigComparator(ConfigComparatorPort):
             if n != o:
                 raise ComparisonMismatchError(f"Mismatching route: {n.name}.")
 
-    def _compare_workflows(self, raw: RawConfig, persisted: PersistedConfig) -> None:
+    def _compare_workflows(self, *, raw: RawConfig, persisted: PersistedConfig) -> None:
         new = raw.workflows
         old = persisted.workflows
         if len(new) != len(old):
