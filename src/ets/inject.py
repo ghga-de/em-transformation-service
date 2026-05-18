@@ -80,11 +80,12 @@ async def _prepare_config_stack(
     If `mongo_client` is provided, the caller retains ownership of its lifetime;
     otherwise a fresh client is opened for this scope.
     """
-    async with (
+    client_ctx = (
         nullcontext(mongo_client)
         if mongo_client
-        else ConfiguredMongoClient(config=config) as client
-    ):
+        else ConfiguredMongoClient(config=config)
+    )
+    async with client_ctx as client:
         dao_factory = MongoDbDaoFactory(config=config, client=client)
         model_dao = await get_persisted_model_dao(dao_factory=dao_factory)
         route_dao = await get_route_dao(dao_factory=dao_factory)
