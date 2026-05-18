@@ -111,8 +111,6 @@ def test_compare_is_order_insensitive(loader: ConfigLoaderAdapter):
         workflows=raw_config.workflows,
     )
 
-    result = ConfigComparator().compare_configs(
-        raw_config, reordered_persisted_config
-    )
+    result = ConfigComparator().compare_configs(raw_config, reordered_persisted_config)
 
     assert isinstance(result, PersistedConfig)

@@ -62,12 +62,12 @@ from ets.ports.outbound.config_writer import ConfigWriterPort
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 
-def _open_or_share_client(
-    *, config: Config, mongo_client: AsyncMongoClient | None
-):
+def _open_or_share_client(*, config: Config, mongo_client: AsyncMongoClient | None):
     """Reuse an injected Mongo client or open a fresh one for the local scope."""
     return (
-        nullcontext(mongo_client) if mongo_client else ConfiguredMongoClient(config=config)
+        nullcontext(mongo_client)
+        if mongo_client
+        else ConfiguredMongoClient(config=config)
     )
 
 
@@ -167,7 +167,9 @@ async def prepare_config_lock(
     *, config: Config, mongo_client: AsyncMongoClient | None = None
 ) -> AsyncGenerator[ConfigLockPort]:
     """Construct a ConfigLockAdapter backed by the config_lock collection."""
-    async with _open_or_share_client(config=config, mongo_client=mongo_client) as client:
+    async with _open_or_share_client(
+        config=config, mongo_client=mongo_client
+    ) as client:
         yield ConfigLockAdapter(
             collection=client[config.db_name][CONFIG_LOCK_COLLECTION],
             worker_id=config.worker_id,
@@ -184,7 +186,9 @@ async def prepare_incoming_aem_pack_queue(
     mongo_client: AsyncMongoClient | None = None,
 ) -> AsyncGenerator[IncomingAEMPackQueuePort]:
     """Construct an IncomingAEMPackQueue backed by the incoming AEMPack collection."""
-    async with _open_or_share_client(config=config, mongo_client=mongo_client) as client:
+    async with _open_or_share_client(
+        config=config, mongo_client=mongo_client
+    ) as client:
         yield IncomingAEMPackQueue(
             collection=client[config.db_name][INCOMING_AEM_PACK_COLLECTION],
             worker_id=config.worker_id,
@@ -229,9 +233,7 @@ async def prepare_config_updater(
     A single MongoDB client is shared between the config helpers, config
     manager, config lock, and incoming AEMPack queue unless one is injected.
     """
-    async with prepare_config_stack(
-        config=config, mongo_client=mongo_client
-    ) as stack:
+    async with prepare_config_stack(config=config, mongo_client=mongo_client) as stack:
         yield ConfigUpdater(
             input_config_path=config.input_config_path,
             config_lock=stack.config_lock,
