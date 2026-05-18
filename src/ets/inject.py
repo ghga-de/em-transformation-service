@@ -122,16 +122,23 @@ async def prepare_config_helpers(
 
 @asynccontextmanager
 async def prepare_config_manager(
-    *, config: Config, mongo_client: AsyncMongoClient | None = None
+    *,
+    config: Config,
+    mongo_client: AsyncMongoClient | None = None,
+    helpers: ConfigHelpers | None = None,
 ) -> AsyncGenerator[ConfigManagerPort]:
     """Construct a fully wired ConfigManager.
 
-    Reuses prepare_config_adapters so loader, writer, and version share the same
-    DAO instances. Construction is I/O-free; the actual load/write happens when
+    Reuses prepare_config_helpers so loader, writer, and version share the same
+    DAO instances. If `helpers` is supplied, it is reused as-is (the caller
+    keeps ownership of its context); otherwise a fresh set is constructed.
+    Construction is I/O-free; the actual load/write happens when
     resolve_and_persist() is called.
     """
-    async with prepare_config_helpers(
-        config=config, mongo_client=mongo_client
+    async with (
+        prepare_config_helpers(config=config, mongo_client=mongo_client)
+        if helpers is None
+        else nullcontext(helpers)
     ) as adapters:
         yield ConfigManager(
             comparator=adapters.comparator,
@@ -189,7 +196,7 @@ async def prepare_config_updater(
     """Construct the startup-time ConfigUpdater with all its collaborators.
 
     A single MongoDB client is shared between the config helpers, config
-    lock, and incoming AEMPack queue unless one is injected.
+    manager, config lock, and incoming AEMPack queue unless one is injected.
     """
     async with (
         (
@@ -198,19 +205,12 @@ async def prepare_config_updater(
             else ConfiguredMongoClient(config=config)
         ) as client,
         prepare_config_helpers(config=config, mongo_client=client) as adapters,
+        prepare_config_manager(config=config, helpers=adapters) as config_manager,
         prepare_config_lock(config=config, mongo_client=client) as config_lock,
         prepare_incoming_aem_pack_queue(
             config=config, mongo_client=client
         ) as incoming_aem_pack_queue,
     ):
-        config_manager = ConfigManager(
-            comparator=adapters.comparator,
-            loader=adapters.loader,
-            versioner=adapters.versioner,
-            model_deriver=adapters.model_deriver,
-            validator=adapters.validator,
-            writer=adapters.writer,
-        )
         yield ConfigUpdater(
             input_config_path=config.input_config_path,
             config_lock=config_lock,
@@ -235,6 +235,7 @@ async def prepare_aem_pack_registry(
         ConfiguredMongoClient(config=config) as client,
         MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
         prepare_config_helpers(config=config, mongo_client=client) as adapters,
+        prepare_config_manager(config=config, helpers=adapters) as config_manager,
         prepare_config_lock(config=config, mongo_client=client) as config_lock,
         nullcontext(aem_pack_queue_override)
         if aem_pack_queue_override
@@ -245,14 +246,6 @@ async def prepare_aem_pack_registry(
         aem_pack_dao = await get_aem_pack_dao(
             dao_publisher_factory=dao_pub_factory,
             topic=config.derived_aem_pack_topic,
-        )
-        config_manager = ConfigManager(
-            comparator=ConfigComparator(),
-            loader=adapters.loader,
-            versioner=adapters.versioner,
-            model_deriver=ModelDeriver(),
-            validator=ConfigValidator(),
-            writer=adapters.writer,
         )
 
         yield AEMPackRegistry(
