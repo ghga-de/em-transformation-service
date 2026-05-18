@@ -18,15 +18,12 @@
 import logging
 from pathlib import Path
 
+from ets.core.config_comparator import ConfigComparator
 from ets.core.config_pruning import prune_unproductive_subgraphs
+from ets.core.config_validator import ConfigValidationError, ConfigValidator
+from ets.core.model_derivation import ModelDeriver
 from ets.core.models import PersistedConfig, RawConfig
-from ets.ports.inbound.config_comparator import ConfigComparatorPort
 from ets.ports.inbound.config_manager import ConfigManagerError, ConfigManagerPort
-from ets.ports.inbound.config_validator import (
-    ConfigValidationError,
-    ConfigValidatorPort,
-)
-from ets.ports.inbound.model_derivation import ModelDeriverPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
@@ -40,11 +37,11 @@ class ConfigManager(ConfigManagerPort):
     def __init__(  # noqa: PLR0913
         self,
         *,
-        comparator: ConfigComparatorPort,
+        comparator: ConfigComparator,
         loader: ConfigLoaderPort,
         versioner: ConfigVersionerPort,
-        model_deriver: ModelDeriverPort,
-        validator: ConfigValidatorPort,
+        model_deriver: ModelDeriver,
+        validator: ConfigValidator,
         writer: ConfigWriterPort,
     ):
         self._comparator = comparator

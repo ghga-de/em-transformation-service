@@ -22,16 +22,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from yaml import safe_load
 
+from ets.core.config_comparator import ConfigComparator
 from ets.core.config_manager import ConfigManager
 from ets.core.config_pruning import prune_unproductive_subgraphs
+from ets.core.config_validator import ConfigValidationError, ConfigValidator
+from ets.core.model_derivation import ModelDeriver
 from ets.core.models import Model, PersistedConfig, RawConfig, ValidatedConfig
-from ets.ports.inbound.config_comparator import ConfigComparatorPort
 from ets.ports.inbound.config_manager import ConfigManagerError
-from ets.ports.inbound.config_validator import (
-    ConfigValidationError,
-    ConfigValidatorPort,
-)
-from ets.ports.inbound.model_derivation import ModelDeriverPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
@@ -184,9 +181,9 @@ def _make_manager(
     *,
     raw_config: RawConfig,
     persisted_config: PersistedConfig,
-    comparator: ConfigComparatorPort,
-    validator: ConfigValidatorPort,
-    model_deriver: ModelDeriverPort,
+    comparator: ConfigComparator,
+    validator: ConfigValidator,
+    model_deriver: ModelDeriver,
 ) -> tuple[ConfigManager, MagicMock, AsyncMock]:
     loader = MagicMock(spec=ConfigLoaderPort)
     loader.load_config_from_file.return_value = raw_config
@@ -225,19 +222,19 @@ async def test_resolve_and_persist(compare_returns_raw: bool, validation_raises:
     persisted.routes = [MagicMock()]
     persisted.workflows = [MagicMock()]
 
-    comparator = MagicMock(spec=ConfigComparatorPort)
+    comparator = MagicMock(spec=ConfigComparator)
     comparator.compare_configs.return_value = (
         raw_config if compare_returns_raw else persisted
     )
 
-    validator = MagicMock(spec=ConfigValidatorPort)
+    validator = MagicMock(spec=ConfigValidator)
     if validation_raises:
         validator.validate.side_effect = ConfigValidationError("invalid")
     else:
         validator.validate.return_value = validated_config
 
     derived_models = [MagicMock(spec=Model)]
-    model_deriver = MagicMock(spec=ModelDeriverPort)
+    model_deriver = MagicMock(spec=ModelDeriver)
     model_deriver.derive_models.return_value = derived_models
 
     manager, loader, writer = _make_manager(
@@ -300,13 +297,13 @@ async def test_resolve_and_persist_stops_when_no_persisted_config(
     incomplete_persisted.routes = routes
     incomplete_persisted.workflows = workflows
 
-    comparator = MagicMock(spec=ConfigComparatorPort)
+    comparator = MagicMock(spec=ConfigComparator)
     comparator.compare_configs.return_value = raw_config
 
-    validator = MagicMock(spec=ConfigValidatorPort)
+    validator = MagicMock(spec=ConfigValidator)
     validator.validate.side_effect = ConfigValidationError("invalid")
 
-    model_deriver = MagicMock(spec=ModelDeriverPort)
+    model_deriver = MagicMock(spec=ModelDeriver)
 
     manager, _, writer = _make_manager(
         raw_config=raw_config,

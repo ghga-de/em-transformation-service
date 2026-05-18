@@ -20,8 +20,7 @@ from pathlib import Path
 import pytest
 
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
-from ets.core.config_validator import ConfigValidator
-from ets.ports.inbound.config_validator import ConfigValidationError
+from ets.core.config_validator import ConfigValidationError, ConfigValidator
 from tests.fixtures.examples import (
     INVALID_ON_VALIDATION_CONFIGS,
     VALID_CONFIGS,

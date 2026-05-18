@@ -22,7 +22,7 @@ from metldata.transform.exceptions import ModelAssumptionError, ModelTransformat
 from schemapack import is_equal_schemapack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.ports.inbound.model_derivation import ConsistencyError, ModelDerivationError
+from ets.core.model_derivation import ConsistencyError, ModelDerivationError
 from tests.fixtures.examples import (
     INVALID_MODEL_DERIVATION_CONFIGS,
     VALID_MODEL_DERIVATION_CONFIGS,

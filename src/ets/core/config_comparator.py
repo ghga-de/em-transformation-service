@@ -23,15 +23,15 @@ from ets.core.models import (
     PersistedConfig,
     RawConfig,
 )
-from ets.ports.inbound.config_comparator import (
-    ComparisonMismatchError,
-    ConfigComparatorPort,
-)
 
 log = logging.getLogger(__name__)
 
 
-class ConfigComparator(ConfigComparatorPort):
+class ComparisonMismatchError(RuntimeError):
+    """Custom error type raised on any mismatch between the existing and new config."""
+
+
+class ConfigComparator:
     """Compares new config with the persisted one to detect changes."""
 
     def compare_configs(

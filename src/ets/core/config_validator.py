@@ -19,13 +19,13 @@ from metldata.workflow.exceptions import WorkflowValidationError
 
 from ets.core.graph import CyclicGraphError, NonUniquePathError, get_topological_order
 from ets.core.models import OrderedRawModel, RawConfig, ValidatedConfig
-from ets.ports.inbound.config_validator import (
-    ConfigValidationError,
-    ConfigValidatorPort,
-)
 
 
-class ConfigValidator(ConfigValidatorPort):
+class ConfigValidationError(RuntimeError):
+    """Raised when configuration validation fails."""
+
+
+class ConfigValidator:
     """Concrete implementation of configuration validator."""
 
     def validate(self, raw_config: RawConfig) -> ValidatedConfig:
