@@ -26,6 +26,7 @@ from hexkit.providers.akafka import (
 )
 from hexkit.providers.mongodb import ConfiguredMongoClient, MongoDbDaoFactory
 from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
+from pymongo import AsyncMongoClient
 
 from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
@@ -71,13 +72,20 @@ class _ConfigStack:
 async def _prepare_config_stack(
     *,
     config: Config,
+    mongo_client: AsyncMongoClient | None = None,
     aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
 ) -> AsyncGenerator[_ConfigStack]:
-    """Wire all config-related collaborators under a single shared Mongo client."""
+    """Wire all config-related collaborators under a single shared Mongo client.
+
+    If `mongo_client` is provided, the caller retains ownership of its lifetime;
+    otherwise a fresh client is opened for this scope.
+    """
     async with (
-        ConfiguredMongoClient(config=config) as client,
-        MongoDbDaoFactory.construct(config=config) as dao_factory,
+        nullcontext(mongo_client)
+        if mongo_client
+        else ConfiguredMongoClient(config=config) as client
     ):
+        dao_factory = MongoDbDaoFactory(config=config, client=client)
         model_dao = await get_persisted_model_dao(dao_factory=dao_factory)
         route_dao = await get_route_dao(dao_factory=dao_factory)
         workflow_dao = await get_workflow_dao(dao_factory=dao_factory)
@@ -137,13 +145,24 @@ async def prepare_aem_pack_registry(
     config: Config,
     aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
 ) -> AsyncGenerator[AEMPackRegistryPort]:
-    """Constructs and initializes core components and their outbound dependencies."""
+    """Constructs and initializes core components and their outbound dependencies.
+
+    A single Mongo client is shared between the config stack and the
+    derived-AEMPack publisher factory; a single Kafka event publisher is
+    reused by the publisher factory.
+    """
     async with (
+        ConfiguredMongoClient(config=config) as client,
+        KafkaEventPublisher.construct(config=config) as event_publisher,
         _prepare_config_stack(
-            config=config, aem_pack_queue_override=aem_pack_queue_override
+            config=config,
+            mongo_client=client,
+            aem_pack_queue_override=aem_pack_queue_override,
         ) as stack,
-        MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
     ):
+        dao_pub_factory = MongoKafkaDaoPublisherFactory(
+            config=config, event_publisher=event_publisher, db_client=client
+        )
         aem_pack_dao = await get_aem_pack_dao(
             dao_publisher_factory=dao_pub_factory,
             topic=config.derived_aem_pack_topic,
