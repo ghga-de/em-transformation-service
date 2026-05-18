@@ -17,6 +17,7 @@
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -36,6 +37,7 @@ from ets.ports.inbound.aem_pack_registry import (
 )
 from ets.ports.inbound.config_manager import ConfigManagerPort
 from ets.ports.outbound.config_lock import ConfigLockPort
+from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.dao import AEMPackDao
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
@@ -66,6 +68,41 @@ class AEMPackRegistry(AEMPackRegistryPort):
         self._config_lock = config_lock
         self._incoming_aem_pack_queue = incoming_aem_pack_queue
         self._transformation_registry = get_transformation_registry()
+
+
+    async def run_config_resolution(
+    self,
+    *,
+    config_versioner: ConfigVersionerPort,
+    input_config_path: Path,
+    ) -> None:
+        """Acquire the config lock and run config resolution.
+
+        If the lock is acquired, this instance is responsible for config validation/derivation.
+        If not, it just waits for the holder to finish.
+        """
+        await self._config_lock.setup_index()
+        acquired = await self._config_lock.try_acquire_lock()
+        if acquired:
+            try:
+                log.info("Lock acquired, starting config update.")
+                previous_version = await config_versioner.get_version()
+                await self._config_manager.resolve_and_persist(input_config_path)
+                # in the case of a config change, mark all the processed original AEMPacks
+                # for reprocessing before the lock release
+                current_version = await config_versioner.get_version()
+
+                if current_version != previous_version:
+                    await self._incoming_aem_pack_queue.mark_all_for_reprocessing()
+                log.info("Config validation/update finished.")
+            finally:
+                # If something fails in the process responsible for updating,
+                # the lock is simply freed and updating can be attempted again on next startup
+                await self._config_lock.release_lock()
+        else:
+            await self._config_lock.wait_for_lock_release()
+            log.info("Update lock released, loading persisted config placeholder.")
+
 
     async def queue_unprocessed(self, aem_pack: AEMPack):
         """Fetch new AEMPacks via event subscriber and put them into the queue for processing."""

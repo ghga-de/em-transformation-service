@@ -42,7 +42,7 @@ from ets.constants import (
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.inject import (
     prepare_aem_pack_registry,
-    prepare_config_adapters,
+    prepare_config_helpers,
     prepare_event_subscriber,
 )
 from ets.ports.outbound.config_loader import ConfigLoaderPort
@@ -125,7 +125,7 @@ async def joint_fixture(
             prepare_event_subscriber(
                 config=config, core_override=aem_pack_registry
             ) as event_subscriber,
-            prepare_config_adapters(config=config) as config_adapters,
+            prepare_config_helpers(config=config) as config_adapters,
         ):
             yield JointFixture(
                 aem_pack_registry=cast(AEMPackRegistry, aem_pack_registry),
