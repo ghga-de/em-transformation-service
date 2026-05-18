@@ -49,11 +49,13 @@ from ets.constants import (
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.config_comparator import ConfigComparator
 from ets.core.config_manager import ConfigManager
+from ets.core.config_updater import ConfigUpdater
 from ets.core.config_validator import ConfigValidator
 from ets.core.model_derivation import ModelDeriver
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.inbound.config_comparator import ConfigComparatorPort
 from ets.ports.inbound.config_manager import ConfigManagerPort
+from ets.ports.inbound.config_updater import ConfigUpdaterPort
 from ets.ports.inbound.config_validator import ConfigValidatorPort
 from ets.ports.inbound.model_derivation import ModelDeriverPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
@@ -175,6 +177,46 @@ async def prepare_incoming_aem_pack_queue(
         yield IncomingAEMPackQueue(
             collection=client[config.db_name][INCOMING_AEM_PACK_COLLECTION],
             worker_id=config.worker_id,
+        )
+
+
+@asynccontextmanager
+async def prepare_config_updater(
+    *,
+    config: Config,
+    mongo_client: AsyncMongoClient | None = None,
+) -> AsyncGenerator[ConfigUpdaterPort]:
+    """Construct the startup-time ConfigUpdater with all its collaborators.
+
+    A single MongoDB client is shared between the config helpers, config
+    lock, and incoming AEMPack queue unless one is injected.
+    """
+    async with (
+        (
+            nullcontext(mongo_client)
+            if mongo_client
+            else ConfiguredMongoClient(config=config)
+        ) as client,
+        prepare_config_helpers(config=config, mongo_client=client) as adapters,
+        prepare_config_lock(config=config, mongo_client=client) as config_lock,
+        prepare_incoming_aem_pack_queue(
+            config=config, mongo_client=client
+        ) as incoming_aem_pack_queue,
+    ):
+        config_manager = ConfigManager(
+            comparator=adapters.comparator,
+            loader=adapters.loader,
+            versioner=adapters.versioner,
+            model_deriver=adapters.model_deriver,
+            validator=adapters.validator,
+            writer=adapters.writer,
+        )
+        yield ConfigUpdater(
+            input_config_path=config.input_config_path,
+            config_lock=config_lock,
+            config_manager=config_manager,
+            versioner=adapters.versioner,
+            incoming_aem_pack_queue=incoming_aem_pack_queue,
         )
 
 

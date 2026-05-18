@@ -16,39 +16,28 @@
 """Top-level functions for the service"""
 
 import logging
-from pathlib import Path
 
 from hexkit.log import configure_logging
 
 from ets.config import Config
 from ets.inject import (
     prepare_aem_pack_registry,
-    prepare_config_lock,
-    prepare_config_manager,
+    prepare_config_updater,
     prepare_event_subscriber,
-    prepare_incoming_aem_pack_queue,
 )
-from ets.ports.inbound.config_manager import ConfigManagerPort
-from ets.ports.outbound.config_lock import ConfigLockPort
-from ets.ports.outbound.config_version import ConfigVersionerPort
-from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 log = logging.getLogger(__name__)
 
 
 async def consume_events(run_forever: bool = True):
-    """Run the event consumer"""
+    """Run the event consumer."""
     config = Config()  # type: ignore[call-arg]
     configure_logging(config=config)
 
-    async with (
-        prepare_incoming_aem_pack_queue(config=config) as aem_pack_queue,
-        prepare_event_subscriber(
-            config=config, aem_pack_queue_override=aem_pack_queue
-        ) as event_subscriber,
-    ):
-        await _run_config_resolution()
-        # load config from DB here
+    async with prepare_config_updater(config=config) as config_updater:
+        await config_updater.run()
+
+    async with prepare_event_subscriber(config=config) as event_subscriber:
         await event_subscriber.run(forever=run_forever)
 
 
@@ -57,9 +46,8 @@ async def process_aem_packs():
     config = Config()  # type: ignore[call-arg]
     configure_logging(config=config)
 
-    async with (
-        prepare_aem_pack_registry(config=config) as aem_pack_registry,
-    ):
-        await _run_config_resolution(config_lock)
-        # load config from DB here
+    async with prepare_config_updater(config=config) as config_updater:
+        await config_updater.run()
+
+    async with prepare_aem_pack_registry(config=config) as aem_pack_registry:
         await aem_pack_registry.process_aem_packs()
