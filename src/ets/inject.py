@@ -60,7 +60,7 @@ from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 @dataclass
 class _ConfigStack:
-    """Config-related collaborators wired off a shared Mongo client."""
+    """Config-related entities reused by higher level preparation steps."""
 
     config_manager: ConfigManagerPort
     config_lock: ConfigLockPort
@@ -75,7 +75,7 @@ async def _prepare_config_stack(
     mongo_client: AsyncMongoClient | None = None,
     aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
 ) -> AsyncGenerator[_ConfigStack]:
-    """Wire all config-related collaborators under a single shared Mongo client.
+    """Wire all config-related entities using a single shared Mongo client.
 
     If `mongo_client` is provided, the caller retains ownership of its lifetime;
     otherwise a fresh client is opened for this scope.
@@ -129,7 +129,7 @@ async def _prepare_config_stack(
 async def prepare_config_updater(
     *, config: Config
 ) -> AsyncGenerator[ConfigUpdaterPort]:
-    """Construct the startup-time ConfigUpdater with all its collaborators."""
+    """Construct and initialize an event subscriber with all its dependencies."""
     async with _prepare_config_stack(config=config) as stack:
         yield ConfigUpdater(
             input_config_path=config.input_config_path,

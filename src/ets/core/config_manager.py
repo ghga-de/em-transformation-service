@@ -111,32 +111,34 @@ class ConfigManager(ConfigManagerPort):
     ):
         """Compare, validate/prune and derive schemas as needed."""
         result = compare_configs(raw_config, persisted_config)
-        if isinstance(result, RawConfig):
-            try:
-                validated = validate(raw_config)
-                pruned = prune_unproductive_subgraphs(validated)
-            except ConfigValidationError as error:
-                if not (
-                    persisted_config.models
-                    and persisted_config.routes
-                    and persisted_config.workflows
-                ):
-                    msg = (
-                        "New config failed to validate and no previous"
-                        " valid config exists in the database."
-                        " Stopping the service."
-                    )
-                    log.critical(msg)
-                    raise ConfigManagerError(msg) from error
+        if not isinstance(result, RawConfig):
+            return
 
-                log.warning(
-                    "New config failed to validate, using existing, persisted config instead."
+        try:
+            validated = validate(raw_config)
+            pruned = prune_unproductive_subgraphs(validated)
+        except ConfigValidationError as error:
+            if not (
+                persisted_config.models
+                and persisted_config.routes
+                and persisted_config.workflows
+            ):
+                msg = (
+                    "New config failed to validate and no previous"
+                    " valid config exists in the database."
+                    " Stopping the service."
                 )
-                return persisted_config
-            derived_models = self._model_deriver.derive_models(pruned)
-            resolved = PersistedConfig(
-                models=derived_models,
-                routes=pruned.routes,
-                workflows=pruned.workflows,
+                log.critical(msg)
+                raise ConfigManagerError(msg) from error
+
+            log.warning(
+                "New config failed to validate, using existing, persisted config instead."
             )
-            await self._writer.write_config(resolved)
+            return persisted_config
+        derived_models = self._model_deriver.derive_models(pruned)
+        resolved = PersistedConfig(
+            models=derived_models,
+            routes=pruned.routes,
+            workflows=pruned.workflows,
+        )
+        await self._writer.write_config(resolved)
