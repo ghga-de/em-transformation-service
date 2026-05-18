@@ -193,7 +193,6 @@ def _make_manager(
     writer.write_config = AsyncMock()
 
     manager = ConfigManager(
-        input_config_path=Path("/fake/config.yaml"),
         loader=loader,
         validator=validator,
         comparator=comparator,
@@ -245,22 +244,24 @@ async def test_resolve_and_persist(compare_returns_raw: bool, validation_raises:
         model_deriver=model_deriver,
     )
 
-    await manager.resolve_and_persist()
+    await manager.resolve_and_persist(Path("/fake/config.yaml"))
 
     loader.load_config_from_file.assert_called_once()
     loader.load_config_from_db.assert_awaited_once()
     comparator.compare_configs.assert_called_once_with(raw_config, persisted)
-    writer.write_config.assert_awaited_once()
-    written = writer.write_config.await_args.args[0]
 
     if compare_returns_raw and not validation_raises:
         validator.validate.assert_called_once_with(raw_config)
         model_deriver.derive_models.assert_called_once()
+        writer.write_config.assert_awaited_once()
+        written = writer.write_config.await_args.args[0]
         assert isinstance(written, PersistedConfig)
         assert written.models == derived_models
     else:
-        assert written is persisted
+        # validation_fallback and unchanged_config both leave the DB alone:
+        # write_config would bump the version and trigger spurious reprocessing.
         model_deriver.derive_models.assert_not_called()
+        writer.write_config.assert_not_awaited()
 
 
 @pytest.mark.asyncio()
@@ -314,5 +315,5 @@ async def test_resolve_and_persist_stops_when_no_persisted_config(
     )
 
     with pytest.raises(ConfigManagerError, match="no previous valid config"):
-        await manager.resolve_and_persist()
+        await manager.resolve_and_persist(Path("/fake/config.yaml"))
     writer.write_config.assert_not_awaited()

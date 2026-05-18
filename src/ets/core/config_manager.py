@@ -94,11 +94,11 @@ class ConfigManager(ConfigManagerPort):
         """Load, resolve, and persist the transformation config.
 
         - Loads the raw config from disk and the persisted one from the database.
-        - Compares them; if equal, persists the persisted config back (no-op upsert).
+        - Compares them; if equal, leaves the DB untouched.
         - If they differ, validates the raw config, prunes unproductive subgraphs,
-          derives output schemas, and persists the result.
+          derives output schemas, and persists the result (bumping the version).
         - If validation of a new config fails, falls back to the persisted config
-          (and persists it). If no valid persisted config exists, raises
+          (without rewriting it). If no valid persisted config exists, raises
           ConfigManagerError and stops the service.
 
         Raises:
@@ -107,12 +107,12 @@ class ConfigManager(ConfigManagerPort):
         """
         raw_config = self._loader.load_config_from_file(input_config_path)
         persisted_config = await self._loader.load_config_from_db()
-        
-        await self._resolve(
-            raw_config=raw_config, persisted_config=persisted_config
-        )
 
-    async def _resolve(self, *, raw_config: RawConfig, persisted_config: PersistedConfig):
+        await self._resolve(raw_config=raw_config, persisted_config=persisted_config)
+
+    async def _resolve(
+        self, *, raw_config: RawConfig, persisted_config: PersistedConfig
+    ):
         """Compare, validate/prune and derive schemas as needed."""
         match self._comparator.compare_configs(raw_config, persisted_config):
             case RawConfig():
@@ -144,5 +144,5 @@ class ConfigManager(ConfigManagerPort):
                     workflows=pruned.workflows,
                 )
                 await self._writer.write_config(resolved)
-            case PersistedConfig(): # keep around, so the match is exhaustive
+            case PersistedConfig():  # keep around, so the match is exhaustive
                 return
