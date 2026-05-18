@@ -26,7 +26,6 @@ from hexkit.providers.akafka import (
 )
 from hexkit.providers.mongodb import ConfiguredMongoClient, MongoDbDaoFactory
 from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
-from pymongo import AsyncMongoClient
 
 from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
@@ -53,34 +52,13 @@ from ets.core.model_derivation import ModelDeriver
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.inbound.config_manager import ConfigManagerPort
 from ets.ports.inbound.config_updater import ConfigUpdaterPort
-from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
-from ets.ports.outbound.config_writer import ConfigWriterPort
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 
-def _open_or_share_client(*, config: Config, mongo_client: AsyncMongoClient | None):
-    """Reuse an injected Mongo client or open a fresh one for the local scope."""
-    return (
-        nullcontext(mongo_client)
-        if mongo_client
-        else ConfiguredMongoClient(config=config)
-    )
-
-
 @dataclass
-class ConfigHelpers:
-    """Holds all config helpers used by the manager, sharing the same mongo client and DAO instances."""
-
-    loader: ConfigLoaderPort
-    model_deriver: ModelDeriver
-    versioner: ConfigVersionerPort
-    writer: ConfigWriterPort
-
-
-@dataclass
-class ConfigStack:
+class _ConfigStack:
     """Config-related collaborators wired off a shared Mongo client."""
 
     config_manager: ConfigManagerPort
@@ -90,142 +68,60 @@ class ConfigStack:
 
 
 @asynccontextmanager
-async def prepare_config_helpers(
+async def _prepare_config_stack(
     *,
     config: Config,
-    mongo_client: AsyncMongoClient | None = None,
-) -> AsyncGenerator[ConfigHelpers]:
-    """Constructs config loader and writer instances sharing a single MongoDB connection.
-
-    Factored out for better testability.
-    """
+    aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
+) -> AsyncGenerator[_ConfigStack]:
+    """Wire all config-related collaborators under a single shared Mongo client."""
     async with (
-        _open_or_share_client(config=config, mongo_client=mongo_client) as client,
+        ConfiguredMongoClient(config=config) as client,
         MongoDbDaoFactory.construct(config=config) as dao_factory,
     ):
         model_dao = await get_persisted_model_dao(dao_factory=dao_factory)
         route_dao = await get_route_dao(dao_factory=dao_factory)
         workflow_dao = await get_workflow_dao(dao_factory=dao_factory)
-        config_version = ConfigVersioner(
+        versioner = ConfigVersioner(
             collection=client[config.db_name][CONFIG_VERSION_COLLECTION]
         )
-        config_loader = ConfigLoaderAdapter(
-            model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
-        )
-        config_writer = ConfigWriterAdapter(
-            model_dao=model_dao,
-            route_dao=route_dao,
-            workflow_dao=workflow_dao,
-            config_versioner=config_version,
-        )
-        yield ConfigHelpers(
-            loader=config_loader,
+        config_manager = ConfigManager(
+            loader=ConfigLoaderAdapter(
+                model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
+            ),
+            versioner=versioner,
             model_deriver=ModelDeriver(),
-            versioner=config_version,
-            writer=config_writer,
+            writer=ConfigWriterAdapter(
+                model_dao=model_dao,
+                route_dao=route_dao,
+                workflow_dao=workflow_dao,
+                config_versioner=versioner,
+            ),
         )
-
-
-@asynccontextmanager
-async def prepare_config_manager(
-    *,
-    config: Config,
-    mongo_client: AsyncMongoClient | None = None,
-    helpers: ConfigHelpers | None = None,
-) -> AsyncGenerator[ConfigManagerPort]:
-    """Construct a fully wired ConfigManager.
-
-    Reuses prepare_config_helpers so loader, writer, and version share the same
-    DAO instances. If `helpers` is supplied, it is reused as-is (the caller
-    keeps ownership of its context); otherwise a fresh set is constructed.
-    Construction is I/O-free; the actual load/write happens when
-    resolve_and_persist() is called.
-    """
-    async with (
-        prepare_config_helpers(config=config, mongo_client=mongo_client)
-        if helpers is None
-        else nullcontext(helpers)
-    ) as adapters:
-        yield ConfigManager(
-            loader=adapters.loader,
-            versioner=adapters.versioner,
-            model_deriver=adapters.model_deriver,
-            writer=adapters.writer,
-        )
-
-
-@asynccontextmanager
-async def prepare_config_lock(
-    *, config: Config, mongo_client: AsyncMongoClient | None = None
-) -> AsyncGenerator[ConfigLockPort]:
-    """Construct a ConfigLockAdapter backed by the config_lock collection."""
-    async with _open_or_share_client(
-        config=config, mongo_client=mongo_client
-    ) as client:
-        yield ConfigLockAdapter(
+        config_lock = ConfigLockAdapter(
             collection=client[config.db_name][CONFIG_LOCK_COLLECTION],
             worker_id=config.worker_id,
             lock_expiry_seconds=config.lock_expiry_seconds,
             poll_interval=config.lock_poll_interval,
             timeout=config.lock_timeout,
         )
-
-
-@asynccontextmanager
-async def prepare_incoming_aem_pack_queue(
-    *,
-    config: Config,
-    mongo_client: AsyncMongoClient | None = None,
-) -> AsyncGenerator[IncomingAEMPackQueuePort]:
-    """Construct an IncomingAEMPackQueue backed by the incoming AEMPack collection."""
-    async with _open_or_share_client(
-        config=config, mongo_client=mongo_client
-    ) as client:
-        yield IncomingAEMPackQueue(
+        incoming_aem_pack_queue = aem_pack_queue_override or IncomingAEMPackQueue(
             collection=client[config.db_name][INCOMING_AEM_PACK_COLLECTION],
             worker_id=config.worker_id,
         )
-
-
-@asynccontextmanager
-async def prepare_config_stack(
-    *,
-    config: Config,
-    mongo_client: AsyncMongoClient | None = None,
-    aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
-) -> AsyncGenerator[ConfigStack]:
-    """Wire config manager, lock, versioner, and incoming queue under a shared Mongo client."""
-    async with (
-        _open_or_share_client(config=config, mongo_client=mongo_client) as client,
-        prepare_config_helpers(config=config, mongo_client=client) as helpers,
-        prepare_config_manager(config=config, helpers=helpers) as config_manager,
-        prepare_config_lock(config=config, mongo_client=client) as config_lock,
-        (
-            nullcontext(aem_pack_queue_override)
-            if aem_pack_queue_override
-            else prepare_incoming_aem_pack_queue(config=config, mongo_client=client)
-        ) as incoming_aem_pack_queue,
-    ):
-        yield ConfigStack(
+        yield _ConfigStack(
             config_manager=config_manager,
             config_lock=config_lock,
-            versioner=helpers.versioner,
+            versioner=versioner,
             incoming_aem_pack_queue=incoming_aem_pack_queue,
         )
 
 
 @asynccontextmanager
 async def prepare_config_updater(
-    *,
-    config: Config,
-    mongo_client: AsyncMongoClient | None = None,
+    *, config: Config
 ) -> AsyncGenerator[ConfigUpdaterPort]:
-    """Construct the startup-time ConfigUpdater with all its collaborators.
-
-    A single MongoDB client is shared between the config helpers, config
-    manager, config lock, and incoming AEMPack queue unless one is injected.
-    """
-    async with prepare_config_stack(config=config, mongo_client=mongo_client) as stack:
+    """Construct the startup-time ConfigUpdater with all its collaborators."""
+    async with _prepare_config_stack(config=config) as stack:
         yield ConfigUpdater(
             input_config_path=config.input_config_path,
             config_lock=stack.config_lock,
@@ -241,13 +137,9 @@ async def prepare_aem_pack_registry(
     config: Config,
     aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
 ) -> AsyncGenerator[AEMPackRegistryPort]:
-    """Constructs and initializes core components and their outbound dependencies.
-
-    By default, a single MongoDB client is created and shared between the
-    config adapters, config lock, and incoming AEMPack queue.
-    """
+    """Constructs and initializes core components and their outbound dependencies."""
     async with (
-        prepare_config_stack(
+        _prepare_config_stack(
             config=config, aem_pack_queue_override=aem_pack_queue_override
         ) as stack,
         MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
@@ -265,23 +157,6 @@ async def prepare_aem_pack_registry(
         )
 
 
-def prepare_aem_pack_registry_with_override(
-    *,
-    config: Config,
-    core_override: AEMPackRegistryPort | None = None,
-    aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
-):
-    """Resolve the prepare_core context manager based on config and override (if any)."""
-    return (
-        nullcontext(core_override)
-        if core_override
-        else prepare_aem_pack_registry(
-            config=config,
-            aem_pack_queue_override=aem_pack_queue_override,
-        )
-    )
-
-
 @asynccontextmanager
 async def prepare_event_subscriber(
     *,
@@ -290,17 +165,19 @@ async def prepare_event_subscriber(
     aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
 ) -> AsyncGenerator[KafkaEventSubscriber]:
     """Construct and initialize an event subscriber with all its dependencies.
+
     By default, the core dependencies are automatically prepared but you can also
-    provide them using the core_override parameter. A single MongoDB client is
-    created and shared between the three entities the subscriber depends on
-    (config lock, config manager, incoming AEMPack queue) unless one is injected.
+    provide them using the core_override parameter.
     """
+    registry_ctx = (
+        nullcontext(core_override)
+        if core_override
+        else prepare_aem_pack_registry(
+            config=config, aem_pack_queue_override=aem_pack_queue_override
+        )
+    )
     async with (
-        prepare_aem_pack_registry_with_override(
-            config=config,
-            core_override=core_override,
-            aem_pack_queue_override=aem_pack_queue_override,
-        ) as aem_pack_registry,
+        registry_ctx as aem_pack_registry,
         KafkaEventPublisher.construct(config=config) as dlq_publisher,
     ):
         event_sub_translator = EventSubTranslator(

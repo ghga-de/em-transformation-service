@@ -27,7 +27,10 @@ from hexkit.providers.mongodb.testutils import MongoDbFixture
 from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
 from pymongo.asynchronous.collection import AsyncCollection
 
+from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
 from ets.adapters.outbound.config_lock import ConfigLockAdapter
+from ets.adapters.outbound.config_version import ConfigVersioner
+from ets.adapters.outbound.config_writer import ConfigWriterAdapter
 from ets.adapters.outbound.dao import (
     get_aem_pack_dao,
     get_persisted_model_dao,
@@ -37,12 +40,12 @@ from ets.adapters.outbound.dao import (
 from ets.config import Config
 from ets.constants import (
     CONFIG_LOCK_COLLECTION,
+    CONFIG_VERSION_COLLECTION,
     INCOMING_AEM_PACK_COLLECTION,
 )
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.inject import (
     prepare_aem_pack_registry,
-    prepare_config_helpers,
     prepare_event_subscriber,
 )
 from ets.ports.outbound.config_loader import ConfigLoaderPort
@@ -113,6 +116,18 @@ async def joint_fixture(
             timeout=config.lock_timeout,
         )
         await config_lock.setup_index()
+        versioner = ConfigVersioner(
+            collection=async_mongo_client[config.db_name][CONFIG_VERSION_COLLECTION]
+        )
+        loader = ConfigLoaderAdapter(
+            model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
+        )
+        writer = ConfigWriterAdapter(
+            model_dao=model_dao,
+            route_dao=route_dao,
+            workflow_dao=workflow_dao,
+            config_versioner=versioner,
+        )
         daos = DAOs(
             aem_pack_dao=aem_pack_dao,
             model_dao=model_dao,
@@ -125,7 +140,6 @@ async def joint_fixture(
             prepare_event_subscriber(
                 config=config, core_override=aem_pack_registry
             ) as event_subscriber,
-            prepare_config_helpers(config=config) as config_adapters,
         ):
             yield JointFixture(
                 aem_pack_registry=cast(AEMPackRegistry, aem_pack_registry),
@@ -135,8 +149,8 @@ async def joint_fixture(
                 event_subscriber=event_subscriber,
                 incoming_aem_pack_collection=incoming_aem_pack_collection,
                 kafka=kafka,
-                loader=config_adapters.loader,
-                versioner=config_adapters.versioner,
-                writer=config_adapters.writer,
+                loader=loader,
+                versioner=versioner,
+                writer=writer,
                 mongodb=mongodb,
             )

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Startup-time orchestrator for the locked config update."""
+"""Startup-time orchestrator for the config update."""
 
 import logging
 from pathlib import Path
@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 
 
 class ConfigUpdater(ConfigUpdaterPort):
-    """Coordinates the locked startup config update across service instances."""
+    """Coordinates the startup config update across service instances."""
 
     def __init__(
         self,
