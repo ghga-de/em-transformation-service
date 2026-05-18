@@ -20,17 +20,11 @@ from pathlib import Path
 import pytest
 
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
-from ets.core.config_validator import ConfigValidationError, ConfigValidator
+from ets.core.config_validation import ConfigValidationError, validate
 from tests.fixtures.examples import (
     INVALID_ON_VALIDATION_CONFIGS,
     VALID_CONFIGS,
 )
-
-
-@pytest.fixture
-def validator():
-    """Fixture to provide a ConfigValidator instance for testing."""
-    return ConfigValidator()
 
 
 @pytest.mark.parametrize(
@@ -38,13 +32,11 @@ def validator():
     INVALID_ON_VALIDATION_CONFIGS.values(),
     ids=INVALID_ON_VALIDATION_CONFIGS.keys(),
 )
-def test_invalid_config(
-    path: Path, loader: ConfigLoaderAdapter, validator: ConfigValidator
-):
+def test_invalid_config(path: Path, loader: ConfigLoaderAdapter):
     """Check invalid configs raise ConfigValidationError."""
     changed_config = loader.load_config_from_file(path)
     with pytest.raises(ConfigValidationError):
-        validator.validate(changed_config)
+        validate(changed_config)
 
 
 @pytest.mark.parametrize(
@@ -52,9 +44,7 @@ def test_invalid_config(
     VALID_CONFIGS.values(),
     ids=VALID_CONFIGS.keys(),
 )
-def test_valid_config(
-    path: Path, loader: ConfigLoaderAdapter, validator: ConfigValidator
-):
+def test_valid_config(path: Path, loader: ConfigLoaderAdapter):
     """Check valid config passes validation without errors."""
     changed_config = loader.load_config_from_file(path)
-    validator.validate(changed_config)
+    validate(changed_config)

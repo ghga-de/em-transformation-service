@@ -18,9 +18,9 @@
 import logging
 from pathlib import Path
 
-from ets.core.config_comparator import ConfigComparator
+from ets.core.config_comparison import compare_configs
 from ets.core.config_pruning import prune_unproductive_subgraphs
-from ets.core.config_validator import ConfigValidationError, ConfigValidator
+from ets.core.config_validation import ConfigValidationError, validate
 from ets.core.model_derivation import ModelDeriver
 from ets.core.models import PersistedConfig, RawConfig
 from ets.ports.inbound.config_manager import ConfigManagerError, ConfigManagerPort
@@ -34,22 +34,18 @@ log = logging.getLogger(__name__)
 class ConfigManager(ConfigManagerPort):
     """Manages loading, comparison, validation and selection of an active config."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
-        comparator: ConfigComparator,
         loader: ConfigLoaderPort,
         versioner: ConfigVersionerPort,
         model_deriver: ModelDeriver,
-        validator: ConfigValidator,
         writer: ConfigWriterPort,
     ):
-        self._comparator = comparator
         self._versioner = versioner
         self._loader = loader
         self._model_deriver = model_deriver
         self._writer = writer
-        self._validator = validator
         self._known_version: int = 0
         self._current_config: PersistedConfig | None = None
 
@@ -114,10 +110,10 @@ class ConfigManager(ConfigManagerPort):
         self, *, raw_config: RawConfig, persisted_config: PersistedConfig
     ):
         """Compare, validate/prune and derive schemas as needed."""
-        match self._comparator.compare_configs(raw_config, persisted_config):
+        match compare_configs(raw_config, persisted_config):
             case RawConfig():
                 try:
-                    validated = self._validator.validate(raw_config)
+                    validated = validate(raw_config)
                     pruned = prune_unproductive_subgraphs(validated)
                 except ConfigValidationError as error:
                     if not (

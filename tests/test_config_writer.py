@@ -18,7 +18,7 @@
 import pytest
 from schemapack import is_equal_schemapack
 
-from ets.core.config_validator import ConfigValidator
+from ets.core.config_validation import validate
 from ets.core.model_derivation import ModelDeriver
 from ets.core.models import PersistedConfig
 from tests.fixtures.examples import VALID_CONFIGS
@@ -31,7 +31,7 @@ BASIC_CONFIG_PATH = VALID_CONFIGS["basic_config"]
 def persisted_config(joint_fixture: JointFixture) -> PersistedConfig:
     """Produce a fully resolved PersistedConfig through the real pipeline."""
     raw_config = joint_fixture.loader.load_config_from_file(BASIC_CONFIG_PATH)
-    validated_config = ConfigValidator().validate(raw_config)
+    validated_config = validate(raw_config)
     derived_models = ModelDeriver().derive_models(validated_config)
     return PersistedConfig(
         models=derived_models,

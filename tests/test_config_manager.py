@@ -22,10 +22,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from yaml import safe_load
 
-from ets.core.config_comparator import ConfigComparator
+from ets.core import config_manager as config_manager_module
 from ets.core.config_manager import ConfigManager
 from ets.core.config_pruning import prune_unproductive_subgraphs
-from ets.core.config_validator import ConfigValidationError, ConfigValidator
+from ets.core.config_validation import ConfigValidationError
 from ets.core.model_derivation import ModelDeriver
 from ets.core.models import Model, PersistedConfig, RawConfig, ValidatedConfig
 from ets.ports.inbound.config_manager import ConfigManagerError
@@ -181,8 +181,6 @@ def _make_manager(
     *,
     raw_config: RawConfig,
     persisted_config: PersistedConfig,
-    comparator: ConfigComparator,
-    validator: ConfigValidator,
     model_deriver: ModelDeriver,
 ) -> tuple[ConfigManager, MagicMock, AsyncMock]:
     loader = MagicMock(spec=ConfigLoaderPort)
@@ -194,8 +192,6 @@ def _make_manager(
 
     manager = ConfigManager(
         loader=loader,
-        validator=validator,
-        comparator=comparator,
         model_deriver=model_deriver,
         writer=writer,
         versioner=MagicMock(spec=ConfigVersionerPort),
@@ -209,7 +205,11 @@ def _make_manager(
     [(True, False), (True, True), (False, False)],
     ids=["new_valid_config", "validation_fallback", "unchanged_config"],
 )
-async def test_resolve_and_persist(compare_returns_raw: bool, validation_raises: bool):
+async def test_resolve_and_persist(
+    compare_returns_raw: bool,
+    validation_raises: bool,
+    monkeypatch: pytest.MonkeyPatch,
+):
     """Confirm resolve_and_persist handles the happy paths and validation fallback."""
     with VALID_CONFIGS["basic_config"].open() as fh:
         raw_config = RawConfig.model_validate(safe_load(fh))
@@ -221,16 +221,16 @@ async def test_resolve_and_persist(compare_returns_raw: bool, validation_raises:
     persisted.routes = [MagicMock()]
     persisted.workflows = [MagicMock()]
 
-    comparator = MagicMock(spec=ConfigComparator)
-    comparator.compare_configs.return_value = (
-        raw_config if compare_returns_raw else persisted
+    compare_configs = MagicMock(
+        return_value=raw_config if compare_returns_raw else persisted
     )
+    monkeypatch.setattr(config_manager_module, "compare_configs", compare_configs)
 
-    validator = MagicMock(spec=ConfigValidator)
-    if validation_raises:
-        validator.validate.side_effect = ConfigValidationError("invalid")
-    else:
-        validator.validate.return_value = validated_config
+    validate = MagicMock(
+        side_effect=ConfigValidationError("invalid") if validation_raises else None,
+        return_value=validated_config,
+    )
+    monkeypatch.setattr(config_manager_module, "validate", validate)
 
     derived_models = [MagicMock(spec=Model)]
     model_deriver = MagicMock(spec=ModelDeriver)
@@ -239,8 +239,6 @@ async def test_resolve_and_persist(compare_returns_raw: bool, validation_raises:
     manager, loader, writer = _make_manager(
         raw_config=raw_config,
         persisted_config=persisted,
-        comparator=comparator,
-        validator=validator,
         model_deriver=model_deriver,
     )
 
@@ -248,10 +246,10 @@ async def test_resolve_and_persist(compare_returns_raw: bool, validation_raises:
 
     loader.load_config_from_file.assert_called_once()
     loader.load_config_from_db.assert_awaited_once()
-    comparator.compare_configs.assert_called_once_with(raw_config, persisted)
+    compare_configs.assert_called_once_with(raw_config, persisted)
 
     if compare_returns_raw and not validation_raises:
-        validator.validate.assert_called_once_with(raw_config)
+        validate.assert_called_once_with(raw_config)
         model_deriver.derive_models.assert_called_once()
         writer.write_config.assert_awaited_once()
         written = writer.write_config.await_args.args[0]
@@ -287,7 +285,7 @@ async def test_resolve_and_persist(compare_returns_raw: bool, validation_raises:
     ],
 )
 async def test_resolve_and_persist_stops_when_no_persisted_config(
-    models, routes, workflows
+    models, routes, workflows, monkeypatch: pytest.MonkeyPatch
 ):
     """When validation fails and no valid config is persisted, raise ConfigManagerError."""
     with VALID_CONFIGS["basic_config"].open() as fh:
@@ -298,19 +296,20 @@ async def test_resolve_and_persist_stops_when_no_persisted_config(
     incomplete_persisted.routes = routes
     incomplete_persisted.workflows = workflows
 
-    comparator = MagicMock(spec=ConfigComparator)
-    comparator.compare_configs.return_value = raw_config
-
-    validator = MagicMock(spec=ConfigValidator)
-    validator.validate.side_effect = ConfigValidationError("invalid")
+    monkeypatch.setattr(
+        config_manager_module, "compare_configs", MagicMock(return_value=raw_config)
+    )
+    monkeypatch.setattr(
+        config_manager_module,
+        "validate",
+        MagicMock(side_effect=ConfigValidationError("invalid")),
+    )
 
     model_deriver = MagicMock(spec=ModelDeriver)
 
     manager, _, writer = _make_manager(
         raw_config=raw_config,
         persisted_config=incomplete_persisted,
-        comparator=comparator,
-        validator=validator,
         model_deriver=model_deriver,
     )
 

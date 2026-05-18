@@ -18,7 +18,7 @@
 import logging
 from collections import defaultdict
 
-from ets.core.config_validator import ConfigValidationError
+from ets.core.config_validation import ConfigValidationError
 from ets.core.models import ValidatedConfig
 
 log = logging.getLogger(__name__)

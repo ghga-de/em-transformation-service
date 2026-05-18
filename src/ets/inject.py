@@ -47,10 +47,8 @@ from ets.constants import (
     INCOMING_AEM_PACK_COLLECTION,
 )
 from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.config_comparator import ConfigComparator
 from ets.core.config_manager import ConfigManager
 from ets.core.config_updater import ConfigUpdater
-from ets.core.config_validator import ConfigValidator
 from ets.core.model_derivation import ModelDeriver
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.inbound.config_manager import ConfigManagerPort
@@ -75,10 +73,8 @@ def _open_or_share_client(*, config: Config, mongo_client: AsyncMongoClient | No
 class ConfigHelpers:
     """Holds all config helpers used by the manager, sharing the same mongo client and DAO instances."""
 
-    comparator: ConfigComparator
     loader: ConfigLoaderPort
     model_deriver: ModelDeriver
-    validator: ConfigValidator
     versioner: ConfigVersionerPort
     writer: ConfigWriterPort
 
@@ -123,10 +119,8 @@ async def prepare_config_helpers(
             config_versioner=config_version,
         )
         yield ConfigHelpers(
-            comparator=ConfigComparator(),
             loader=config_loader,
             model_deriver=ModelDeriver(),
-            validator=ConfigValidator(),
             versioner=config_version,
             writer=config_writer,
         )
@@ -153,11 +147,9 @@ async def prepare_config_manager(
         else nullcontext(helpers)
     ) as adapters:
         yield ConfigManager(
-            comparator=adapters.comparator,
             loader=adapters.loader,
             versioner=adapters.versioner,
             model_deriver=adapters.model_deriver,
-            validator=adapters.validator,
             writer=adapters.writer,
         )
 

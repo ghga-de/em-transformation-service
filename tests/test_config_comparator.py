@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
-from ets.core.config_comparator import ConfigComparator
+from ets.core.config_comparison import compare_configs
 from ets.core.models import Model, PersistedConfig, RawConfig
 from tests.fixtures.examples import MOCK_SCHEMA, VALID_CONFIGS
 from tests.fixtures.joint import JointFixture
@@ -54,8 +54,7 @@ async def test_load_and_compare(
     persisted_config = await loader.load_config_from_db()
     first_raw_config = loader.load_config_from_file(old_config_path)
 
-    config_comparator = ConfigComparator()
-    result = config_comparator.compare_configs(first_raw_config, persisted_config)
+    result = compare_configs(first_raw_config, persisted_config)
 
     # Populate DB from config, mocking some fields to conform to DTO
     for order, raw_model in enumerate(result.models):
@@ -78,8 +77,7 @@ async def test_load_and_compare(
 
     persisted_config = await loader.load_config_from_db()
     second_raw_config = loader.load_config_from_file(new_config_path)
-    config_comparator = ConfigComparator()
-    result = config_comparator.compare_configs(second_raw_config, persisted_config)
+    result = compare_configs(second_raw_config, persisted_config)
     assert (
         isinstance(result, RawConfig)
         if changed
@@ -111,6 +109,6 @@ def test_compare_is_order_insensitive(loader: ConfigLoaderAdapter):
         workflows=raw_config.workflows,
     )
 
-    result = ConfigComparator().compare_configs(raw_config, reordered_persisted_config)
+    result = compare_configs(raw_config, reordered_persisted_config)
 
     assert isinstance(result, PersistedConfig)
