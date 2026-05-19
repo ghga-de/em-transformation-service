@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from typing import cast
 
 import pytest_asyncio
-from hexkit.providers.akafka import KafkaEventSubscriber
 from hexkit.providers.akafka.testutils import KafkaFixture
 from hexkit.providers.mongodb import ConfiguredMongoClient
 from hexkit.providers.mongodb.testutils import MongoDbFixture
@@ -44,10 +43,7 @@ from ets.constants import (
     INCOMING_AEM_PACK_COLLECTION,
 )
 from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.inject import (
-    prepare_aem_pack_registry,
-    prepare_event_subscriber,
-)
+from ets.inject import prepare_aem_pack_registry
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
@@ -74,7 +70,6 @@ class JointFixture:
     config: Config
     config_lock: ConfigLockPort
     daos: DAOs
-    event_subscriber: KafkaEventSubscriber
     incoming_aem_pack_collection: AsyncCollection
     kafka: KafkaFixture
     loader: ConfigLoaderPort
@@ -135,18 +130,12 @@ async def joint_fixture(
             workflow_dao=workflow_dao,
         )
 
-        async with (
-            prepare_aem_pack_registry(config=config) as aem_pack_registry,
-            prepare_event_subscriber(
-                config=config, core_override=aem_pack_registry
-            ) as event_subscriber,
-        ):
+        async with prepare_aem_pack_registry(config=config) as aem_pack_registry:
             yield JointFixture(
                 aem_pack_registry=cast(AEMPackRegistry, aem_pack_registry),
                 config=config,
                 config_lock=config_lock,
                 daos=daos,
-                event_subscriber=event_subscriber,
                 incoming_aem_pack_collection=incoming_aem_pack_collection,
                 kafka=kafka,
                 loader=loader,
