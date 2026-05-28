@@ -16,14 +16,12 @@
 """Tests for behavior when the config changes between processing runs."""
 
 import logging
-from typing import cast
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
 
 from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.config_manager import ConfigManager
 from ets.core.models import PersistedConfig
 from tests.fixtures.aem_pack_registry import (
     make_ingress_pack,
@@ -89,7 +87,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
     )
     # Inject the modified config directly — update_config won't overwrite it
     # because the DB version hasn't changed.
-    cast(ConfigManager, registry._config_manager)._current_config = new_config
+    registry._config_manager._current_config = new_config
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="ets.core.aem_pack_registry"):
         await registry._process_next_aem_pack(
@@ -168,7 +166,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         registry=registry,
         pack=ingress,
     )
-    cast(ConfigManager, registry._config_manager)._current_config = new_config
+    registry._config_manager._current_config = new_config
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         await registry._process_next_aem_pack(
@@ -214,7 +212,7 @@ async def test_pack_freed_when_config_changes_mid_processing(
 
     # Simulate a config change occurring mid-processing by bumping the version
     # the versioner reports on its second call.
-    config_manager = cast(ConfigManager, registry._config_manager)
+    config_manager = registry._config_manager
     await config_manager.update_config()
     version = config_manager.known_version
     with (
