@@ -21,9 +21,8 @@ from pathlib import Path
 from ets.core.config_comparison import compare_configs
 from ets.core.config_pruning import prune_unproductive_subgraphs
 from ets.core.config_validation import ConfigValidationError, validate
-from ets.core.model_derivation import ModelDeriver
+from ets.core.model_derivation import ModelDerivationError, ModelDeriver
 from ets.core.models import PersistedConfig, RawConfig
-from ets.ports.inbound.config_manager import ConfigManagerError, ConfigManagerPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
@@ -31,7 +30,11 @@ from ets.ports.outbound.config_writer import ConfigWriterPort
 log = logging.getLogger(__name__)
 
 
-class ConfigManager(ConfigManagerPort):
+class ConfigManagerError(RuntimeError):
+    """Raised when an unexpected error happens while handling a transformation configuration."""
+
+
+class ConfigManager:
     """Manages loading, comparison, validation and selection of an active config."""
 
     def __init__(
@@ -64,7 +67,7 @@ class ConfigManager(ConfigManagerPort):
         return self._known_version
 
     async def update_config(self):
-        """Return the active config and its version, reloading from DB if the version changed."""
+        """Check if the active config is stale and reload from DB if the version changed."""
         current_version = await self._versioner.get_version()
         if self._current_config is None:
             log.info("Loading initial config (version %d).", current_version)
@@ -86,7 +89,7 @@ class ConfigManager(ConfigManagerPort):
             log.critical(inconsistent_version)
             raise inconsistent_version
 
-    async def resolve_and_persist(self, input_config_path: Path) -> None:
+    async def resolve_and_persist(self, input_config_path: Path) -> bool:
         """Load, resolve, and persist the transformation config.
 
         - Loads the raw config from disk and the persisted one from the database.
@@ -100,19 +103,28 @@ class ConfigManager(ConfigManagerPort):
         Raises:
             ConfigManagerError: If the new config fails validation and no previous
                 valid config exists in the database.
+        Returns:
+            True, if the persisted config is outdated and has been replaced with a new one
+            False in all other cases
         """
         raw_config = self._loader.load_config_from_file(input_config_path)
         persisted_config = await self._loader.load_config_from_db()
 
-        await self._resolve(raw_config=raw_config, persisted_config=persisted_config)
+        return await self._resolve_has_config_changed(
+            raw_config=raw_config, persisted_config=persisted_config
+        )
 
-    async def _resolve(
+    async def _resolve_has_config_changed(
         self, *, raw_config: RawConfig, persisted_config: PersistedConfig
-    ):
-        """Compare, validate/prune and derive schemas as needed."""
+    ) -> bool:
+        """Compare, validate/prune, derive schemas and persist the config as needed.
+        Returns:
+            True, if the persisted config is outdated and has been replaced with a new one
+            False in all other cases
+        """
         result = compare_configs(raw_config, persisted_config)
         if not isinstance(result, RawConfig):
-            return
+            return False
 
         try:
             validated = validate(raw_config)
@@ -134,11 +146,21 @@ class ConfigManager(ConfigManagerPort):
             log.warning(
                 "New config failed to validate, using existing, persisted config instead."
             )
-            return persisted_config
-        derived_models = self._model_deriver.derive_models(pruned)
+            return False
+
+        try:
+            derived_models = self._model_deriver.derive_models(pruned)
+        except ModelDerivationError:
+            log.warning(
+                "Could not derive model schemas for new configuration."
+                + "\nFalling back to existing, persisted config instead."
+            )
+            return False
+
         resolved = PersistedConfig(
             models=derived_models,
             routes=pruned.routes,
             workflows=pruned.workflows,
         )
         await self._writer.write_config(resolved)
+        return True

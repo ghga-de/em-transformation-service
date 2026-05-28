@@ -87,7 +87,7 @@ def _validate_routes(raw_config: RawConfig) -> None:
         if output_model.is_ingress:
             raise ConfigValidationError(
                 f"Route '{route.name}' output model '{output_model.name}' "
-                f"must not be an ingress model (is_ingress must be False)."
+                "must not be an ingress model (is_ingress must be False)."
             )
 
 
@@ -140,7 +140,7 @@ def _validate_models(raw_config: RawConfig) -> None:
         if model.is_ingress and model.schema_ is None:
             raise ConfigValidationError(
                 f"Model '{model.name}' is marked as ingress but does not have a schema defined. "
-                f"Ingress models must have a schema defined."
+                "Ingress models must have a schema defined."
             )
         if not model.is_ingress and model.schema_:
             raise ConfigValidationError(
@@ -156,7 +156,7 @@ def _validate_graph_and_add_order(raw_config: RawConfig) -> ValidatedConfig:
 
         This method performs the following steps:
         1. Validates that the directed graph formed by the models and routes is acyclic
-        and had unique path properties.
+        and has unique path properties.
         2. Computes a topological ordering of the models.
         3. Returns a new `ValidatedConfig` object where each model is wrapped as an
     `OrderedRawModel` with the corresponding `order` assigned.

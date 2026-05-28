@@ -51,8 +51,6 @@ from ets.core.config_manager import ConfigManager
 from ets.core.config_updater import ConfigUpdater
 from ets.core.model_derivation import ModelDeriver
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
-from ets.ports.inbound.config_manager import ConfigManagerPort
-from ets.ports.inbound.config_updater import ConfigUpdaterPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
@@ -65,7 +63,7 @@ from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 class _BaseWiring:
     """Contains everything reused across all higher-level preparation steps."""
 
-    config_manager: ConfigManagerPort
+    config_manager: ConfigManager
     config_lock: ConfigLockPort
     versioner: ConfigVersionerPort
     incoming_aem_pack_queue: IncomingAEMPackQueuePort
@@ -141,9 +139,7 @@ async def _prepare_base_wiring(
 
 
 @asynccontextmanager
-async def prepare_config_updater(
-    *, config: Config
-) -> AsyncGenerator[ConfigUpdaterPort]:
+async def prepare_config_updater(*, config: Config) -> AsyncGenerator[ConfigUpdater]:
     """Construct and initialize a ConfigUpdater with all its dependencies."""
     async with (
         ConfiguredMongoClient(config=config) as client,
@@ -153,7 +149,6 @@ async def prepare_config_updater(
             input_config_path=config.input_config_path,
             config_lock=base.config_lock,
             config_manager=base.config_manager,
-            versioner=base.versioner,
             incoming_aem_pack_queue=base.incoming_aem_pack_queue,
         )
 

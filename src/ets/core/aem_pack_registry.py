@@ -30,11 +30,11 @@ from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
 from ets.config import Config
+from ets.core.config_manager import ConfigManager
 from ets.core.models import AEMPack, PersistedConfig, Workflow
 from ets.ports.inbound.aem_pack_registry import (
     AEMPackRegistryPort,
 )
-from ets.ports.inbound.config_manager import ConfigManagerPort
 from ets.ports.outbound.config_lock import ConfigLockPort
 from ets.ports.outbound.dao import AEMPackDao
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
@@ -56,7 +56,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         *,
         config: Config,
         aem_pack_dao: AEMPackDao,
-        config_manager: ConfigManagerPort,
+        config_manager: ConfigManager,
         config_lock: ConfigLockPort,
         incoming_aem_pack_queue: IncomingAEMPackQueuePort,
     ):

@@ -23,12 +23,11 @@ import pytest
 from yaml import safe_load
 
 from ets.core import config_manager as config_manager_module
-from ets.core.config_manager import ConfigManager
+from ets.core.config_manager import ConfigManager, ConfigManagerError
 from ets.core.config_pruning import prune_unproductive_subgraphs
 from ets.core.config_validation import ConfigValidationError
 from ets.core.model_derivation import ModelDeriver
 from ets.core.models import Model, PersistedConfig, RawConfig, ValidatedConfig
-from ets.ports.inbound.config_manager import ConfigManagerError
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.config_writer import ConfigWriterPort

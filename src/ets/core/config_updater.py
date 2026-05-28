@@ -18,16 +18,14 @@
 import logging
 from pathlib import Path
 
-from ets.ports.inbound.config_manager import ConfigManagerPort
-from ets.ports.inbound.config_updater import ConfigUpdaterPort
+from ets.core.config_manager import ConfigManager
 from ets.ports.outbound.config_lock import ConfigLockPort
-from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 log = logging.getLogger(__name__)
 
 
-class ConfigUpdater(ConfigUpdaterPort):
+class ConfigUpdater:
     """Coordinates the startup config update across service instances."""
 
     def __init__(
@@ -35,14 +33,12 @@ class ConfigUpdater(ConfigUpdaterPort):
         *,
         input_config_path: Path,
         config_lock: ConfigLockPort,
-        config_manager: ConfigManagerPort,
-        versioner: ConfigVersionerPort,
+        config_manager: ConfigManager,
         incoming_aem_pack_queue: IncomingAEMPackQueuePort,
     ):
         self._input_config_path = input_config_path
         self._config_lock = config_lock
         self._config_manager = config_manager
-        self._versioner = versioner
         self._incoming_aem_pack_queue = incoming_aem_pack_queue
 
     async def run(self) -> None:
@@ -57,15 +53,15 @@ class ConfigUpdater(ConfigUpdaterPort):
         await self._config_lock.setup_index()
         if not await self._config_lock.try_acquire_lock():
             await self._config_lock.wait_for_lock_release()
-            log.info("Update lock released, loading persisted config placeholder.")
+            log.info("Update lock released, loading persisted config.")
             return
 
         try:
             log.info("Lock acquired, starting config update.")
-            previous_version = await self._versioner.get_version()
-            await self._config_manager.resolve_and_persist(self._input_config_path)
-            current_version = await self._versioner.get_version()
-            if current_version != previous_version:
+            config_has_changed = await self._config_manager.resolve_and_persist(
+                self._input_config_path
+            )
+            if config_has_changed:
                 await self._incoming_aem_pack_queue.mark_all_for_reprocessing()
             log.info("Config validation/update finished.")
         finally:
