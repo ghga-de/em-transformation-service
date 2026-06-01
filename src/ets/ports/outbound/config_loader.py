@@ -34,4 +34,4 @@ class ConfigLoaderPort(ABC):
 
     @abstractmethod
     async def load_config_from_db(self) -> PersistedConfig:
-        """Fetch transformation config fields from persistence layer and sort them by name."""
+        """Fetch transformation config fields from the persistence layer."""

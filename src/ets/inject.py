@@ -16,7 +16,7 @@
 """Dependency injection and preparation"""
 
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager, nullcontext
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from hexkit.providers.akafka import (
@@ -26,6 +26,7 @@ from hexkit.providers.akafka import (
 )
 from hexkit.providers.mongodb import ConfiguredMongoClient, MongoDbDaoFactory
 from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
+from pymongo import AsyncMongoClient
 
 from ets.adapters.inbound.event_sub import EventSubTranslator
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
@@ -46,168 +47,163 @@ from ets.constants import (
     INCOMING_AEM_PACK_COLLECTION,
 )
 from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.config_comparator import ConfigComparator
 from ets.core.config_manager import ConfigManager
-from ets.core.config_validator import ConfigValidator
+from ets.core.config_updater import ConfigUpdater
+from ets.core.model_derivation import ModelDeriver
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
+from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 
 @dataclass
-class ConfigAdapters:
-    """Holds the config loader, writer, and version adapters sharing the same DAO instances."""
+class _BaseWiring:
+    """Contains everything reused across all higher-level preparation steps."""
 
+    config_updater: ConfigUpdater
+    config_lock: ConfigLockPort
+    versioner: ConfigVersionerPort
+    incoming_aem_pack_queue: IncomingAEMPackQueuePort
+    model_dao: ModelDao
+    route_dao: RouteDao
+    workflow_dao: WorkflowDao
     loader: ConfigLoaderPort
     writer: ConfigWriterPort
-    version: ConfigVersionerPort
 
 
-@asynccontextmanager
-async def prepare_config_adapters(*, config: Config) -> AsyncGenerator[ConfigAdapters]:
-    """Constructs config loader and writer instances sharing a single MongoDB connection.
+@dataclass
+class Wiring(_BaseWiring):
+    """Extends ``_BaseWiring`` with Kafka specifics and the shared Mongo client handle.
 
-    Factored out for better testability.
+    Production code only needs the registry. Tests use ``prepare_wiring`` to seed and
+    inspect the underlying DAOs and adapters without opening duplicate Mongo or Kafka
+    clients.
     """
+
+    aem_pack_registry: AEMPackRegistry
+    aem_pack_dao: AEMPackDao
+    mongo_client: AsyncMongoClient
+    event_publisher: KafkaEventPublisher
+
+
+@asynccontextmanager
+async def _prepare_base_wiring(
+    *, config: Config, client: AsyncMongoClient
+) -> AsyncGenerator[_BaseWiring]:
+    """Wire all Mongo-backed entities off a caller-supplied Mongo client."""
+    db = client[config.db_name]
+    dao_factory = MongoDbDaoFactory(config=config, client=client)
+    model_dao = await get_persisted_model_dao(dao_factory=dao_factory)
+    route_dao = await get_route_dao(dao_factory=dao_factory)
+    workflow_dao = await get_workflow_dao(dao_factory=dao_factory)
+    versioner = ConfigVersioner(collection=db[CONFIG_VERSION_COLLECTION])
+    loader = ConfigLoaderAdapter(
+        model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
+    )
+    writer = ConfigWriterAdapter(
+        model_dao=model_dao,
+        route_dao=route_dao,
+        workflow_dao=workflow_dao,
+        config_versioner=versioner,
+    )
+    config_updater = ConfigUpdater(
+        loader=loader,
+        versioner=versioner,
+        model_deriver=ModelDeriver(),
+        writer=writer,
+    )
+    config_lock = ConfigLockAdapter(
+        collection=db[CONFIG_LOCK_COLLECTION],
+        worker_id=config.worker_id,
+        lock_expiry_seconds=config.lock_expiry_seconds,
+        poll_interval=config.lock_poll_interval,
+        timeout=config.lock_timeout,
+    )
+    incoming_aem_pack_queue = IncomingAEMPackQueue(
+        collection=db[INCOMING_AEM_PACK_COLLECTION], worker_id=config.worker_id
+    )
+    yield _BaseWiring(
+        config_updater=config_updater,
+        config_lock=config_lock,
+        versioner=versioner,
+        incoming_aem_pack_queue=incoming_aem_pack_queue,
+        model_dao=model_dao,
+        route_dao=route_dao,
+        workflow_dao=workflow_dao,
+        loader=loader,
+        writer=writer,
+    )
+
+
+@asynccontextmanager
+async def prepare_config_manager(*, config: Config) -> AsyncGenerator[ConfigManager]:
+    """Construct and initialize a ConfigManager with all its dependencies."""
     async with (
-        MongoDbDaoFactory.construct(config=config) as dao_factory,
-        ConfiguredMongoClient(config=config) as mongo_client,
+        ConfiguredMongoClient(config=config) as client,
+        _prepare_base_wiring(config=config, client=client) as base,
     ):
-        model_dao = await get_persisted_model_dao(dao_factory=dao_factory)
-        route_dao = await get_route_dao(dao_factory=dao_factory)
-        workflow_dao = await get_workflow_dao(dao_factory=dao_factory)
-        config_version = ConfigVersioner(
-            collection=mongo_client[config.db_name][CONFIG_VERSION_COLLECTION]
-        )
-        config_loader = ConfigLoaderAdapter(
-            model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
-        )
-        config_writer = ConfigWriterAdapter(
-            model_dao=model_dao,
-            route_dao=route_dao,
-            workflow_dao=workflow_dao,
-            config_versioner=config_version,
-        )
-        yield ConfigAdapters(
-            loader=config_loader, writer=config_writer, version=config_version
+        yield ConfigManager(
+            input_config_path=config.input_config_path,
+            config_lock=base.config_lock,
+            config_updater=base.config_updater,
+            incoming_aem_pack_queue=base.incoming_aem_pack_queue,
         )
 
 
 @asynccontextmanager
-async def prepare_config_lock(*, config: Config) -> AsyncGenerator[ConfigLockPort]:
-    """Construct a ConfigLockAdapter backed by the config_lock collection."""
-    async with ConfiguredMongoClient(config=config) as mongo_client:
-        collection = mongo_client[config.db_name][CONFIG_LOCK_COLLECTION]
-        yield ConfigLockAdapter(
-            collection=collection,
-            worker_id=config.worker_id,
-            lock_expiry_seconds=config.lock_expiry_seconds,
-            poll_interval=config.lock_poll_interval,
-            timeout=config.lock_timeout,
+async def prepare_wiring(*, config: Config) -> AsyncGenerator[Wiring]:
+    """Open one Mongo client and one Kafka publisher; wire everything off them."""
+    async with (
+        ConfiguredMongoClient(config=config) as client,
+        KafkaEventPublisher.construct(config=config) as event_publisher,
+        _prepare_base_wiring(config=config, client=client) as base,
+    ):
+        dao_pub_factory = MongoKafkaDaoPublisherFactory(
+            config=config, event_publisher=event_publisher, db_client=client
         )
-
-
-@asynccontextmanager
-async def prepare_incoming_aem_pack_queue(
-    *, config: Config
-) -> AsyncGenerator[IncomingAEMPackQueuePort]:
-    """Construct an IncomingAEMPackQueue backed by the incoming AEMPack collection."""
-    async with ConfiguredMongoClient(config=config) as mongo_client:
-        yield IncomingAEMPackQueue(
-            collection=mongo_client[config.db_name][INCOMING_AEM_PACK_COLLECTION],
-            worker_id=config.worker_id,
+        aem_pack_dao = await get_aem_pack_dao(
+            dao_publisher_factory=dao_pub_factory,
+            topic=config.derived_aem_pack_topic,
+        )
+        aem_pack_registry = AEMPackRegistry(
+            config=config,
+            aem_pack_dao=aem_pack_dao,
+            config_updater=base.config_updater,
+            config_lock=base.config_lock,
+            incoming_aem_pack_queue=base.incoming_aem_pack_queue,
+        )
+        yield Wiring(
+            **vars(base),
+            aem_pack_registry=aem_pack_registry,
+            aem_pack_dao=aem_pack_dao,
+            mongo_client=client,
+            event_publisher=event_publisher,
         )
 
 
 @asynccontextmanager
 async def prepare_aem_pack_registry(
-    *,
-    config: Config,
-    config_lock_override: ConfigLockPort | None = None,
-    aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
+    *, config: Config
 ) -> AsyncGenerator[AEMPackRegistryPort]:
-    """Constructs and initializes core components and their outbound dependencies."""
-    async with (
-        prepare_config_adapters(config=config) as config_adapters,
-        nullcontext(config_lock_override)
-        if config_lock_override
-        else prepare_config_lock(config=config) as config_lock,
-        MongoKafkaDaoPublisherFactory.construct(config=config) as dao_pub_factory,
-        nullcontext(aem_pack_queue_override)
-        if aem_pack_queue_override
-        else prepare_incoming_aem_pack_queue(config=config) as incoming_aem_pack_queue,
-    ):
-        aem_pack_dao = await get_aem_pack_dao(
-            dao_publisher_factory=dao_pub_factory,
-            topic=config.derived_aem_pack_topic,
-        )
-        raw_config = config_adapters.loader.load_config_from_file(
-            config.input_config_path
-        )
-        # persisted_config is also loaded by ConfigManager.update_config() on first call;
-        # the double read is intentional — the comparator needs it at construction time.
-        persisted_config = await config_adapters.loader.load_config_from_db()
-        config_manager = ConfigManager(
-            config_loader=config_adapters.loader,
-            config_versioner=config_adapters.version,
-            validator=ConfigValidator(),
-            comparator=ConfigComparator(
-                raw_config=raw_config, persisted_config=persisted_config
-            ),
-        )
-
-        yield AEMPackRegistry(
-            config=config,
-            aem_pack_dao=aem_pack_dao,
-            config_manager=config_manager,
-            config_lock=config_lock,
-            incoming_aem_pack_queue=incoming_aem_pack_queue,
-        )
-
-
-def prepare_aem_pack_registry_with_override(
-    *,
-    config: Config,
-    core_override: AEMPackRegistryPort | None = None,
-    aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
-):
-    """Resolve the prepare_core context manager based on config and override (if any)."""
-    return (
-        nullcontext(core_override)
-        if core_override
-        else prepare_aem_pack_registry(
-            config=config, aem_pack_queue_override=aem_pack_queue_override
-        )
-    )
+    """Yield an AEMPackRegistry with all its outbound dependencies wired up."""
+    async with prepare_wiring(config=config) as wiring:
+        yield wiring.aem_pack_registry
 
 
 @asynccontextmanager
 async def prepare_event_subscriber(
-    *,
-    config: Config,
-    core_override: AEMPackRegistryPort | None = None,
-    aem_pack_queue_override: IncomingAEMPackQueuePort | None = None,
+    *, config: Config
 ) -> AsyncGenerator[KafkaEventSubscriber]:
-    """Construct and initialize an event subscriber with all its dependencies.
-    By default, the core dependencies are automatically prepared but you can also
-    provide them using the core_override parameter.
-    """
-    async with (
-        prepare_aem_pack_registry_with_override(
-            config=config,
-            core_override=core_override,
-            aem_pack_queue_override=aem_pack_queue_override,
-        ) as aem_pack_registry,
-        KafkaEventPublisher.construct(config=config) as dlq_publisher,
-    ):
+    """Construct an event subscriber that reuses the wiring's Kafka publisher."""
+    async with prepare_wiring(config=config) as wiring:
         event_sub_translator = EventSubTranslator(
-            config=config, aem_pack_registry=aem_pack_registry
+            config=config, aem_pack_registry=wiring.aem_pack_registry
         )
         translator = ComboTranslator(translators=[event_sub_translator])
         async with KafkaEventSubscriber.construct(
-            config=config, translator=translator, dlq_publisher=dlq_publisher
+            config=config, translator=translator, dlq_publisher=wiring.event_publisher
         ) as event_subscriber:
             yield event_subscriber

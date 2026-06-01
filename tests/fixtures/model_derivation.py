@@ -96,8 +96,7 @@ def model_derivation_fixture(
     """Build a ModelDerivationFixture from the path passed via indirect (needs to be set on the test case)."""
     path: Path = request.param
     config = load_model_derivation_config(path)
-    deriver = ModelDeriver(config=config)
-    yield ModelDerivationFixture(config=config, deriver=deriver)
+    yield ModelDerivationFixture(config=config, deriver=ModelDeriver())
 
 
 @pytest.fixture

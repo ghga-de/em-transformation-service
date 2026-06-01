@@ -38,9 +38,9 @@ class ConfigLoaderAdapter(ConfigLoaderPort):
     def __init__(
         self, *, model_dao: ModelDao, route_dao: RouteDao, workflow_dao: WorkflowDao
     ):
-        self.model_dao = model_dao
-        self.route_dao = route_dao
-        self.workflow_dao = workflow_dao
+        self._model_dao = model_dao
+        self._route_dao = route_dao
+        self._workflow_dao = workflow_dao
 
     def _read_yaml(self, config_path: Path) -> dict[str, Any]:
         """Read a new config from file and return it as a dict."""
@@ -76,10 +76,10 @@ class ConfigLoaderAdapter(ConfigLoaderPort):
     async def load_config_from_db(self) -> PersistedConfig:
         """Fetch config fields from persistence layer and sort them by name."""
         log.info("Fetching config from persistence layer.")
-        models = [model async for model in self.model_dao.find_all(mapping={})]
-        routes = [route async for route in self.route_dao.find_all(mapping={})]
+        models = [model async for model in self._model_dao.find_all(mapping={})]
+        routes = [route async for route in self._route_dao.find_all(mapping={})]
         workflows = [
-            workflow async for workflow in self.workflow_dao.find_all(mapping={})
+            workflow async for workflow in self._workflow_dao.find_all(mapping={})
         ]
 
         return PersistedConfig(models=models, routes=routes, workflows=workflows)
