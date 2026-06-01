@@ -34,9 +34,8 @@ from ets.core.models import AEMPack, PersistedConfig
 from tests.fixtures.aem_pack import (
     EXPECTED_AEM_ID,
     TEST_DATAPACK,
-    load_aem_pack_config,
 )
-from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
+from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS, load_aem_pack_config
 
 
 def _ingress_for(config: PersistedConfig, name: str | None = None) -> AEMPack:

@@ -20,10 +20,9 @@ from uuid import uuid4
 import pytest
 from schemapack.spec.datapack import DataPack
 
-from ets.core.aem_pack_registry import AEMPackRegistry
 from tests.fixtures.aem_pack import (
     make_ingress_pack,
-    populate_db_config,
+    process_pack,
     queue_and_claim,
 )
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
@@ -34,36 +33,21 @@ pytestmark = pytest.mark.asyncio()
 
 async def test_chained_routes(joint_fixture: JointFixture):
     """Ensure only derived AEMPacks with publish=True are collected for publishing."""
-    await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
-        publish_models={"DerivedModel3"},
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["chained_routes"], publish_models={"DerivedModel3"}
     )
-    registry = joint_fixture.aem_pack_registry
     ingress = make_ingress_pack(model_name="IngressModel")
 
-    unprocessed = await queue_and_claim(
-        registry=registry,
-        pack=ingress,
-    )
-    await registry._process_next_aem_pack(
-        incoming_aem=unprocessed,
-        correlation_id=unprocessed.correlation_id,
-    )
+    await process_pack(registry, ingress)
 
-    derived_and_published = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"pid": ingress.pid}
-        )
-    ]
+    derived_and_published = await joint_fixture.derived_packs(ingress.pid)
     assert len(derived_and_published) == 1
     assert derived_and_published[0].model_name == "DerivedModel3"
     assert derived_and_published[0].pid == ingress.pid
     assert isinstance(derived_and_published[0].data, DataPack)
 
     # Unprocessed doc preserved and marked as processed
-    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": ingress.id})
+    raw = await joint_fixture.incoming_doc(ingress.id)
     assert raw is not None
     assert raw["processed_at"] is not None
     assert raw["processor"] is None
@@ -71,29 +55,15 @@ async def test_chained_routes(joint_fixture: JointFixture):
 
 async def test_forking_graph(joint_fixture: JointFixture):
     """Ensure a forking graph produces one derived pack per branch."""
-    await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["forking_routes"],
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["forking_routes"],
         publish_models={"DerivedModel1", "DerivedModel2"},
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     ingress = make_ingress_pack("IngressModel")
 
-    unprocessed = await queue_and_claim(
-        registry=registry,
-        pack=ingress,
-    )
-    await registry._process_next_aem_pack(
-        incoming_aem=unprocessed,
-        correlation_id=unprocessed.correlation_id,
-    )
+    await process_pack(registry, ingress)
 
-    derived_and_published = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"pid": ingress.pid}
-        )
-    ]
+    derived_and_published = await joint_fixture.derived_packs(ingress.pid)
     assert len(derived_and_published) == 2
     names = {pack.model_name for pack in derived_and_published}
     assert names == {"DerivedModel1", "DerivedModel2"}
@@ -108,29 +78,15 @@ async def test_forking_graph(joint_fixture: JointFixture):
 )
 async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
     """Ensure both ingress nodes route through the bottleneck produce derived packs."""
-    await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["bottleneck"],
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["bottleneck"],
         publish_models={"DerivedModel1", "DerivedModel2"},
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     ingress = make_ingress_pack(ingress_name)
 
-    unprocessed = await queue_and_claim(
-        registry=registry,
-        pack=ingress,
-    )
-    await registry._process_next_aem_pack(
-        incoming_aem=unprocessed,
-        correlation_id=unprocessed.correlation_id,
-    )
+    await process_pack(registry, ingress)
 
-    derived_and_published = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"pid": ingress.pid}
-        )
-    ]
+    derived_and_published = await joint_fixture.derived_packs(ingress.pid)
     assert len(derived_and_published) == 2
     assert {pack.model_name for pack in derived_and_published} == {
         "DerivedModel1",
@@ -141,7 +97,7 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
         assert isinstance(pack.data, DataPack)
 
     # Unprocessed doc preserved and marked as processed
-    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": ingress.id})
+    raw = await joint_fixture.incoming_doc(ingress.id)
     assert raw is not None
     assert raw["processed_at"] is not None
     assert raw["processor"] is None
@@ -149,44 +105,19 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
 
 async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):
     """Ensure independent ingress packs produce separate derived packs with distinct IDs."""
-    await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
 
     ingress_1 = make_ingress_pack("IngressModel")
     ingress_2 = make_ingress_pack("IngressModel")
 
-    claimed_1 = await queue_and_claim(
-        registry=registry,
-        pack=ingress_1,
-    )
-    await registry._process_next_aem_pack(
-        incoming_aem=claimed_1, correlation_id=claimed_1.correlation_id
-    )
+    await process_pack(registry, ingress_1)
+    await process_pack(registry, ingress_2)
 
-    claimed_2 = await queue_and_claim(
-        registry=registry,
-        pack=ingress_2,
-    )
-    await registry._process_next_aem_pack(
-        incoming_aem=claimed_2, correlation_id=claimed_2.correlation_id
-    )
-
-    derived_1 = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"pid": ingress_1.pid}
-        )
-    ]
-    derived_2 = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"pid": ingress_2.pid}
-        )
-    ]
+    derived_1 = await joint_fixture.derived_packs(ingress_1.pid)
+    derived_2 = await joint_fixture.derived_packs(ingress_2.pid)
 
     assert len(derived_1) == 3
     assert len(derived_2) == 3
@@ -208,21 +139,17 @@ async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):
 
 async def test_correlation_id_propagated_to_derived_packs(joint_fixture: JointFixture):
     """Ensure derived pack events carry the correlation ID of the originating ingress."""
-    await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     expected_correlation_id = uuid4()
     ingress = make_ingress_pack(
         model_name="IngressModel", correlation_id=expected_correlation_id
     )
 
-    unprocessed = await queue_and_claim(
-        registry=registry,
-        pack=ingress,
-    )
+    # queue_and_claim (not process_pack) so the recorder wraps only the publish step.
+    unprocessed = await queue_and_claim(registry=registry, pack=ingress)
 
     async with joint_fixture.kafka.record_events(
         in_topic=joint_fixture.config.derived_aem_pack_topic, capture_headers=True

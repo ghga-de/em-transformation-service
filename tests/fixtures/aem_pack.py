@@ -16,7 +16,6 @@
 """Fixtures, test data, and helpers for AEMPackRegistry tests."""
 
 from collections.abc import Generator
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -28,7 +27,6 @@ from schemapack.spec.datapack import DataPack
 from ets.config import Config
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.config_updater import ConfigUpdater
-from ets.core.model_derivation import ModelDeriver
 from ets.core.models import (
     IncomingAEMPack,
     PersistedConfig,
@@ -36,8 +34,7 @@ from ets.core.models import (
 from ets.ports.outbound.config_lock import ConfigLockPort
 from ets.ports.outbound.dao import AEMPackDao
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
-from tests.fixtures.examples import load_validated_config
-from tests.fixtures.joint import DAOs
+from tests.fixtures.examples import load_aem_pack_config
 
 # Fixed UUID used in parametrized tests
 EXPECTED_AEM_ID = uuid4()
@@ -92,49 +89,6 @@ def aem_pack_config(request: pytest.FixtureRequest) -> Generator[PersistedConfig
     yield load_aem_pack_config(path, publish_models=publish_models)
 
 
-def load_aem_pack_config(
-    path: Path,
-    publish_models: set[str] | None = None,
-) -> PersistedConfig:
-    """Load a YAML config, derive schemas, and return a PersistedConfig."""
-    validated = load_validated_config(path)
-    deriver = ModelDeriver()
-    models = deriver.derive_models(validated)
-
-    if publish_models:
-        models = [
-            model.model_copy(update={"publish": True})
-            if model.name in publish_models
-            else model
-            for model in models
-        ]
-
-    return PersistedConfig(
-        models=models, routes=validated.routes, workflows=validated.workflows
-    )
-
-
-async def populate_db_config(
-    daos: DAOs,
-    config_yaml_path: Path,
-    publish_models: set[str] | None = None,
-) -> PersistedConfig:
-    """Load a valid model derivation YAML, derive schemas, and populate the DB.
-
-    Returns the PersistedConfig matching what load_config_from_db() would return.
-    """
-    config = load_aem_pack_config(config_yaml_path, publish_models=publish_models)
-
-    for model in config.models:
-        await daos.model_dao.insert(model)
-    for route in config.routes:
-        await daos.route_dao.insert(route)
-    for workflow in config.workflows:
-        await daos.workflow_dao.insert(workflow)
-
-    return config
-
-
 def make_ingress_pack(
     model_name: str,
     *,
@@ -172,6 +126,22 @@ async def queue_and_claim(
     await queue_pack(registry, pack)
     claimed = await registry._incoming_aem_pack_queue.claim_next()
     assert claimed is not None, f"Failed to claim unprocessed pack {pack.id}"
+    return claimed
+
+
+async def process_pack(
+    registry: AEMPackRegistry,
+    pack: IncomingAEMPack,
+) -> IncomingAEMPack:
+    """Queue, claim, and fully process an ingress pack; return the claimed pack.
+
+    For the common case where a test does not interleave any step between
+    claiming and processing.
+    """
+    claimed = await queue_and_claim(registry, pack)
+    await registry._process_next_aem_pack(
+        incoming_aem=claimed, correlation_id=claimed.correlation_id
+    )
     return claimed
 
 

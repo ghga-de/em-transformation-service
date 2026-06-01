@@ -32,7 +32,7 @@ from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
 
 from ets.core.model_derivation import ModelDeriver
-from ets.core.models import RawConfig, ValidatedConfig
+from ets.core.models import PersistedConfig, RawConfig, ValidatedConfig
 
 BASE_DIR = Path(__file__).parent.resolve()
 CONFIG_DIR = BASE_DIR / "example_configs"
@@ -99,6 +99,31 @@ def load_pruning_config(path: Path) -> ValidatedConfig:
         data = safe_load(fh)["config"]
     with _cwd(path.parent):
         return ValidatedConfig.model_validate(data)
+
+
+def load_aem_pack_config(
+    path: Path,
+    publish_models: set[str] | None = None,
+) -> PersistedConfig:
+    """Load a YAML config, derive schemas, and return a PersistedConfig.
+
+    ``publish_models`` flips ``publish=True`` on the named models.
+    """
+    validated = load_validated_config(path)
+    deriver = ModelDeriver()
+    models = deriver.derive_models(validated)
+
+    if publish_models:
+        models = [
+            model.model_copy(update={"publish": True})
+            if model.name in publish_models
+            else model
+            for model in models
+        ]
+
+    return PersistedConfig(
+        models=models, routes=validated.routes, workflows=validated.workflows
+    )
 
 
 VALID_CONFIGS = _examples_by_prefix("raw_configs", "valid_")

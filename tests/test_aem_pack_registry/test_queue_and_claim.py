@@ -32,7 +32,6 @@ from tests.fixtures.aem_pack import (
     INVALID_DATAPACK,
     TEST_DATAPACK,
     make_ingress_pack,
-    populate_db_config,
     queue_and_claim,
     queue_pack,
 )
@@ -50,7 +49,7 @@ async def test_queue_creates_correct_document(
     pack = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
     await queue_pack(registry, pack)
 
-    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": aem_id})
+    raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None
     assert raw["model_name"] == "IngressModel"
     assert raw["annotation"] == {}
@@ -72,7 +71,7 @@ async def test_double_queue_before_processing_stays_claimable(
     pack_v2 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
     await queue_pack(registry, pack_v2)
 
-    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": aem_id})
+    raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None
     assert raw["processor"] is None
     assert raw["processed_at"] is None
@@ -117,7 +116,7 @@ async def test_queue_rejects_unknown_model_name(
     with pytest.raises(ValueError, match="UnknownModel"):
         await registry.queue_unprocessed(pack)
 
-    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": pack.id})
+    raw = await joint_fixture.incoming_doc(pack.id)
     assert raw is None
 
 
@@ -130,7 +129,7 @@ async def test_queue_rejects_datapack_not_matching_schema(
     with pytest.raises(ValidationError):
         await registry.queue_unprocessed(pack)
 
-    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": pack.id})
+    raw = await joint_fixture.incoming_doc(pack.id)
     assert raw is None
 
 
@@ -174,12 +173,10 @@ async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
     joint_fixture: JointFixture,
 ):
     """Ensure processing publishes results even when a new version was queued concurrently, and leaves the doc for reprocessing."""
-    await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
 
     # Queue v1 and claim
@@ -194,7 +191,7 @@ async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
     await queue_pack(registry, pack_v2)
 
     # Processor is preserved so in-flight instance can complete; needs_reprocessing signals v2 is pending
-    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": aem_id})
+    raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None
     assert raw["processor"] == joint_fixture.config.worker_id
     assert raw["needs_reprocessing"] is True
@@ -205,16 +202,11 @@ async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
         correlation_id=unprocessed.correlation_id,
     )
 
-    derived = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"pid": pack_v1.pid}
-        )
-    ]
+    derived = await joint_fixture.derived_packs(pack_v1.pid)
     assert len(derived) == 3
 
     # Doc flagged for reprocessing: processor released, processed_at stamped, needs_reprocessing still True
-    raw = await joint_fixture.incoming_aem_pack_collection.find_one({"_id": aem_id})
+    raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None
     assert raw["processor"] is None
     assert raw["processed_at"] is not None
@@ -238,11 +230,9 @@ async def test_claimed_aem_pack_deleted_before_processing_not_publish(
     """Ensure that if an aem_pack is claimed for processing, then marked for deletion
     before processing finishes, the result is not published to the transformed aem-pack collection.
     """
-    await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["single_route"],
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["single_route"]
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
 
     # Queue and claim the pack
@@ -259,10 +249,5 @@ async def test_claimed_aem_pack_deleted_before_processing_not_publish(
     )
 
     # There should be no derived packs published for this pid
-    derived = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(
-            mapping={"pid": aem_id}
-        )
-    ]
+    derived = await joint_fixture.derived_packs(pack.pid)
     assert len(derived) == 0

@@ -28,12 +28,10 @@ from uuid import uuid4
 import pytest
 
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
-from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.config_updater import ConfigUpdater
 from ets.core.models import PersistedConfig
 from tests.fixtures.aem_pack import (
     make_ingress_pack,
-    populate_db_config,
     queue_and_claim,
 )
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
@@ -47,12 +45,11 @@ async def test_unreachable_pack_deleted_after_route_removal(
     caplog: pytest.LogCaptureFixture,
 ):
     """Ensure removing a route causes previously derived packs to be deleted on re-processing."""
-    config = await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+    config = await joint_fixture.seed_config(
+        AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
+    registry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
     pid = str(uuid4())
 
@@ -67,10 +64,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
         correlation_id=unprocessed.correlation_id,
     )
 
-    derived = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
-    ]
+    derived = await joint_fixture.derived_packs(pid)
     assert len(derived) == 3
     deleted_pack_id = next(
         pack.id for pack in derived if pack.model_name == "DerivedModel3"
@@ -106,10 +100,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
         )
 
     # DerivedModel3 deleted (unreachable), DerivedModel1 and DerivedModel2 remain
-    derived = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
-    ]
+    derived = await joint_fixture.derived_packs(pid)
     assert len(derived) == 2
     assert {pack.model_name for pack in derived} == {
         "DerivedModel1",
@@ -131,12 +122,11 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
     """When a route is removed but the model remains in the config, the previously
     derived pack is deleted with a 'no longer reachable' warning.
     """
-    config = await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+    config = await joint_fixture.seed_config(
+        AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
+    registry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
     pid = str(uuid4())
 
@@ -151,10 +141,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         correlation_id=unprocessed.correlation_id,
     )
 
-    derived = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
-    ]
+    derived = await joint_fixture.derived_packs(pid)
     assert len(derived) == 3
     orphaned_pack = next(pack for pack in derived if pack.model_name == "DerivedModel3")
 
@@ -187,10 +174,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         )
 
     # DerivedModel3 pack deleted, DerivedModel1 and DerivedModel2 remain
-    derived = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
-    ]
+    derived = await joint_fixture.derived_packs(pid)
     assert len(derived) == 2
     assert {pack.model_name for pack in derived} == {
         "DerivedModel1",
@@ -210,12 +194,9 @@ async def test_pack_freed_when_config_changes_mid_processing(
     caplog: pytest.LogCaptureFixture,
 ):
     """Ensure an in-flight AEMPack is freed for reprocessing when the graph config changes."""
-    await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["single_route"],
-        publish_models={"DerivedModel1"},
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["single_route"], publish_models={"DerivedModel1"}
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
     pid = str(uuid4())
 
@@ -242,10 +223,7 @@ async def test_pack_freed_when_config_changes_mid_processing(
         )
 
     # No derived packs should have been published
-    derived = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
-    ]
+    derived = await joint_fixture.derived_packs(pid)
     assert len(derived) == 0
 
     # The pack must be available to claim again (freed, not marked processed)
@@ -263,11 +241,10 @@ async def test_nonexistent_model_raises_error_in_pipeline(
     joint_fixture: JointFixture, monkeypatch: pytest.MonkeyPatch
 ):
     """Ensure processing an AEMPack for a model not in the config raises ValueError."""
-    config = await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+    config = await joint_fixture.seed_config(
+        AEM_PACK_REGISTRY_CONFIGS["chained_routes"]
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
+    registry = joint_fixture.aem_pack_registry
     ingress = make_ingress_pack("NonExistent")
 
     # Bypass queue_unprocessed's model_name + schema validation so the pack reaches the claim step

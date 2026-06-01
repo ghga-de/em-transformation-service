@@ -18,6 +18,8 @@
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+from uuid import UUID
 
 import pytest_asyncio
 from hexkit.providers.akafka.testutils import KafkaFixture
@@ -28,11 +30,12 @@ from pymongo.asynchronous.collection import AsyncCollection
 from ets.config import Config
 from ets.constants import INCOMING_AEM_PACK_COLLECTION
 from ets.core.aem_pack_registry import AEMPackRegistry
+from ets.core.models import AEMPack, PersistedConfig
 from ets.inject import prepare_wiring
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
 from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
-from tests.fixtures.examples import BASE_DIR
+from tests.fixtures.examples import BASE_DIR, load_aem_pack_config
 
 TEST_CONFIG_YAML = BASE_DIR / "test_config.yaml"
 
@@ -72,6 +75,39 @@ class JointFixture:
     kafka: KafkaFixture
     loader: ConfigLoaderPort
     writer: ConfigWriterPort
+
+    async def seed_config(
+        self, config_yaml_path: Path, publish_models: set[str] | None = None
+    ) -> PersistedConfig:
+        """Derive a config from a YAML fixture and write it to the DB.
+
+        Returns the PersistedConfig matching what ``load_config_from_db`` returns.
+        """
+        config = load_aem_pack_config(config_yaml_path, publish_models=publish_models)
+        for model in config.models:
+            await self.daos.model_dao.insert(model)
+        for route in config.routes:
+            await self.daos.route_dao.insert(route)
+        for workflow in config.workflows:
+            await self.daos.workflow_dao.insert(workflow)
+        return config
+
+    async def seeded_registry(
+        self, config_yaml_path: Path, publish_models: set[str] | None = None
+    ) -> AEMPackRegistry:
+        """Seed the DB with a config and return the registry ready to process packs."""
+        await self.seed_config(config_yaml_path, publish_models=publish_models)
+        return self.aem_pack_registry
+
+    async def derived_packs(self, pid: str) -> list[AEMPack]:
+        """All derived/published AEMPacks for a given originating pid."""
+        return [
+            pack async for pack in self.daos.aem_pack_dao.find_all(mapping={"pid": pid})
+        ]
+
+    async def incoming_doc(self, aem_id: UUID) -> dict[str, Any] | None:
+        """Raw incoming-AEMPack document by id, or None if absent."""
+        return await self.incoming_aem_pack_collection.find_one({"_id": aem_id})
 
 
 @pytest_asyncio.fixture(scope="function")
