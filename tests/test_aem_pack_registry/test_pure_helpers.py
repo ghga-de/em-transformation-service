@@ -30,7 +30,7 @@ from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
 
 from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.models import AEMPack, PersistedConfig
+from ets.core.models import AEMPack, Model, PersistedConfig
 from tests.fixtures.aem_pack import (
     EXPECTED_AEM_ID,
     TEST_DATAPACK,
@@ -38,15 +38,34 @@ from tests.fixtures.aem_pack import (
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS, load_aem_pack_config
 
 
+def _ingress_model(config: PersistedConfig) -> Model:
+    """Return the configured ingress model."""
+    return next(model for model in config.models if model.is_ingress)
+
+
 def _ingress_for(config: PersistedConfig, name: str | None = None) -> AEMPack:
     """Build an ingress AEMPack (defaults to the configured ingress model)."""
-    model_name = name or next(model.name for model in config.models if model.is_ingress)
     return AEMPack(
         id=uuid4(),
-        model_name=model_name,
+        model_name=name or _ingress_model(config).name,
         pid="test-pid",
         data=TEST_DATAPACK,
         annotation={},
+    )
+
+
+def _traverse(
+    mock_registry: AEMPackRegistry,
+    incoming: AEMPack,
+    dirty_map: dict[str, UUID4],
+    config: PersistedConfig,
+) -> tuple[list[AEMPack], dict[str, UUID4]]:
+    """Run ``_traverse_graph`` seeding ``transformed_map`` with the incoming pack."""
+    return mock_registry._traverse_graph(
+        incoming=incoming,
+        dirty_map=dirty_map,
+        transformed_map={incoming.model_name: incoming},
+        config=config,
     )
 
 
@@ -82,7 +101,7 @@ def test_create_aem_pack(
 def test_apply_workflow_to_data(mock_registry: AEMPackRegistry):
     """Applying a workflow transforms only the schema, not the resource data."""
     config = load_aem_pack_config(AEM_PACK_REGISTRY_CONFIGS["single_route"])
-    ingress = next(model for model in config.models if model.is_ingress)
+    ingress = _ingress_model(config)
 
     result = mock_registry._apply_workflow_to_data(
         data=TEST_DATAPACK,
@@ -135,11 +154,8 @@ def test_clears_dirty_map(
     incoming = _ingress_for(aem_pack_config)
     dirty_map: dict[str, UUID4] = {name: uuid4() for name in dirty_names}
 
-    aem_packs_to_publish, remaining_dirty = mock_registry._traverse_graph(
-        incoming=incoming,
-        dirty_map=dirty_map,
-        transformed_map={incoming.model_name: incoming},
-        config=aem_pack_config,
+    aem_packs_to_publish, remaining_dirty = _traverse(
+        mock_registry, incoming, dirty_map, aem_pack_config
     )
 
     assert dirty_names.isdisjoint(remaining_dirty)
@@ -162,11 +178,8 @@ def test_respects_topological_order(mock_registry: AEMPackRegistry):
         "DerivedModel2": uuid4(),
     }
 
-    aem_packs_to_publish, remaining_dirty = mock_registry._traverse_graph(
-        incoming=incoming,
-        dirty_map=dirty_map,
-        transformed_map={incoming.model_name: incoming},
-        config=config,
+    aem_packs_to_publish, remaining_dirty = _traverse(
+        mock_registry, incoming, dirty_map, config
     )
 
     assert {"DerivedModel1", "DerivedModel2"}.isdisjoint(remaining_dirty)
@@ -201,13 +214,8 @@ def test_dirty_map_id_handling(
         {name: uuid4() for name in publish} if have_dirty_map else {}
     )
 
-    published, _ = mock_registry._traverse_graph(
-        incoming=incoming,
-        # _traverse_graph pops from this dict; copy so post-call assertions can read it.
-        dirty_map=dict(dirty_map),
-        transformed_map={incoming.model_name: incoming},
-        config=config,
-    )
+    # _traverse_graph pops from the dirty map; copy so post-call assertions can read it.
+    published, _ = _traverse(mock_registry, incoming, dict(dirty_map), config)
 
     assert len(published) == expected_published
     published_ids = {pack.id for pack in published}
@@ -246,11 +254,8 @@ def test_bottleneck_topology(
         name: uuid4() for name in ("BottleneckModel", "DerivedModel1", "DerivedModel2")
     }
 
-    published, remaining_dirty = mock_registry._traverse_graph(
-        incoming=incoming,
-        dirty_map=dict(dirty_map),
-        transformed_map={incoming.model_name: incoming},
-        config=aem_pack_config,
+    published, remaining_dirty = _traverse(
+        mock_registry, incoming, dict(dirty_map), aem_pack_config
     )
 
     assert set(dirty_map).isdisjoint(remaining_dirty)

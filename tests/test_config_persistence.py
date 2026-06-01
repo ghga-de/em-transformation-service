@@ -87,17 +87,20 @@ async def test_load_and_compare(
     expected RawConfig (changed) or PersistedConfig (unchanged) variant.
     """
     loader = joint_fixture.loader
-    daos = joint_fixture.daos
 
     first_raw = loader.load_config_from_file(old_config_path)
     seed = compare_configs(first_raw, await loader.load_config_from_db())
 
-    for order, raw_model in enumerate(seed.models):
-        await daos.model_dao.insert(_model_with_mocked_schema(raw_model, order))
-    for route in seed.routes:
-        await daos.route_dao.insert(route)
-    for workflow in seed.workflows:
-        await daos.workflow_dao.insert(workflow)
+    await joint_fixture.insert_config(
+        PersistedConfig(
+            models=[
+                _model_with_mocked_schema(raw_model, order)
+                for order, raw_model in enumerate(seed.models)
+            ],
+            routes=seed.routes,
+            workflows=seed.workflows,
+        )
+    )
 
     second_raw = loader.load_config_from_file(new_config_path)
     result = compare_configs(second_raw, await loader.load_config_from_db())

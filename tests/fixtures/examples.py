@@ -28,6 +28,7 @@ from types import MappingProxyType
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import BaseModel
 from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
 
@@ -77,28 +78,31 @@ def _cwd(path: Path) -> Iterator[None]:
         os.chdir(original)
 
 
-def load_validated_config(path: Path) -> ValidatedConfig:
-    """Load a ``ValidatedConfig`` from a YAML fixture file."""
+def _load[ModelT: BaseModel](
+    path: Path, model: type[ModelT], *, section: str | None = None
+) -> ModelT:
+    """Load and validate ``model`` from a YAML fixture (optionally a sub-section)."""
     with path.open("r") as fh:
         data = safe_load(fh)
+    if section is not None:
+        data = data[section]
     with _cwd(path.parent):
-        return ValidatedConfig.model_validate(data)
+        return model.model_validate(data)
+
+
+def load_validated_config(path: Path) -> ValidatedConfig:
+    """Load a ``ValidatedConfig`` from a YAML fixture file."""
+    return _load(path, ValidatedConfig)
 
 
 def load_raw_config(path: Path) -> RawConfig:
     """Load a ``RawConfig`` from a YAML fixture file."""
-    with path.open("r") as fh:
-        data = safe_load(fh)
-    with _cwd(path.parent):
-        return RawConfig.model_validate(data)
+    return _load(path, RawConfig)
 
 
 def load_pruning_config(path: Path) -> ValidatedConfig:
     """Load a ``ValidatedConfig`` from a pruning-case YAML's ``config:`` section."""
-    with path.open("r") as fh:
-        data = safe_load(fh)["config"]
-    with _cwd(path.parent):
-        return ValidatedConfig.model_validate(data)
+    return _load(path, ValidatedConfig, section="config")
 
 
 def load_aem_pack_config(

@@ -76,6 +76,15 @@ class JointFixture:
     loader: ConfigLoaderPort
     writer: ConfigWriterPort
 
+    async def insert_config(self, config: PersistedConfig) -> None:
+        """Insert a config's models, routes, and workflows into the DAOs."""
+        for model in config.models:
+            await self.daos.model_dao.insert(model)
+        for route in config.routes:
+            await self.daos.route_dao.insert(route)
+        for workflow in config.workflows:
+            await self.daos.workflow_dao.insert(workflow)
+
     async def seed_config(
         self, config_yaml_path: Path, publish_models: set[str] | None = None
     ) -> PersistedConfig:
@@ -84,12 +93,7 @@ class JointFixture:
         Returns the PersistedConfig matching what ``load_config_from_db`` returns.
         """
         config = load_aem_pack_config(config_yaml_path, publish_models=publish_models)
-        for model in config.models:
-            await self.daos.model_dao.insert(model)
-        for route in config.routes:
-            await self.daos.route_dao.insert(route)
-        for workflow in config.workflows:
-            await self.daos.workflow_dao.insert(workflow)
+        await self.insert_config(config)
         return config
 
     async def seeded_registry(
