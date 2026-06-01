@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Fixtures for config manager pruning tests."""
+"""Fixtures for config updater pruning tests."""
 
 from collections.abc import Generator
 from pathlib import Path

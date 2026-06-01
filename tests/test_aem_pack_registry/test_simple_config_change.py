@@ -87,7 +87,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
     )
     # Inject the modified config directly — update_config won't overwrite it
     # because the DB version hasn't changed.
-    registry._config_manager._current_config = new_config
+    registry._config_updater._current_config = new_config
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="ets.core.aem_pack_registry"):
         await registry._process_next_aem_pack(
@@ -166,7 +166,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         registry=registry,
         pack=ingress,
     )
-    registry._config_manager._current_config = new_config
+    registry._config_updater._current_config = new_config
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         await registry._process_next_aem_pack(
@@ -212,12 +212,12 @@ async def test_pack_freed_when_config_changes_mid_processing(
 
     # Simulate a config change occurring mid-processing by bumping the version
     # the versioner reports on its second call.
-    config_manager = registry._config_manager
-    await config_manager.update_config()
-    version = config_manager.known_version
+    config_updater = registry._config_updater
+    await config_updater.update_config()
+    version = config_updater.known_version
     with (
         patch.object(
-            config_manager._versioner,
+            config_updater._versioner,
             "get_version",
             AsyncMock(side_effect=[version, version + 1]),
         ),

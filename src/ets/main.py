@@ -22,7 +22,7 @@ from hexkit.log import configure_logging
 from ets.config import Config
 from ets.inject import (
     prepare_aem_pack_registry,
-    prepare_config_updater,
+    prepare_config_manager,
     prepare_event_subscriber,
 )
 
@@ -34,8 +34,8 @@ async def consume_events(run_forever: bool = True):
     config = Config()  # type: ignore[call-arg]
     configure_logging(config=config)
 
-    async with prepare_config_updater(config=config) as config_updater:
-        await config_updater.run()
+    async with prepare_config_manager(config=config) as config_manager:
+        await config_manager.run()
 
     async with prepare_event_subscriber(config=config) as event_subscriber:
         await event_subscriber.run(forever=run_forever)
@@ -46,8 +46,8 @@ async def process_aem_packs():
     config = Config()  # type: ignore[call-arg]
     configure_logging(config=config)
 
-    async with prepare_config_updater(config=config) as config_updater:
-        await config_updater.run()
+    async with prepare_config_manager(config=config) as config_manager:
+        await config_manager.run()
 
     async with prepare_aem_pack_registry(config=config) as aem_pack_registry:
         await aem_pack_registry.process_aem_packs()

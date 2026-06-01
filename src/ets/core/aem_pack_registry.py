@@ -30,7 +30,7 @@ from schemapack.spec.datapack import DataPack
 from schemapack.spec.schemapack import SchemaPack
 
 from ets.config import Config
-from ets.core.config_manager import ConfigManager
+from ets.core.config_updater import ConfigUpdater
 from ets.core.models import AEMPack, PersistedConfig, Workflow
 from ets.ports.inbound.aem_pack_registry import (
     AEMPackRegistryPort,
@@ -56,13 +56,13 @@ class AEMPackRegistry(AEMPackRegistryPort):
         *,
         config: Config,
         aem_pack_dao: AEMPackDao,
-        config_manager: ConfigManager,
+        config_updater: ConfigUpdater,
         config_lock: ConfigLockPort,
         incoming_aem_pack_queue: IncomingAEMPackQueuePort,
     ):
         self._config = config
         self._aem_pack_dao = aem_pack_dao
-        self._config_manager = config_manager
+        self._config_updater = config_updater
         self._config_lock = config_lock
         self._incoming_aem_pack_queue = incoming_aem_pack_queue
         self._transformation_registry = get_transformation_registry()
@@ -71,8 +71,8 @@ class AEMPackRegistry(AEMPackRegistryPort):
         """Fetch new AEMPacks via event subscriber and put them into the queue for processing."""
         await self._config_lock.wait_for_lock_release()
         # load the most recent config
-        await self._config_manager.update_config()
-        config = self._config_manager.current_config
+        await self._config_updater.update_config()
+        config = self._config_updater.current_config
 
         matching_model = next(
             (m for m in config.models if m.name == aem_pack.model_name), None
@@ -125,9 +125,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
         transformed_map: dict[str, AEMPack] = {incoming_aem.model_name: incoming_aem}
 
         await self._config_lock.wait_for_lock_release()
-        await self._config_manager.update_config()
-        config = self._config_manager.current_config
-        version_before = self._config_manager.known_version
+        await self._config_updater.update_config()
+        config = self._config_updater.current_config
+        version_before = self._config_updater.known_version
 
         aem_packs_to_publish, dirty_map = self._traverse_graph(
             incoming=incoming_aem,
@@ -137,8 +137,8 @@ class AEMPackRegistry(AEMPackRegistryPort):
         )
 
         await self._config_lock.wait_for_lock_release()
-        await self._config_manager.update_config()
-        version_after = self._config_manager.known_version
+        await self._config_updater.update_config()
+        version_after = self._config_updater.known_version
 
         if version_after != version_before:
             log.info(

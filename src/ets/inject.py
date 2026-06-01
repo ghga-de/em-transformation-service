@@ -63,7 +63,7 @@ from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 class _BaseWiring:
     """Contains everything reused across all higher-level preparation steps."""
 
-    config_manager: ConfigManager
+    config_updater: ConfigUpdater
     config_lock: ConfigLockPort
     versioner: ConfigVersionerPort
     incoming_aem_pack_queue: IncomingAEMPackQueuePort
@@ -109,7 +109,7 @@ async def _prepare_base_wiring(
         workflow_dao=workflow_dao,
         config_versioner=versioner,
     )
-    config_manager = ConfigManager(
+    config_updater = ConfigUpdater(
         loader=loader,
         versioner=versioner,
         model_deriver=ModelDeriver(),
@@ -126,7 +126,7 @@ async def _prepare_base_wiring(
         collection=db[INCOMING_AEM_PACK_COLLECTION], worker_id=config.worker_id
     )
     yield _BaseWiring(
-        config_manager=config_manager,
+        config_updater=config_updater,
         config_lock=config_lock,
         versioner=versioner,
         incoming_aem_pack_queue=incoming_aem_pack_queue,
@@ -139,16 +139,16 @@ async def _prepare_base_wiring(
 
 
 @asynccontextmanager
-async def prepare_config_updater(*, config: Config) -> AsyncGenerator[ConfigUpdater]:
-    """Construct and initialize a ConfigUpdater with all its dependencies."""
+async def prepare_config_manager(*, config: Config) -> AsyncGenerator[ConfigManager]:
+    """Construct and initialize a ConfigManager with all its dependencies."""
     async with (
         ConfiguredMongoClient(config=config) as client,
         _prepare_base_wiring(config=config, client=client) as base,
     ):
-        yield ConfigUpdater(
+        yield ConfigManager(
             input_config_path=config.input_config_path,
             config_lock=base.config_lock,
-            config_manager=base.config_manager,
+            config_updater=base.config_updater,
             incoming_aem_pack_queue=base.incoming_aem_pack_queue,
         )
 
@@ -171,7 +171,7 @@ async def prepare_wiring(*, config: Config) -> AsyncGenerator[Wiring]:
         aem_pack_registry = AEMPackRegistry(
             config=config,
             aem_pack_dao=aem_pack_dao,
-            config_manager=base.config_manager,
+            config_updater=base.config_updater,
             config_lock=base.config_lock,
             incoming_aem_pack_queue=base.incoming_aem_pack_queue,
         )

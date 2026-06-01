@@ -62,8 +62,8 @@ async def test_nonexistent_model_raises_error_in_pipeline(
         pack=ingress,
     )
     # Inject the original (non-permissive) config so processing sees NonExistent as missing
-    config_manager = registry._config_manager
-    config_manager._current_config = config
+    config_updater = registry._config_updater
+    config_updater._current_config = config
     with pytest.raises(ValueError, match="No model with name NonExistent"):
         await registry._process_next_aem_pack(
             incoming_aem=unprocessed,
