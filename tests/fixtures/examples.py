@@ -13,69 +13,166 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Fixtures for example transformation configs and mock schema."""
+"""Example configs: paths, loaders, schemas, and the parametrize fixtures that
+consume them. One module for everything driven by YAML/JSON fixture files.
+"""
 
+import contextlib
 import json
+import os
+from collections.abc import Generator, Iterator, Mapping
+from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
+from types import MappingProxyType
+from unittest.mock import MagicMock, patch
 
+import pytest
+from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
 
-from ets.core.models import ValidatedConfig
-from tests.fixtures.utils import BASE_DIR
+from ets.core.model_derivation import ModelDeriver
+from ets.core.models import RawConfig, ValidatedConfig
 
+BASE_DIR = Path(__file__).parent.resolve()
 CONFIG_DIR = BASE_DIR / "example_configs"
-
-VALID_CONFIG_DIR = CONFIG_DIR / "valid"
-INVALID_CONFIG_DIR = CONFIG_DIR / "invalid_on_validation"
-INVALID_ON_LOAD_CONFIG_DIR = CONFIG_DIR / "invalid_on_loading"
-MODEL_DERIVATION_DIR = CONFIG_DIR / "model_derivation"
-PRUNING_DIR = CONFIG_DIR / "pruning"
-AEM_PACK_REGISTRY_DIR = CONFIG_DIR / "aem_pack_registry"
-
 MOCK_JSON_PATH = BASE_DIR / "mock.schemapack.json"
 
 
-def list_examples_in_dir(dir: Path) -> dict[str, Path]:
-    """List all example files in the given dir.
+@cache
+def _examples_in(subpath: str) -> Mapping[str, Path]:
+    """Return ``{stem: path}`` for files under ``CONFIG_DIR / subpath``, sorted by stem.
 
-    Returns:
-        A dict of {example_name: path}.
+    The result is a read-only ``MappingProxyType`` because ``@cache`` shares one
+    instance across callers — mutation would silently corrupt the cache.
     """
-    examples = {path.stem: path for path in dir.iterdir() if path.is_file()}
-
-    return dict(sorted(examples.items()))
-
-
-def read_mock_schema(path: Path) -> dict:
-    """Read the mock schema from the json file."""
-    with path.open("r") as file:
-        return json.load(file)
+    return MappingProxyType(
+        dict(
+            sorted((p.stem, p) for p in (CONFIG_DIR / subpath).iterdir() if p.is_file())
+        )
+    )
 
 
-def load_model_derivation_config(path: Path) -> ValidatedConfig:
-    """Load a ``ValidatedConfig`` for model-derivation tests from a YAML file.
+def _examples_by_prefix(subpath: str, prefix: str) -> Mapping[str, Path]:
+    """Return ``{stem-without-prefix: path}`` for prefixed files under ``subpath``."""
+    return {
+        stem.removeprefix(prefix): path
+        for stem, path in _examples_in(subpath).items()
+        if stem.startswith(prefix)
+    }
 
-    Args:
-        path: Path to the YAML fixture file.
 
-    Returns:
-        A ``ValidatedConfig`` instance populated from the file.
+@contextlib.contextmanager
+def _cwd(path: Path) -> Iterator[None]:
+    """Chdir to ``path`` for the block; restore on exit.
+
+    Required so schemapack's content-schema validator resolves ``content: ../foo.json``
+    references relative to the YAML fixture's own directory, not the test runner's cwd.
     """
+    original = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(original)
+
+
+def load_validated_config(path: Path) -> ValidatedConfig:
+    """Load a ``ValidatedConfig`` from a YAML fixture file."""
     with path.open("r") as fh:
-        return ValidatedConfig.model_validate(safe_load(fh))
+        data = safe_load(fh)
+    with _cwd(path.parent):
+        return ValidatedConfig.model_validate(data)
 
 
-VALID_CONFIGS = list_examples_in_dir(VALID_CONFIG_DIR)
-INVALID_ON_VALIDATION_CONFIGS = list_examples_in_dir(INVALID_CONFIG_DIR)
-INVALID_ON_LOAD_CONFIGS = list_examples_in_dir(INVALID_ON_LOAD_CONFIG_DIR)
+def load_raw_config(path: Path) -> RawConfig:
+    """Load a ``RawConfig`` from a YAML fixture file."""
+    with path.open("r") as fh:
+        data = safe_load(fh)
+    with _cwd(path.parent):
+        return RawConfig.model_validate(data)
 
-VALID_MODEL_DERIVATION_CONFIGS = list_examples_in_dir(MODEL_DERIVATION_DIR / "valid")
-INVALID_MODEL_DERIVATION_CONFIGS = list_examples_in_dir(
-    MODEL_DERIVATION_DIR / "invalid"
+
+def load_pruning_config(path: Path) -> ValidatedConfig:
+    """Load a ``ValidatedConfig`` from a pruning-case YAML's ``config:`` section."""
+    with path.open("r") as fh:
+        data = safe_load(fh)["config"]
+    with _cwd(path.parent):
+        return ValidatedConfig.model_validate(data)
+
+
+VALID_CONFIGS = _examples_by_prefix("raw_configs", "valid_")
+INVALID_ON_LOAD_CONFIGS = _examples_by_prefix("raw_configs", "loading_")
+INVALID_ON_VALIDATION_CONFIGS = _examples_by_prefix("raw_configs", "validation_")
+VALID_MODEL_DERIVATION_CONFIGS = _examples_by_prefix("validated_configs", "valid_")
+INVALID_MODEL_DERIVATION_CONFIGS = _examples_by_prefix("validated_configs", "invalid_")
+AEM_PACK_REGISTRY_CONFIGS = _examples_by_prefix("validated_configs", "pipeline_")
+PRUNING_CASES = _examples_in("pruning")
+
+with MOCK_JSON_PATH.open("r") as _fh:
+    MOCK_SCHEMA = json.load(_fh)
+
+
+_FILE_CONTENT = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": False,
+    "properties": {
+        "checksum": {"type": "string"},
+        "filename": {"type": "string"},
+        "format": {"type": "string"},
+        "size": {"type": "integer"},
+    },
+    "required": ["filename", "format", "checksum", "size"],
+    "type": "object",
+}
+
+
+def _file_schema(*, id_property: str, extra_classes: dict | None = None) -> SchemaPack:
+    classes = {
+        "File": {"id": {"propertyName": id_property}, "content": _FILE_CONTENT},
+        **(extra_classes or {}),
+    }
+    return SchemaPack.model_validate({"schemapack": "4.0.0", "classes": classes})
+
+
+FILE_SCHEMA = _file_schema(id_property="alias")
+FILE_RENAMED_ID_SCHEMA = _file_schema(id_property="file_id")
+RENAMED_ID_WITH_BACKUP_SCHEMA = _file_schema(
+    id_property="file_id",
+    extra_classes={
+        "FileBackup": {"id": {"propertyName": "file_id"}, "content": _FILE_CONTENT}
+    },
 )
 
-PRUNING_CASES = list_examples_in_dir(PRUNING_DIR)
 
-AEM_PACK_REGISTRY_CONFIGS = list_examples_in_dir(AEM_PACK_REGISTRY_DIR)
+@dataclass
+class ModelDerivationFixture:
+    """Holds a loaded ValidatedConfig and the corresponding ModelDeriver."""
 
-MOCK_SCHEMA = read_mock_schema(MOCK_JSON_PATH)
+    config: ValidatedConfig
+    deriver: ModelDeriver
+
+
+@pytest.fixture
+def model_derivation_fixture(
+    request: pytest.FixtureRequest,
+) -> Generator[ModelDerivationFixture]:
+    """Build a ModelDerivationFixture from the YAML path passed via ``indirect``."""
+    yield ModelDerivationFixture(
+        config=load_validated_config(request.param), deriver=ModelDeriver()
+    )
+
+
+@pytest.fixture
+def mock_apply_workflow(
+    model_derivation_fixture: ModelDerivationFixture,
+) -> Generator[MagicMock]:
+    """Patch ``_apply_workflow`` on the deriver and yield the mock."""
+    with patch.object(model_derivation_fixture.deriver, "_apply_workflow") as mock:
+        yield mock
+
+
+@pytest.fixture
+def pruning_fixture(request: pytest.FixtureRequest) -> Generator[ValidatedConfig]:
+    """Load a ``ValidatedConfig`` from the YAML's ``config:`` section, via ``indirect``."""
+    yield load_pruning_config(request.param)

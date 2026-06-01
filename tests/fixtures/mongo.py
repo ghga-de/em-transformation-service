@@ -13,21 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shared fixtures for aem_pack_registry tests."""
+"""Shared MongoDB fixtures for unit tests of single-collection adapters."""
 
+from collections.abc import AsyncGenerator
+
+import pytest
 import pytest_asyncio
-
-from ets.core.aem_pack_registry import AEMPackRegistry
-from tests.fixtures.aem_pack import populate_db_config
-from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
-from tests.fixtures.joint import JointFixture
+from hexkit.providers.mongodb import ConfiguredMongoClient
+from hexkit.providers.mongodb.testutils import MongoDbFixture
+from pymongo.asynchronous.collection import AsyncCollection
 
 
 @pytest_asyncio.fixture
-async def registry(joint_fixture: JointFixture) -> AEMPackRegistry:
-    """Populate DB with single_route config and return the AEM pack registry."""
-    await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["single_route"],
-    )
-    return joint_fixture.aem_pack_registry
+async def mongo_collection(
+    request: pytest.FixtureRequest, mongodb: MongoDbFixture
+) -> AsyncGenerator[AsyncCollection]:
+    """Yield a single MongoDB collection by name (passed via ``indirect``)."""
+    async with ConfiguredMongoClient(config=mongodb.config) as client:
+        yield client[mongodb.config.db_name][request.param]

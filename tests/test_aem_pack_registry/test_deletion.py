@@ -22,7 +22,7 @@ from hexkit.correlation import set_correlation_id
 
 from ets.constants import TOMBSTONE_FIELD
 from ets.core.aem_pack_registry import AEMPackRegistry
-from tests.fixtures.aem_pack_registry import (
+from tests.fixtures.aem_pack import (
     make_ingress_pack,
     populate_db_config,
     queue_and_claim,
@@ -31,7 +31,7 @@ from tests.fixtures.aem_pack_registry import (
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
-pytestmark = pytest.mark.asyncio
+pytestmark = pytest.mark.asyncio()
 
 
 async def test_mark_for_deletion_sets_tombstone(

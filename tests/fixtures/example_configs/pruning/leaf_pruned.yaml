@@ -42,7 +42,7 @@ config:
   workflows:
     - name: kept_workflow
       description: Passes content schema through unchanged
-      workflow:
+      workflow: &identity_workflow
         operations:
           - name: transform_content
             description: Identity transformation
@@ -58,17 +58,4 @@ config:
                 {% endfor %}
     - name: dropped_workflow
       description: Passes content schema through unchanged
-      workflow:
-        operations:
-          - name: transform_content
-            description: Identity transformation
-            args:
-              class_name: Item
-              content_schema:
-                type: object
-                additionalProperties: false
-              embedding_profile: {}
-              content_template_yaml: |
-                {% for key in content_property_names %}
-                  {{ key }}: {{ original[key] }}
-                {% endfor %}
+      workflow: *identity_workflow

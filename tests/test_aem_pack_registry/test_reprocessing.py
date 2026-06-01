@@ -20,7 +20,7 @@ from uuid import uuid4
 import pytest
 
 from ets.core.aem_pack_registry import AEMPackRegistry
-from tests.fixtures.aem_pack_registry import (
+from tests.fixtures.aem_pack import (
     make_ingress_pack,
     populate_db_config,
     queue_and_claim,
@@ -28,7 +28,7 @@ from tests.fixtures.aem_pack_registry import (
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
-pytestmark = pytest.mark.asyncio
+pytestmark = pytest.mark.asyncio()
 
 
 async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):

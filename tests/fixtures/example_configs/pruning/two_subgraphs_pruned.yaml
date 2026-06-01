@@ -17,7 +17,7 @@ config:
       publish: false
       is_ingress: true
       version: null
-      schema_:
+      schema_: &item_schema
         schemapack: "4.0.0"
         classes:
           Item:
@@ -31,29 +31,13 @@ config:
       publish: true
       is_ingress: true
       version: null
-      schema_:
-        schemapack: "4.0.0"
-        classes:
-          Item:
-            id:
-              propertyName: id
-            content:
-              type: object
-              additionalProperties: false
+      schema_: *item_schema
     - name: UnpublishedSource_2
       order: 2
       publish: false
       is_ingress: true
       version: null
-      schema_:
-        schemapack: "4.0.0"
-        classes:
-          Item:
-            id:
-              propertyName: id
-            content:
-              type: object
-              additionalProperties: false
+      schema_: *item_schema
     - name: UnpublishedLeaf
       order: 3
       publish: false

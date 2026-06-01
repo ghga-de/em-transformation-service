@@ -1,0 +1,58 @@
+# Two isolated ingress models (I2, I3) and one ingress model (I1) with a route
+# to a derived model (D1) via rename_id_property.
+#
+# Graph:
+#     I1 → D1
+#     I2 (isolated)
+#     I3 (isolated)
+
+models:
+  - name: I1
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_: &file_schema
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: ../_schemas/file_content.json
+
+  - name: I2
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: -1
+    schema_: *file_schema
+
+  - name: I3
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: -1
+    schema_: *file_schema
+
+  - name: D1
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
+
+workflows:
+  - name: rename_to_file_id
+    description: Renames the File id property from alias to file_id
+    workflow:
+      operations:
+        - name: rename_id_property
+          description: Rename id from alias to file_id
+          args:
+            class_name: File
+            id_property_name: file_id
+
+routes:
+  - input_model_name: I1
+    workflow_name: rename_to_file_id
+    output_model_name: D1

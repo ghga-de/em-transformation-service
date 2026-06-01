@@ -24,13 +24,11 @@ from schemapack.spec.schemapack import SchemaPack
 
 from ets.core.model_derivation import ConsistencyError, ModelDerivationError
 from tests.fixtures.examples import (
-    INVALID_MODEL_DERIVATION_CONFIGS,
-    VALID_MODEL_DERIVATION_CONFIGS,
-)
-from tests.fixtures.model_derivation import (
     FILE_RENAMED_ID_SCHEMA,
     FILE_SCHEMA,
+    INVALID_MODEL_DERIVATION_CONFIGS,
     RENAMED_ID_WITH_BACKUP_SCHEMA,
+    VALID_MODEL_DERIVATION_CONFIGS,
     ModelDerivationFixture,
     mock_apply_workflow,  # noqa: F401
     model_derivation_fixture,  # noqa: F401

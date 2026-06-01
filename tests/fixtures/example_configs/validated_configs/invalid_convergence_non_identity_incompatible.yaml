@@ -1,0 +1,122 @@
+# Convergence graph where one branch uses the identity transformation and the
+# other uses the non-identity (drop_format) transformation, causing incompatible
+# schemas to arrive at the shared convergence node D_out.
+#
+# Graph:
+#     I1 → D1 → D_out   (identity: File keeps 'format')
+#     I2 → D2 → D_out   (drop_format: File loses 'format')
+#
+# D1→D_out yields a schema with 'format'; D2→D_out yields a schema without
+# 'format'.  The two schemas differ so _process_routes raises ModelDerivationError.
+
+models:
+  - name: I1
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 2
+    schema_: &file_schema
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: &file_content {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["checksum", "filename", "format", "size"],
+            "type": "object"
+          }
+
+  - name: I2
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_: *file_schema
+
+  - name: D1
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 3
+    schema_: null
+
+  - name: D2
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
+
+  - name: D_out
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 4
+    schema_: null
+
+workflows:
+  - name: identity_workflow
+    description: Passes the File content schema through unchanged (keeps 'format')
+    workflow:
+      operations:
+        - name: transform_content
+          description: Identity transform – schema unchanged
+          args:
+            class_name: File
+            content_schema: *file_content
+            embedding_profile: {}
+            content_template_yaml: |
+              checksum: {{ original["checksum"] }}
+              filename: {{ original["filename"] }}
+              format: {{ original["format"] }}
+              size: {{ original["size"] }}
+
+  - name: drop_format
+    description: Removes the 'format' field from the File content schema
+    workflow:
+      operations:
+        - name: transform_content
+          description: Non-identity transform – drops 'format'
+          args:
+            class_name: File
+            content_schema: {
+              "$schema": "http://json-schema.org/draft-07/schema#",
+              "additionalProperties": false,
+              "properties": {
+                "checksum": {"type": "string"},
+                "filename": {"type": "string"},
+                "size": {"type": "integer"}
+              },
+              "required": ["checksum", "filename", "size"],
+              "type": "object"
+            }
+            embedding_profile: {}
+            content_template_yaml: |
+              checksum: {{ original["checksum"] }}
+              filename: {{ original["filename"] }}
+              size: {{ original["size"] }}
+
+routes:
+  - input_model_name: I1
+    workflow_name: identity_workflow
+    output_model_name: D1
+
+  - input_model_name: I2
+    workflow_name: drop_format
+    output_model_name: D2
+
+  - input_model_name: D1
+    workflow_name: identity_workflow
+    output_model_name: D_out
+
+  - input_model_name: D2
+    workflow_name: drop_format
+    output_model_name: D_out
