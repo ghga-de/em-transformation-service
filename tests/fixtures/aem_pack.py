@@ -149,9 +149,9 @@ async def process_pack(
 def mock_registry() -> AEMPackRegistry:
     """An AEMPackRegistry wired with mocked collaborators.
 
-    Suitable for tests that exercise only the pure in-memory methods
-    (``_traverse_graph``, ``_create_aem_pack``, ``_apply_workflow_to_data``) and
-    therefore do not need Mongo/Kafka containers.
+    Suitable for tests that exercise only the in-memory methods `_traverse_graph`,
+    `_create_aem_pack` and ``_apply_workflow_to_data`, which do not need Mongo/Kafka
+    containers.
     """
     return AEMPackRegistry(
         config=MagicMock(spec=Config),

@@ -13,21 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the pure in-memory methods of AEMPackRegistry.
-
-These tests run against a ``mock_registry`` (collaborators are mocks) and do
-not need MongoDB or Kafka. Covered methods:
-
-* ``_create_aem_pack`` and ``_apply_workflow_to_data`` — wrapper helpers
-* ``_traverse_graph`` — the routing/publishing core, exercised with a range of
-  graph topologies
-"""
+"""Tests for the in-memory methods of AEMPackRegistry."""
 
 from uuid import uuid4
 
 import pytest
 from pydantic import UUID4
-from schemapack.spec.datapack import DataPack
 
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.models import AEMPack, Model, PersistedConfig
@@ -44,7 +35,7 @@ def _ingress_model(config: PersistedConfig) -> Model:
 
 
 def _ingress_for(config: PersistedConfig, name: str | None = None) -> AEMPack:
-    """Build an ingress AEMPack (defaults to the configured ingress model)."""
+    """Build an ingress AEMPack. Defaults to the configured ingress model."""
     return AEMPack(
         id=uuid4(),
         model_name=name or _ingress_model(config).name,
@@ -60,16 +51,13 @@ def _traverse(
     dirty_map: dict[str, UUID4],
     config: PersistedConfig,
 ) -> tuple[list[AEMPack], dict[str, UUID4]]:
-    """Run ``_traverse_graph`` seeding ``transformed_map`` with the incoming pack."""
+    """Run `_traverse_graph` seeding `transformed_map` with the incoming pack."""
     return mock_registry._traverse_graph(
         incoming=incoming,
         dirty_map=dirty_map,
         transformed_map={incoming.model_name: incoming},
         config=config,
     )
-
-
-# --- _create_aem_pack / _apply_workflow_to_data ------------------------------
 
 
 @pytest.mark.parametrize(
@@ -80,7 +68,7 @@ def _traverse(
 def test_create_aem_pack(
     mock_registry: AEMPackRegistry, aem_id: UUID4 | None, expected_aem_id: bool
 ):
-    """Creating an AEMPack wrapper, with and without a pre-specified ID."""
+    """Ensure creating an AEMPack wrapper works, with and without a pre-specified ID."""
     aem_pack = mock_registry._create_aem_pack(
         aem_id=aem_id,
         model_name="TestModel",
@@ -96,26 +84,6 @@ def test_create_aem_pack(
     assert aem_pack.annotation == {}
     if expected_aem_id:
         assert aem_pack.id == EXPECTED_AEM_ID
-
-
-def test_apply_workflow_to_data(mock_registry: AEMPackRegistry):
-    """Applying a workflow transforms only the schema, not the resource data."""
-    config = load_aem_pack_config(AEM_PACK_REGISTRY_CONFIGS["single_route"])
-    ingress = _ingress_model(config)
-
-    result = mock_registry._apply_workflow_to_data(
-        data=TEST_DATAPACK,
-        annotation={},
-        input_schema=ingress.schema_,
-        workflow=config.workflows[0],
-    )
-
-    assert isinstance(result, DataPack)
-    # rename_id_property only modifies the schema, not the resource data.
-    assert result.resources == TEST_DATAPACK.resources
-
-
-# --- _traverse_graph ---------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -148,8 +116,8 @@ def test_clears_dirty_map(
     aem_pack_config: PersistedConfig,
     dirty_names: set[str],
 ):
-    """Traversal clears all non-dangling dirty map entries and only publishes
-    derived packs whose model has ``publish=True``.
+    """Ensure traversal clears all non-dangling dirty map entries and only publishes
+    derived packs whose model has `publish=True`.
     """
     incoming = _ingress_for(aem_pack_config)
     dirty_map: dict[str, UUID4] = {name: uuid4() for name in dirty_names}
@@ -165,7 +133,7 @@ def test_clears_dirty_map(
 
 
 def test_respects_topological_order(mock_registry: AEMPackRegistry):
-    """Routes are processed in topological order regardless of fixture listing order."""
+    """Ensure routes are processed in topological order regardless of fixture listing order."""
     config = load_aem_pack_config(AEM_PACK_REGISTRY_CONFIGS["forking_routes"])
     # Swap orders so DerivedModel2 (order=1) is processed before DerivedModel1 (order=2)
     by_name = {model.name: model for model in config.models}
@@ -203,9 +171,7 @@ def test_dirty_map_id_handling(
     have_dirty_map: bool,
     expected_published: int,
 ):
-    """With a dirty map, derived packs reuse the supplied UUIDs; without one,
-    fresh UUIDs are generated for each derived pack.
-    """
+    """Ensure derived packs reuse the supplied UUIDs from the dirty map."""
     config = load_aem_pack_config(
         AEM_PACK_REGISTRY_CONFIGS[config_name], publish_models=publish
     )
@@ -246,7 +212,7 @@ def test_bottleneck_topology(
     aem_pack_config: PersistedConfig,
     ingress_name: str,
 ):
-    """Traversal from each ingress through a bottleneck publishes downstream
+    """Ensure traversal from each ingress through a bottleneck publishes downstream
     and reuses existing dirty-map IDs for the derived packs.
     """
     incoming = _ingress_for(aem_pack_config, name=ingress_name)

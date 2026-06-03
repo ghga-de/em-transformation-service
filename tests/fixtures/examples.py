@@ -13,9 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Example configs: paths, loaders, schemas, and the parametrize fixtures that
-consume them. One module for everything driven by YAML/JSON fixture files.
-"""
+"""Fixtures for example transformation configs and mock schema."""
 
 import contextlib
 import json
@@ -42,10 +40,10 @@ MOCK_JSON_PATH = BASE_DIR / "mock.schemapack.json"
 
 @cache
 def _examples_in(subpath: str) -> Mapping[str, Path]:
-    """Return ``{stem: path}`` for files under ``CONFIG_DIR / subpath``, sorted by stem.
+    """Return `{stem: path}` for files under `CONFIG_DIR / subpath`, sorted by stem.
 
-    The result is a read-only ``MappingProxyType`` because ``@cache`` shares one
-    instance across callers — mutation would silently corrupt the cache.
+    The result is a read-only `MappingProxyType` because `@cache` shares one instance
+    across callers and mutation would silently corrupt the cache.
     """
     return MappingProxyType(
         dict(
@@ -55,7 +53,7 @@ def _examples_in(subpath: str) -> Mapping[str, Path]:
 
 
 def _examples_by_prefix(subpath: str, prefix: str) -> Mapping[str, Path]:
-    """Return ``{stem-without-prefix: path}`` for prefixed files under ``subpath``."""
+    """Return `{stem-without-prefix: path}` for prefixed files under `subpath`."""
     return {
         stem.removeprefix(prefix): path
         for stem, path in _examples_in(subpath).items()
@@ -65,9 +63,9 @@ def _examples_by_prefix(subpath: str, prefix: str) -> Mapping[str, Path]:
 
 @contextlib.contextmanager
 def _cwd(path: Path) -> Iterator[None]:
-    """Chdir to ``path`` for the block; restore on exit.
+    """Chdir to `path` for the block; restore on exit.
 
-    Required so schemapack's content-schema validator resolves ``content: ../foo.json``
+    Required so schemapack's content-schema validator resolves `content: ../foo.json`
     references relative to the YAML fixture's own directory, not the test runner's cwd.
     """
     original = os.getcwd()
@@ -81,7 +79,7 @@ def _cwd(path: Path) -> Iterator[None]:
 def _load[ModelT: BaseModel](
     path: Path, model: type[ModelT], *, section: str | None = None
 ) -> ModelT:
-    """Load and validate ``model`` from a YAML fixture (optionally a sub-section)."""
+    """Load and validate `model` from a YAML fixture."""
     with path.open("r") as fh:
         data = safe_load(fh)
     if section is not None:
@@ -91,17 +89,17 @@ def _load[ModelT: BaseModel](
 
 
 def load_validated_config(path: Path) -> ValidatedConfig:
-    """Load a ``ValidatedConfig`` from a YAML fixture file."""
+    """Load a `ValidatedConfig` from a YAML fixture file."""
     return _load(path, ValidatedConfig)
 
 
 def load_raw_config(path: Path) -> RawConfig:
-    """Load a ``RawConfig`` from a YAML fixture file."""
+    """Load a `RawConfig` from a YAML fixture file."""
     return _load(path, RawConfig)
 
 
 def load_pruning_config(path: Path) -> ValidatedConfig:
-    """Load a ``ValidatedConfig`` from a pruning-case YAML's ``config:`` section."""
+    """Load a `ValidatedConfig` from a pruning-case YAML's `config` section."""
     return _load(path, ValidatedConfig, section="config")
 
 
@@ -111,7 +109,7 @@ def load_aem_pack_config(
 ) -> PersistedConfig:
     """Load a YAML config, derive schemas, and return a PersistedConfig.
 
-    ``publish_models`` flips ``publish=True`` on the named models.
+    `publish_models` sets `publish=True` on all models named in the collection.
     """
     validated = load_validated_config(path)
     deriver = ModelDeriver()
@@ -196,12 +194,12 @@ def model_derivation_fixture(
 def mock_apply_workflow(
     model_derivation_fixture: ModelDerivationFixture,
 ) -> Generator[MagicMock]:
-    """Patch ``_apply_workflow`` on the deriver and yield the mock."""
+    """Patch `_apply_workflow` on the deriver and yield the mock."""
     with patch.object(model_derivation_fixture.deriver, "_apply_workflow") as mock:
         yield mock
 
 
 @pytest.fixture
 def pruning_fixture(request: pytest.FixtureRequest) -> Generator[ValidatedConfig]:
-    """Load a ``ValidatedConfig`` from the YAML's ``config:`` section, via ``indirect``."""
+    """Load a `ValidatedConfig` from the YAML's `config:` section, via `indirect`."""
     yield load_pruning_config(request.param)

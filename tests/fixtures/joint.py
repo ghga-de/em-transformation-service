@@ -90,7 +90,7 @@ class JointFixture:
     ) -> PersistedConfig:
         """Derive a config from a YAML fixture and write it to the DB.
 
-        Returns the PersistedConfig matching what ``load_config_from_db`` returns.
+        Returns the PersistedConfig matching `load_config_from_db`.
         """
         config = load_aem_pack_config(config_yaml_path, publish_models=publish_models)
         await self.insert_config(config)

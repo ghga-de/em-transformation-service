@@ -13,13 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for outbound mongo adapters that coordinate config state across workers.
-
-Covers the distributed config lock (mutual exclusion during config updates) and
-the config version tracker (monotonic counter that signals config changes).
-Both adapters wrap a single mongo collection and share the ``mongo_collection``
-fixture indirection.
-"""
+"""Tests for outbound mongo adapters that coordinate config state across workers."""
 
 import asyncio
 
@@ -36,8 +30,6 @@ from ets.constants import (
 
 pytestmark = pytest.mark.asyncio()
 
-
-# --- ConfigLockAdapter -------------------------------------------------------
 
 lock_collection = pytest.mark.parametrize(
     "mongo_collection", [CONFIG_LOCK_COLLECTION], indirect=True
@@ -64,7 +56,7 @@ def make_lock(
 
 @lock_collection
 async def test_acquire_lock_succeeds(mongo_collection: AsyncCollection):
-    """First acquire on empty collection returns True."""
+    """Ensure first acquire on empty collection returns True."""
     lock = make_lock(mongo_collection)
     await lock.setup_index()
 
@@ -77,7 +69,7 @@ async def test_acquire_lock_succeeds(mongo_collection: AsyncCollection):
 
 @lock_collection
 async def test_acquire_lock_fails_when_held(mongo_collection: AsyncCollection):
-    """Second acquire while lock is held returns False."""
+    """Ensure second acquire while lock is held returns False."""
     lock1 = make_lock(mongo_collection)
     lock2 = make_lock(mongo_collection, worker_id="worker-2")
     await lock1.setup_index()
@@ -88,7 +80,7 @@ async def test_acquire_lock_fails_when_held(mongo_collection: AsyncCollection):
 
 @lock_collection
 async def test_release_then_acquire(mongo_collection: AsyncCollection):
-    """Another worker can acquire after release."""
+    """Ensure another worker can acquire after release."""
     lock1 = make_lock(mongo_collection)
     lock2 = make_lock(mongo_collection, worker_id="worker-2")
     await lock1.setup_index()
@@ -100,7 +92,7 @@ async def test_release_then_acquire(mongo_collection: AsyncCollection):
 
 @lock_collection
 async def test_release_by_wrong_worker_is_noop(mongo_collection: AsyncCollection):
-    """Release by non-holder does not remove the lock."""
+    """Ensure release by non-holder does not remove the lock."""
     lock1 = make_lock(mongo_collection)
     lock2 = make_lock(mongo_collection, worker_id="worker-2")
     await lock1.setup_index()
@@ -117,7 +109,7 @@ async def test_release_by_wrong_worker_is_noop(mongo_collection: AsyncCollection
 async def test_wait_returns_immediately_when_unlocked(
     mongo_collection: AsyncCollection,
 ):
-    """wait_for_lock_release returns immediately if no lock exists."""
+    """Ensure wait_for_lock_release returns immediately if no lock exists."""
     lock = make_lock(mongo_collection, timeout=2)
     await lock.setup_index()
 
@@ -126,7 +118,7 @@ async def test_wait_returns_immediately_when_unlocked(
 
 @lock_collection
 async def test_wait_returns_after_release(mongo_collection: AsyncCollection):
-    """wait_for_lock_release returns once another task releases the lock."""
+    """Ensure wait_for_lock_release returns once another task releases the lock."""
     holder = make_lock(mongo_collection, worker_id="holder")
     waiter = make_lock(
         mongo_collection, worker_id="waiter", poll_interval=1, timeout=10
@@ -145,7 +137,7 @@ async def test_wait_returns_after_release(mongo_collection: AsyncCollection):
 
 @lock_collection
 async def test_wait_raises_timeout(mongo_collection: AsyncCollection):
-    """wait_for_lock_release raises TimeoutError after the timeout elapses."""
+    """Ensure wait_for_lock_release raises TimeoutError after the timeout elapses."""
     poll_interval = 1
     timeout = 2
     holder = make_lock(mongo_collection, worker_id="holder")
@@ -169,7 +161,7 @@ async def test_wait_raises_timeout(mongo_collection: AsyncCollection):
 
 @lock_collection
 async def test_ttl_index_exists(mongo_collection: AsyncCollection):
-    """setup_index creates a TTL index on acquired_at."""
+    """Ensure setup_index creates a TTL index on acquired_at."""
     lock = make_lock(mongo_collection)
     await lock.setup_index()
 
@@ -181,7 +173,7 @@ async def test_ttl_index_exists(mongo_collection: AsyncCollection):
 
 @lock_collection
 async def test_setup_index_updates_ttl_via_collmod(mongo_collection: AsyncCollection):
-    """Calling setup_index a second time with a different TTL updates the index in-place."""
+    """Ensure calling setup_index a second time with a different TTL updates the index in-place."""
     initial_lock = make_lock(mongo_collection)
     updated_lock = make_lock(mongo_collection, lock_expiry_seconds=300)
     await initial_lock.setup_index()
@@ -193,8 +185,6 @@ async def test_setup_index_updates_ttl_via_collmod(mongo_collection: AsyncCollec
     assert ttl_indexes[0]["expireAfterSeconds"] == 300
 
 
-# --- ConfigVersioner ---------------------------------------------------------
-
 version_collection = pytest.mark.parametrize(
     "mongo_collection", [CONFIG_VERSION_COLLECTION], indirect=True
 )
@@ -202,14 +192,14 @@ version_collection = pytest.mark.parametrize(
 
 @version_collection
 async def test_get_version_returns_zero_when_empty(mongo_collection: AsyncCollection):
-    """get_version returns 0 when no version document exists."""
+    """Ensure get_version returns 0 when no version document exists."""
     tracker = ConfigVersioner(collection=mongo_collection)
     assert await tracker.get_version() == 0
 
 
 @version_collection
 async def test_increment_from_zero(mongo_collection: AsyncCollection):
-    """First increment creates the document with version 1."""
+    """Ensure  first increment creates the document with version 1."""
     tracker = ConfigVersioner(collection=mongo_collection)
     assert await tracker.increment_version() == 1
     assert await tracker.get_version() == 1
@@ -225,7 +215,7 @@ async def test_increment_is_monotonic(mongo_collection: AsyncCollection):
 
 @version_collection
 async def test_multiple_trackers_share_version(mongo_collection: AsyncCollection):
-    """Two tracker instances pointing at the same collection see the same version."""
+    """Ensure two tracker instances pointing at the same collection see the same version."""
     tracker_a = ConfigVersioner(collection=mongo_collection)
     tracker_b = ConfigVersioner(collection=mongo_collection)
 

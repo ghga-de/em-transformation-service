@@ -83,7 +83,7 @@ async def test_load_and_compare(
     old_config_path: Path,
     joint_fixture: JointFixture,
 ):
-    """Loading from a YAML and comparing against the persisted state returns the
+    """Ensure loading from YAML and comparing against the persisted state returns the
     expected RawConfig (changed) or PersistedConfig (unchanged) variant.
     """
     loader = joint_fixture.loader
@@ -108,7 +108,7 @@ async def test_load_and_compare(
 
 
 def test_compare_is_order_insensitive(loader: ConfigLoaderAdapter):
-    """List ordering does not affect config comparison outcome."""
+    """Ensure list ordering does not affect config comparison outcome."""
     raw_config = loader.load_config_from_file(BASIC_CONFIG_PATH)
     persisted_models = [
         _model_with_mocked_schema(rm, order)
@@ -130,7 +130,7 @@ async def test_write_config_round_trip(
     persisted_config: PersistedConfig,
     write_twice: bool,
 ):
-    """write_config upserts entities and the round-trip preserves them; calling
+    """Ensure write_config upserts entities and the round-trip preserves them. Calling
     twice with the same config must not raise (upsert semantics).
     """
     await joint_fixture.writer.write_config(persisted_config)

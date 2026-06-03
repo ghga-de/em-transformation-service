@@ -28,6 +28,9 @@ from pymongo.asynchronous.collection import AsyncCollection
 async def mongo_collection(
     request: pytest.FixtureRequest, mongodb: MongoDbFixture
 ) -> AsyncGenerator[AsyncCollection]:
-    """Yield a single MongoDB collection by name (passed via ``indirect``)."""
+    """Yield a single MongoDB collection by name, passed via `indirect`.
+
+    `request.param` holds the collection name.
+    """
     async with ConfiguredMongoClient(config=mongodb.config) as client:
         yield client[mongodb.config.db_name][request.param]

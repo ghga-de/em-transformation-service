@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""End-to-end tests for the config load → validate pipeline."""
+"""End-to-end tests for the config load - validate pipeline."""
 
 import itertools
 from pathlib import Path
@@ -47,7 +47,7 @@ for _a, _b in itertools.combinations(_GROUPS, 2):
 
 @pytest.mark.parametrize("path", VALID_CONFIGS.values(), ids=VALID_CONFIGS.keys())
 def test_valid_config_loads_and_validates(path: Path, loader: ConfigLoaderAdapter):
-    """Valid configs both load and pass validation."""
+    """Ensure valid configs both load and pass validation."""
     raw_config = loader.load_config_from_file(path)
     assert raw_config.models
     assert raw_config.routes
@@ -59,7 +59,7 @@ def test_valid_config_loads_and_validates(path: Path, loader: ConfigLoaderAdapte
     "path", INVALID_ON_LOAD_CONFIGS.values(), ids=INVALID_ON_LOAD_CONFIGS.keys()
 )
 def test_invalid_on_load_raises(path: Path, loader: ConfigLoaderAdapter):
-    """Structurally invalid configs raise during loading."""
+    """Ensure structurally invalid configs raise during loading."""
     with pytest.raises(ConfigurationLoaderError):
         loader.load_config_from_file(path)
 
@@ -72,7 +72,7 @@ def test_invalid_on_load_raises(path: Path, loader: ConfigLoaderAdapter):
 def test_invalid_on_validation_loads_then_raises(
     path: Path, loader: ConfigLoaderAdapter
 ):
-    """Configs with semantic errors load successfully but fail validation."""
+    """Ensure configs with semantic errors load successfully but fail validation."""
     raw_config = loader.load_config_from_file(path)
     with pytest.raises(ConfigValidationError):
         validate(raw_config)

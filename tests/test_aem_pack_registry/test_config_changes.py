@@ -13,13 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for processing under config inconsistencies and mid-flight changes.
-
-Covers behavior when the persisted config differs from what was current at the
-time a pack was queued: routes/models removed (cleanup of stale derived packs),
-the graph config version bumping mid-process (pack freed for reprocessing), and
-a pack referencing a model that no longer exists (error propagation).
-"""
+"""Tests for processing under config inconsistencies and mid-flight changes."""
 
 import logging
 from unittest.mock import AsyncMock, patch
