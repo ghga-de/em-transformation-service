@@ -1,7 +1,10 @@
-# Chained routes: A(ingress) → B(derived) → C(derived) via identity_workflow.
+# Chained routes: IngressModel(ingress) → DerivedModel1 → DerivedModel2 via preserve_content.
+#
+# Graph:
+#     IngressModel → DerivedModel1 → DerivedModel2
 
 models:
-  - name: A
+  - name: IngressModel
     is_ingress: true
     version: "1.0.0"
     publish: false
@@ -25,14 +28,14 @@ models:
             "type": "object"
           }
 
-  - name: B
+  - name: DerivedModel1
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 1
     schema_: null
 
-  - name: C
+  - name: DerivedModel2
     is_ingress: false
     version: "1.0.0"
     publish: false
@@ -57,10 +60,10 @@ workflows:
 
 # Routes listed in reverse order to verify that topological sorting works
 routes:
-  - input_model_name: B
+  - input_model_name: DerivedModel1
     workflow_name: preserve_content
-    output_model_name: C
+    output_model_name: DerivedModel2
 
-  - input_model_name: A
+  - input_model_name: IngressModel
     workflow_name: preserve_content
-    output_model_name: B
+    output_model_name: DerivedModel1

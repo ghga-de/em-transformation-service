@@ -1,13 +1,13 @@
-# Two isolated ingress models (I2, I3) and one ingress model (I1) with a route
-# to a derived model (D1) via rename_id_property.
+# Two isolated ingress models (IngressModel2, IngressModel3) and one ingress model
+# (IngressModel1) with a route to a derived model (DerivedModel1) via rename_id_property.
 #
 # Graph:
-#     I1 → D1
-#     I2 (isolated)
-#     I3 (isolated)
+#     IngressModel1 → DerivedModel1
+#     IngressModel2 (isolated)
+#     IngressModel3 (isolated)
 
 models:
-  - name: I1
+  - name: IngressModel1
     is_ingress: true
     version: "1.0.0"
     publish: false
@@ -20,21 +20,21 @@ models:
             propertyName: alias
           content: ../_schemas/file_content.json
 
-  - name: I2
+  - name: IngressModel2
     is_ingress: true
     version: "1.0.0"
     publish: false
     order: -1
     schema_: *file_schema
 
-  - name: I3
+  - name: IngressModel3
     is_ingress: true
     version: "1.0.0"
     publish: false
     order: -1
     schema_: *file_schema
 
-  - name: D1
+  - name: DerivedModel1
     is_ingress: false
     version: "1.0.0"
     publish: false
@@ -53,6 +53,6 @@ workflows:
             id_property_name: file_id
 
 routes:
-  - input_model_name: I1
+  - input_model_name: IngressModel1
     workflow_name: rename_to_file_id
-    output_model_name: D1
+    output_model_name: DerivedModel1

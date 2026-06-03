@@ -1,5 +1,4 @@
-# Test YAML Configuration with RawConfig structure
-# Contains valid variants of models and workflows, but it's missing the required routes
+# Invalid: the routes section is missing (a RawConfig requires at least one route).
 
 models:
   - name: basic_ingress_model

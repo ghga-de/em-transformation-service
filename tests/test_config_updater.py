@@ -86,14 +86,14 @@ class PruningResult:
                     "UnpublishedSource",
                     "PublishedSource",
                     "Bottleneck",
-                    "Published1",
-                    "Published2",
+                    "PublishedDerived1",
+                    "PublishedDerived2",
                 },
                 routes={
                     "UnpublishedSource:workflow:Bottleneck",
                     "PublishedSource:workflow:Bottleneck",
-                    "Bottleneck:workflow:Published1",
-                    "Bottleneck:workflow:Published2",
+                    "Bottleneck:workflow:PublishedDerived1",
+                    "Bottleneck:workflow:PublishedDerived2",
                 },
                 workflows={"workflow"},
             ),
@@ -101,7 +101,7 @@ class PruningResult:
         (
             PRUNING_CASES["nothing_pruned"],
             PruningResult(
-                models={"PublishedSource", "PublishedDerived", "PublishedSource_2"},
+                models={"PublishedSource", "PublishedDerived", "PublishedSource2"},
                 routes={"PublishedSource:workflow:PublishedDerived"},
                 workflows={"workflow"},
             ),

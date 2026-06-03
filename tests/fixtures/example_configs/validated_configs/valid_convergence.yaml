@@ -2,11 +2,11 @@
 # intermediates converge to a single output.
 #
 # Graph:
-#     I1 → D1 → D_out
-#     I2 → D2 → D_out
+#     IngressModel1 → DerivedModel1 → ConvergedModel
+#     IngressModel2 → DerivedModel2 → ConvergedModel
 
 models:
-  - name: I1
+  - name: IngressModel1
     is_ingress: true
     version: "1.0.0"
     publish: false
@@ -19,28 +19,28 @@ models:
             propertyName: alias
           content: ../_schemas/file_content.json
 
-  - name: I2
+  - name: IngressModel2
     is_ingress: true
     version: "1.0.0"
     publish: false
     order: 0
     schema_: *file_schema
 
-  - name: D1
+  - name: DerivedModel1
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 3
     schema_: null
 
-  - name: D2
+  - name: DerivedModel2
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 1
     schema_: null
 
-  - name: D_out
+  - name: ConvergedModel
     is_ingress: false
     version: "1.0.0"
     publish: false
@@ -68,18 +68,18 @@ workflows:
             id_property_name: file_id
 
 routes:
-  - input_model_name: I1
+  - input_model_name: IngressModel1
     workflow_name: replace_file_ids
-    output_model_name: D1
+    output_model_name: DerivedModel1
 
-  - input_model_name: I2
+  - input_model_name: IngressModel2
     workflow_name: replace_file_ids
-    output_model_name: D2
+    output_model_name: DerivedModel2
 
-  - input_model_name: D1
+  - input_model_name: DerivedModel1
     workflow_name: rename_to_file_id
-    output_model_name: D_out
+    output_model_name: ConvergedModel
 
-  - input_model_name: D2
+  - input_model_name: DerivedModel2
     workflow_name: rename_to_file_id
-    output_model_name: D_out
+    output_model_name: ConvergedModel

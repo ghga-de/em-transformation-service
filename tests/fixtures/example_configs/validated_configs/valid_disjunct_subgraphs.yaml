@@ -1,19 +1,19 @@
 # Disjunct subgraphs: two independent subgraphs plus one isolated ingress.
 #
 # Subgraph 1:
-#     I1 → D1 → D2 → D3 → D4
-#                  → D5 → D6
+#     IngressModel1 → DerivedModel1 → DerivedModel2 → DerivedModel3 → DerivedModel4
+#                                                   → DerivedModel5 → DerivedModel6
 #
 # Subgraph 2:
-#     I2 → D7 → D8
+#     IngressModel2 → DerivedModel7 → DerivedModel8
 #
 # Isolated:
-#     I3
+#     IngressModel3
 #
 # Uses rename_id_property, duplicate_class, delete_class, and replace_resource_ids.
 
 models:
-  - name: I1
+  - name: IngressModel1
     is_ingress: true
     version: "1.0.0"
     publish: false
@@ -26,70 +26,70 @@ models:
             propertyName: alias
           content: ../_schemas/file_content.json
 
-  - name: I2
+  - name: IngressModel2
     is_ingress: true
     version: "1.0.0"
     publish: false
     order: 0
     schema_: *file_schema
 
-  - name: I3
+  - name: IngressModel3
     is_ingress: true
     version: "1.0.0"
     publish: false
     order: -1
     schema_: *file_schema
 
-  - name: D1
+  - name: DerivedModel1
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 4
     schema_: null
 
-  - name: D2
+  - name: DerivedModel2
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 5
     schema_: null
 
-  - name: D3
+  - name: DerivedModel3
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 8
     schema_: null
 
-  - name: D4
+  - name: DerivedModel4
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 9
     schema_: null
 
-  - name: D5
+  - name: DerivedModel5
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 6
     schema_: null
 
-  - name: D6
+  - name: DerivedModel6
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 7
     schema_: null
 
-  - name: D7
+  - name: DerivedModel7
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 1
     schema_: null
 
-  - name: D8
+  - name: DerivedModel8
     is_ingress: false
     version: "1.0.0"
     publish: false
@@ -136,34 +136,34 @@ workflows:
             class_name: File
 
 routes:
-  - input_model_name: I1
+  - input_model_name: IngressModel1
     workflow_name: rename_to_file_id
-    output_model_name: D1
+    output_model_name: DerivedModel1
 
-  - input_model_name: D1
+  - input_model_name: DerivedModel1
     workflow_name: add_backup_class
-    output_model_name: D2
+    output_model_name: DerivedModel2
 
-  - input_model_name: D2
+  - input_model_name: DerivedModel2
     workflow_name: remove_backup_class
-    output_model_name: D3
+    output_model_name: DerivedModel3
 
-  - input_model_name: D3
+  - input_model_name: DerivedModel3
     workflow_name: replace_file_ids
-    output_model_name: D4
+    output_model_name: DerivedModel4
 
-  - input_model_name: D2
+  - input_model_name: DerivedModel2
     workflow_name: replace_file_ids
-    output_model_name: D5
+    output_model_name: DerivedModel5
 
-  - input_model_name: D5
+  - input_model_name: DerivedModel5
     workflow_name: remove_backup_class
-    output_model_name: D6
+    output_model_name: DerivedModel6
 
-  - input_model_name: I2
+  - input_model_name: IngressModel2
     workflow_name: replace_file_ids
-    output_model_name: D7
+    output_model_name: DerivedModel7
 
-  - input_model_name: D7
+  - input_model_name: DerivedModel7
     workflow_name: rename_to_file_id
-    output_model_name: D8
+    output_model_name: DerivedModel8

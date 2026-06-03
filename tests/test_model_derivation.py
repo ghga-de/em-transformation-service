@@ -108,79 +108,83 @@ def test_apply_workflow_exception_handling(
     [
         (
             VALID_MODEL_DERIVATION_CONFIGS["multi_step_workflow"],
-            {"in": FILE_SCHEMA, "out": FILE_RENAMED_ID_SCHEMA},
+            {"IngressModel": FILE_SCHEMA, "DerivedModel1": FILE_RENAMED_ID_SCHEMA},
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
-            {"A": FILE_SCHEMA, "B": FILE_SCHEMA, "C": FILE_SCHEMA},
+            {
+                "IngressModel": FILE_SCHEMA,
+                "DerivedModel1": FILE_SCHEMA,
+                "DerivedModel2": FILE_SCHEMA,
+            },
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["long_chain"],
             {
-                "I": FILE_SCHEMA,
-                "D1": FILE_RENAMED_ID_SCHEMA,
-                "D2": RENAMED_ID_WITH_BACKUP_SCHEMA,
-                "D3": RENAMED_ID_WITH_BACKUP_SCHEMA,
-                "D4": FILE_RENAMED_ID_SCHEMA,
-                "D5": FILE_RENAMED_ID_SCHEMA,
+                "IngressModel": FILE_SCHEMA,
+                "DerivedModel1": FILE_RENAMED_ID_SCHEMA,
+                "DerivedModel2": RENAMED_ID_WITH_BACKUP_SCHEMA,
+                "DerivedModel3": RENAMED_ID_WITH_BACKUP_SCHEMA,
+                "DerivedModel4": FILE_RENAMED_ID_SCHEMA,
+                "DerivedModel5": FILE_RENAMED_ID_SCHEMA,
             },
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["isolated_ingress"],
             {
-                "I1": FILE_SCHEMA,
-                "I2": FILE_SCHEMA,
-                "I3": FILE_SCHEMA,
-                "D1": FILE_RENAMED_ID_SCHEMA,
+                "IngressModel1": FILE_SCHEMA,
+                "IngressModel2": FILE_SCHEMA,
+                "IngressModel3": FILE_SCHEMA,
+                "DerivedModel1": FILE_RENAMED_ID_SCHEMA,
             },
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["forking_graph"],
             {
-                "I": FILE_SCHEMA,
-                "D1": FILE_RENAMED_ID_SCHEMA,
-                "D2": FILE_SCHEMA,
-                "D1a": FILE_RENAMED_ID_SCHEMA,
-                "D1b": RENAMED_ID_WITH_BACKUP_SCHEMA,
-                "D2a": FILE_RENAMED_ID_SCHEMA,
+                "IngressModel": FILE_SCHEMA,
+                "DerivedModel1": FILE_RENAMED_ID_SCHEMA,
+                "DerivedModel2": FILE_SCHEMA,
+                "DerivedModel1a": FILE_RENAMED_ID_SCHEMA,
+                "DerivedModel1b": RENAMED_ID_WITH_BACKUP_SCHEMA,
+                "DerivedModel2a": FILE_RENAMED_ID_SCHEMA,
             },
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["convergence"],
             {
-                "I1": FILE_SCHEMA,
-                "I2": FILE_SCHEMA,
-                "D1": FILE_SCHEMA,
-                "D2": FILE_SCHEMA,
-                "D_out": FILE_RENAMED_ID_SCHEMA,
+                "IngressModel1": FILE_SCHEMA,
+                "IngressModel2": FILE_SCHEMA,
+                "DerivedModel1": FILE_SCHEMA,
+                "DerivedModel2": FILE_SCHEMA,
+                "ConvergedModel": FILE_RENAMED_ID_SCHEMA,
             },
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["wide_convergence"],
             {
-                "I1": FILE_SCHEMA,
-                "I2": FILE_SCHEMA,
-                "I3": FILE_SCHEMA,
-                "D1": FILE_SCHEMA,
-                "D2": FILE_SCHEMA,
-                "D3": FILE_SCHEMA,
-                "D_out": FILE_RENAMED_ID_SCHEMA,
+                "IngressModel1": FILE_SCHEMA,
+                "IngressModel2": FILE_SCHEMA,
+                "IngressModel3": FILE_SCHEMA,
+                "DerivedModel1": FILE_SCHEMA,
+                "DerivedModel2": FILE_SCHEMA,
+                "DerivedModel3": FILE_SCHEMA,
+                "ConvergedModel": FILE_RENAMED_ID_SCHEMA,
             },
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["disjunct_subgraphs"],
             {
-                "I1": FILE_SCHEMA,
-                "I2": FILE_SCHEMA,
-                "I3": FILE_SCHEMA,
-                "D1": FILE_RENAMED_ID_SCHEMA,
-                "D2": RENAMED_ID_WITH_BACKUP_SCHEMA,
-                "D3": FILE_RENAMED_ID_SCHEMA,
-                "D4": FILE_RENAMED_ID_SCHEMA,
-                "D5": RENAMED_ID_WITH_BACKUP_SCHEMA,
-                "D6": FILE_RENAMED_ID_SCHEMA,
-                "D7": FILE_SCHEMA,
-                "D8": FILE_RENAMED_ID_SCHEMA,
+                "IngressModel1": FILE_SCHEMA,
+                "IngressModel2": FILE_SCHEMA,
+                "IngressModel3": FILE_SCHEMA,
+                "DerivedModel1": FILE_RENAMED_ID_SCHEMA,
+                "DerivedModel2": RENAMED_ID_WITH_BACKUP_SCHEMA,
+                "DerivedModel3": FILE_RENAMED_ID_SCHEMA,
+                "DerivedModel4": FILE_RENAMED_ID_SCHEMA,
+                "DerivedModel5": RENAMED_ID_WITH_BACKUP_SCHEMA,
+                "DerivedModel6": FILE_RENAMED_ID_SCHEMA,
+                "DerivedModel7": FILE_SCHEMA,
+                "DerivedModel8": FILE_RENAMED_ID_SCHEMA,
             },
         ),
     ],
@@ -230,11 +234,16 @@ def test_convergence_conflicting_schemas_raises(
     [
         (
             VALID_MODEL_DERIVATION_CONFIGS["chained_routes"],
-            ["A->B", "B->C"],
+            ["IngressModel->DerivedModel1", "DerivedModel1->DerivedModel2"],
         ),
         (
             VALID_MODEL_DERIVATION_CONFIGS["parallel_chains"],
-            ["I1->D1", "D1->D2", "I2->D3", "D3->D4"],
+            [
+                "IngressModel1->DerivedModel1",
+                "DerivedModel1->DerivedModel2",
+                "IngressModel2->DerivedModel3",
+                "DerivedModel3->DerivedModel4",
+            ],
         ),
     ],
     ids=["chained_routes", "parallel_chains"],
@@ -296,9 +305,10 @@ def test_route_references_unknown_model_raises_internal_error(
     """
     deriver = model_derivation_fixture.deriver
     cfg = model_derivation_fixture.config
-    # Remove model 'B', which is referenced as the output of the A→B route
+    # Remove DerivedModel1, which is referenced as the output of the
+    # IngressModel→DerivedModel1 route
     broken_config = cfg.model_copy(
-        update={"models": [m for m in cfg.models if m.name != "B"]}
+        update={"models": [m for m in cfg.models if m.name != "DerivedModel1"]}
     )
     with pytest.raises(ConsistencyError, match="internal consistency error"):
         deriver.derive_models(broken_config)

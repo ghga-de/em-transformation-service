@@ -5,7 +5,7 @@
 #     UnpublishedSource --[workflow]--> UnpublishedLeaf
 #
 # Subgraph 2:
-#     UnpublishedSource_2
+#     UnpublishedSource2
 
 config:
   models:
@@ -29,7 +29,7 @@ config:
       is_ingress: false
       version: null
       schema_: null
-    - name: UnpublishedSource_2
+    - name: UnpublishedSource2
       order: 2
       publish: false
       is_ingress: true

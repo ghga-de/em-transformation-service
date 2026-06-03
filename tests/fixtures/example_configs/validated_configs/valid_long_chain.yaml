@@ -1,14 +1,14 @@
-# Long chain: I → D1 → D2 → D3 → D4 → D5
+# Long chain: IngressModel → DerivedModel1 → DerivedModel2 → DerivedModel3 → DerivedModel4 → DerivedModel5
 #
 # Each route uses a different transformation type:
-#   I→D1:  rename_id_property (alias → file_id)
-#   D1→D2: duplicate_class (File → FileBackup)
-#   D2→D3: replace_resource_ids (File) — schema unchanged
-#   D3→D4: delete_class (FileBackup)
-#   D4→D5: transform_content (identity)
+#   IngressModel→DerivedModel1: rename_id_property (alias → file_id)
+#   DerivedModel1→DerivedModel2: duplicate_class (File → FileBackup)
+#   DerivedModel2→DerivedModel3: replace_resource_ids (File) — schema unchanged
+#   DerivedModel3→DerivedModel4: delete_class (FileBackup)
+#   DerivedModel4→DerivedModel5: transform_content (identity)
 
 models:
-  - name: I
+  - name: IngressModel
     is_ingress: true
     version: "1.0.0"
     publish: false
@@ -32,35 +32,35 @@ models:
             "type": "object"
           }
 
-  - name: D1
+  - name: DerivedModel1
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 1
     schema_: null
 
-  - name: D2
+  - name: DerivedModel2
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 2
     schema_: null
 
-  - name: D3
+  - name: DerivedModel3
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 3
     schema_: null
 
-  - name: D4
+  - name: DerivedModel4
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 4
     schema_: null
 
-  - name: D5
+  - name: DerivedModel5
     is_ingress: false
     version: "1.0.0"
     publish: false
@@ -122,22 +122,22 @@ workflows:
               {% endfor %}
 
 routes:
-  - input_model_name: I
+  - input_model_name: IngressModel
     workflow_name: rename_to_file_id
-    output_model_name: D1
+    output_model_name: DerivedModel1
 
-  - input_model_name: D1
+  - input_model_name: DerivedModel1
     workflow_name: add_backup_class
-    output_model_name: D2
+    output_model_name: DerivedModel2
 
-  - input_model_name: D2
+  - input_model_name: DerivedModel2
     workflow_name: replace_file_ids
-    output_model_name: D3
+    output_model_name: DerivedModel3
 
-  - input_model_name: D3
+  - input_model_name: DerivedModel3
     workflow_name: remove_backup_class
-    output_model_name: D4
+    output_model_name: DerivedModel4
 
-  - input_model_name: D4
+  - input_model_name: DerivedModel4
     workflow_name: preserve_content
-    output_model_name: D5
+    output_model_name: DerivedModel5

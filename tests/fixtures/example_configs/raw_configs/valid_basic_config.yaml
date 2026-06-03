@@ -1,5 +1,8 @@
-# Test YAML Configuration with RawConfig structure
-# Contains valid variants of models, workflows, and routes
+# Valid raw config covering all RawConfig sections: an ingress model with File and
+# Dataset classes, two derived models, and two chained transform_content workflows.
+#
+# Graph:
+#     basic_ingress_model → extracted_file_information → processed_file_information
 
 models:
   - name: basic_ingress_model

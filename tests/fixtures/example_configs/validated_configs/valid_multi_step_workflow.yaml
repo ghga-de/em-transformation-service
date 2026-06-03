@@ -1,10 +1,13 @@
-# Two-step workflow config.
+# Two-step workflow: a single route whose workflow chains two operations.
+#
+# Graph:
+#     IngressModel → DerivedModel1
 #
 # Step 1: rename_id_property (alias → file_id)
 # Step 2: replace_resource_ids (File)
 
 models:
-  - name: in
+  - name: IngressModel
     is_ingress: true
     version: "1.0.0"
     publish: false
@@ -17,7 +20,7 @@ models:
             propertyName: alias
           content: ../_schemas/file_content.json
 
-  - name: out
+  - name: DerivedModel1
     is_ingress: false
     version: "1.0.0"
     publish: false
@@ -40,6 +43,6 @@ workflows:
             class_name: File
 
 routes:
-  - input_model_name: in
+  - input_model_name: IngressModel
     workflow_name: rename_then_replace
-    output_model_name: out
+    output_model_name: DerivedModel1

@@ -1,5 +1,9 @@
-# Test YAML Configuration with RawConfig structure
-# Contains valid variants of models, workflows, and routes
+# Valid raw config (larger variant): two ingress models share the File class and feed
+# two derived models, with both ingress paths converging on processed_file_information.
+#
+# Graph:
+#     basic_ingress_model → extracted_file_information → processed_file_information
+#     ingress_files_only → processed_file_information
 
 models:
   - name: basic_ingress_model

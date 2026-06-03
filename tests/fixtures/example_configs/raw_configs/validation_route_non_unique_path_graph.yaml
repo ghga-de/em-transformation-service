@@ -1,60 +1,65 @@
-# Invalid: Route graph contains multiple paths to a node (A -> B, A -> C, B -> D, C -> D)
+# Invalid: route graph has multiple paths to one node (a diamond).
+#
+# Graph:
+#     ingress_model → derived_model_1 → derived_model_3
+#     ingress_model → derived_model_2 → derived_model_3
+
 models:
-  - name: model_a
-    description: Model A
+  - name: ingress_model
+    description: Ingress model
     is_ingress: true
     version: "1.0.0"
     schema_:
       schemapack: "4.0.0"
       classes:
-        Class_A:
+        TestClass:
           id:
             propertyName: id
           content:
             type: object
     publish: false
 
-  - name: model_b
-    description: Model B
+  - name: derived_model_1
+    description: First derived model
     is_ingress: false
     version: "1.0.0"
     schema_: null
     publish: false
 
-  - name: model_c
-    description: Model C
+  - name: derived_model_2
+    description: Second derived model
     is_ingress: false
     version: "1.0.0"
     schema_: null
     publish: false
 
-  - name: model_d
-    description: Model D
+  - name: derived_model_3
+    description: Converging derived model
     is_ingress: false
     version: "1.0.0"
     schema_: null
     publish: false
 
-# Mock workflow with a simple delete_class operation for testing
 workflows:
-  - name: workflow_1
-    description: delete class
+  - name: test_workflow
+    description: Test workflow
     workflow:
       operations:
         - name: delete_class
-          description: Delete Class_B
+          description: Delete class operation
           args:
-            class_name: Class_B
+            class_name: TestClass
+
 routes:
-  - input_model_name: model_a
-    workflow_name: workflow_1
-    output_model_name: model_b
-  - input_model_name: model_a
-    workflow_name: workflow_1
-    output_model_name: model_c
-  - input_model_name: model_b
-    workflow_name: workflow_1
-    output_model_name: model_d
-  - input_model_name: model_c
-    workflow_name: workflow_1
-    output_model_name: model_d
+  - input_model_name: ingress_model
+    workflow_name: test_workflow
+    output_model_name: derived_model_1
+  - input_model_name: ingress_model
+    workflow_name: test_workflow
+    output_model_name: derived_model_2
+  - input_model_name: derived_model_1
+    workflow_name: test_workflow
+    output_model_name: derived_model_3
+  - input_model_name: derived_model_2
+    workflow_name: test_workflow
+    output_model_name: derived_model_3

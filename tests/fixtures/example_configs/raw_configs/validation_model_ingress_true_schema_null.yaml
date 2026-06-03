@@ -1,22 +1,22 @@
-# invalid config since the ingress model is missing the schema_ field
+# Invalid: an ingress model is missing its schema_ field.
 
 models:
-  - name: model_a
+  - name: ingress_model
     description: Ingress model
     is_ingress: true # <-
     version: "1.0.0"
     schema_: null # <-
     publish: false
 
-  - name: model_b
-    description: Another model
+  - name: derived_model_1
+    description: First derived model
     is_ingress: false
     version: "2.0.0"
     schema_: null
     publish: false
 
-  - name: model_c
-    description: Another model with publish true
+  - name: derived_model_2
+    description: Second derived model with publish true
     is_ingress: false
     version: "3.0.0"
     schema_: null
@@ -24,28 +24,28 @@ models:
 
 
 workflows:
-  - name: workflow_1
-    description: delete class
+  - name: delete_test_class
+    description: Delete TestClass
     workflow:
       operations:
         - name: delete_class
-          description: Delete Class_A
+          description: Delete TestClass
           args:
-            class_name: Class_A
-  - name: workflow_2
-    description: delete class
+            class_name: TestClass
+  - name: delete_other_class
+    description: Delete OtherClass
     workflow:
       operations:
         - name: delete_class
-          description: Delete Class_B
+          description: Delete OtherClass
           args:
-            class_name: Class_B
+            class_name: OtherClass
 
 routes:
-  - input_model_name: model_a
-    workflow_name: workflow_1
-    output_model_name: model_b
+  - input_model_name: ingress_model
+    workflow_name: delete_test_class
+    output_model_name: derived_model_1
 
-  - input_model_name: model_b
-    workflow_name: workflow_2
-    output_model_name: model_c
+  - input_model_name: derived_model_1
+    workflow_name: delete_other_class
+    output_model_name: derived_model_2

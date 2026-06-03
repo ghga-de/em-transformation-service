@@ -1,31 +1,31 @@
-# D1 and D2 are orphans; neither is reachable from any ingress model.
-# I2 has a route to D3, so routes is non-empty and passes validation.
+# OrphanModel1 and OrphanModel2 are orphans; neither is reachable from any ingress model.
+# IngressModel2 has a route to DerivedModel1, so routes is non-empty and passes validation.
 #
 # Graph:
-#     I1
-#     I2 → D3
-#     D1   (no incoming route)
-#     D2   (no incoming route)
+#     IngressModel1
+#     IngressModel2 → DerivedModel1
+#     OrphanModel1   (no incoming route)
+#     OrphanModel2   (no incoming route)
 #
 # The first orphaned derived model encountered during _update_models raises because
 # no schema could be derived.
 
 models:
-  - name: D1
+  - name: OrphanModel1
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: -1
     schema_: null
 
-  - name: D2
+  - name: OrphanModel2
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: -1
     schema_: null
 
-  - name: I1
+  - name: IngressModel1
     is_ingress: true
     version: "1.0.0"
     publish: false
@@ -49,14 +49,14 @@ models:
             "type": "object"
           }
 
-  - name: I2
+  - name: IngressModel2
     is_ingress: true
     version: "1.0.0"
     publish: false
     order: 0
     schema_: *file_schema
 
-  - name: D3
+  - name: DerivedModel1
     is_ingress: false
     version: "1.0.0"
     publish: false
@@ -80,6 +80,6 @@ workflows:
               {% endfor %}
 
 routes:
-  - input_model_name: I2
+  - input_model_name: IngressModel2
     workflow_name: identity_workflow
-    output_model_name: D3
+    output_model_name: DerivedModel1
