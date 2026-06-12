@@ -15,10 +15,9 @@
 
 """Contains functionality for SchemaPack derivation for non-EMIM models."""
 
-from metldata import get_transformation_registry
-from metldata.transform.base import TransformationDefinition
+from metldata import WorkflowRunner
 from metldata.transform.exceptions import ModelAssumptionError, ModelTransformationError
-from metldata.transform.handling import TransformationHandler
+from metldata.workflow.exceptions import WorkflowExecutionError
 from schemapack import is_equivalent_schemapack
 from schemapack.spec.schemapack import SchemaPack
 
@@ -39,16 +38,6 @@ class ConsistencyError(RuntimeError):
 
 class ModelDeriver:
     """Derives output schemas for all models in the transformation graph."""
-
-    def __init__(
-        self,
-        transformation_registry: dict[str, TransformationDefinition] | None = None,
-    ) -> None:
-        self._transformation_registry = (
-            transformation_registry
-            if transformation_registry is not None
-            else get_transformation_registry()
-        )
 
     def derive_models(self, config: ValidatedConfig) -> list[Model]:
         """Derive and return all models with populated schemas."""
@@ -115,25 +104,19 @@ class ModelDeriver:
     def _apply_workflow(
         self, *, route: Route, workflow: Workflow, input_schema: SchemaPack
     ) -> SchemaPack:
-        """Apply every workflow step to the `input_schema` and return the derived schema."""
-        current_schema = input_schema
-        for step in workflow.workflow.operations:
-            transformation_def = self._transformation_registry[step.name]
-            try:
-                typed_config = transformation_def.config_cls.model_validate(step.args)
-                handler: TransformationHandler = TransformationHandler(
-                    transformation_definition=transformation_def,
-                    transformation_config=typed_config,
-                    input_model=current_schema,
-                )
-                current_schema = handler.transformed_model
-            except (ModelAssumptionError, ModelTransformationError) as err:
+        """Apply the workflow to the `input_schema` and return the derived schema."""
+        try:
+            runner = WorkflowRunner(
+                workflow=workflow.workflow, input_model=input_schema
+            )
+        except WorkflowExecutionError as err:
+            if isinstance(err.error, (ModelAssumptionError, ModelTransformationError)):
                 raise ModelDerivationError(
-                    f"Schema derivation failed for route '{route.name}' "
-                    f"at workflow step '{step.name}': {err}"
+                    f"Schema derivation failed for route '{route.name}': {err}"
                 ) from err
+            raise err.error from err
 
-        return current_schema
+        return runner.model
 
     def _update_models(
         self, *, raw_models: list[OrderedRawModel], schemas: dict[str, SchemaPack]

@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from metldata.transform.exceptions import ModelAssumptionError, ModelTransformationError
+from metldata.workflow.exceptions import WorkflowExecutionError
 from schemapack import is_equal_schemapack
 from schemapack.spec.schemapack import SchemaPack
 
@@ -94,10 +95,13 @@ def test_apply_workflow_exception_handling(
     cfg = model_derivation_fixture.config
     deriver = model_derivation_fixture.deriver
     workflow = next(w for w in cfg.workflows if w.name == cfg.routes[0].workflow_name)
+    step_name = workflow.workflow.operations[0].name
 
     with patch(
-        "ets.core.model_derivation.TransformationHandler",
-        side_effect=side_effect_exc,
+        "ets.core.model_derivation.WorkflowRunner",
+        side_effect=WorkflowExecutionError(
+            step_index=0, step_name=step_name, error=side_effect_exc
+        ),
     ):
         with pytest.raises(expected_exc):
             deriver._apply_workflow(
