@@ -23,7 +23,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.core.model_derivation import ModelDeriver
+from ets.core import model_derivation
 from ets.core.models import ValidatedConfig
 from tests.fixtures.examples import load_model_derivation_config
 
@@ -83,10 +83,9 @@ RENAMED_ID_WITH_BACKUP_SCHEMA = SchemaPack.model_validate(
 
 @dataclass
 class ModelDerivationFixture:
-    """Holds a loaded ValidatedConfig and the corresponding ModelDeriver."""
+    """Holds a loaded ValidatedConfig."""
 
     config: ValidatedConfig
-    deriver: ModelDeriver
 
 
 @pytest.fixture
@@ -96,13 +95,13 @@ def model_derivation_fixture(
     """Build a ModelDerivationFixture from the path passed via indirect (needs to be set on the test case)."""
     path: Path = request.param
     config = load_model_derivation_config(path)
-    yield ModelDerivationFixture(config=config, deriver=ModelDeriver())
+    yield ModelDerivationFixture(config=config)
 
 
 @pytest.fixture
 def mock_apply_workflow(
     model_derivation_fixture: ModelDerivationFixture,
 ) -> Generator[MagicMock]:
-    """Patch _apply_workflow on the deriver and yield the mock."""
-    with patch.object(model_derivation_fixture.deriver, "_apply_workflow") as mock:
+    """Patch _apply_workflow in the model_derivation module and yield the mock."""
+    with patch.object(model_derivation, "_apply_workflow") as mock:
         yield mock

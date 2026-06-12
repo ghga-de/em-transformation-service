@@ -23,7 +23,12 @@ from metldata.workflow.exceptions import WorkflowExecutionError
 from schemapack import is_equal_schemapack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.core.model_derivation import ConsistencyError, ModelDerivationError
+from ets.core.model_derivation import (
+    ConsistencyError,
+    ModelDerivationError,
+    _apply_workflow,
+    derive_models,
+)
 from tests.fixtures.examples import (
     INVALID_MODEL_DERIVATION_CONFIGS,
     VALID_MODEL_DERIVATION_CONFIGS,
@@ -48,9 +53,7 @@ def test_valid_config_derives_successfully(
     model_derivation_fixture: ModelDerivationFixture,  # noqa: F811
 ):
     """Confirm valid configs produce models without raising."""
-    models = model_derivation_fixture.deriver.derive_models(
-        model_derivation_fixture.config
-    )
+    models = derive_models(model_derivation_fixture.config)
 
     assert models
     for model in models:
@@ -68,7 +71,7 @@ def test_invalid_config_raises(
 ):
     """Confirm invalid configs raise ModelDerivationError during derive_models."""
     with pytest.raises(ModelDerivationError):
-        model_derivation_fixture.deriver.derive_models(model_derivation_fixture.config)
+        derive_models(model_derivation_fixture.config)
 
 
 @pytest.mark.parametrize(
@@ -93,7 +96,6 @@ def test_apply_workflow_exception_handling(
 ):
     """Confirm expected metldata exceptions are wrapped in ModelDerivationError."""
     cfg = model_derivation_fixture.config
-    deriver = model_derivation_fixture.deriver
     workflow = next(w for w in cfg.workflows if w.name == cfg.routes[0].workflow_name)
     step_name = workflow.workflow.operations[0].name
 
@@ -104,7 +106,7 @@ def test_apply_workflow_exception_handling(
         ),
     ):
         with pytest.raises(expected_exc):
-            deriver._apply_workflow(
+            _apply_workflow(
                 route=cfg.routes[0], workflow=workflow, input_schema=FILE_SCHEMA
             )
 
@@ -207,9 +209,7 @@ def test_derive_models_produces_correct_schemas(
     expected_schemas: dict[str, SchemaPack],
 ):
     """Confirm derive_models assigns the correct schema to every model across various graph topologies."""
-    models = model_derivation_fixture.deriver.derive_models(
-        model_derivation_fixture.config
-    )
+    models = derive_models(model_derivation_fixture.config)
 
     assert len(models) == len(expected_schemas)
     by_name = {m.name: m for m in models}
@@ -228,7 +228,7 @@ def test_convergence_conflicting_schemas_raises(
 ):
     """Confirm converging paths that produce incompatible schemas at the output node raise."""
     with pytest.raises(ModelDerivationError, match="already has a derived schema"):
-        model_derivation_fixture.deriver.derive_models(model_derivation_fixture.config)
+        derive_models(model_derivation_fixture.config)
 
 
 @pytest.mark.parametrize(
@@ -259,7 +259,7 @@ def test_routes_processed_in_topological_order(
         return input_schema
 
     mock_apply_workflow.side_effect = record_call_order
-    model_derivation_fixture.deriver.derive_models(model_derivation_fixture.config)
+    derive_models(model_derivation_fixture.config)
 
     assert call_order == expected_order
 
@@ -281,7 +281,7 @@ def test_invalid_config_specific_error(
 ):
     """Confirm each invalid config raises ModelDerivationError with the expected message."""
     with pytest.raises(ModelDerivationError, match=expected_match):
-        model_derivation_fixture.deriver.derive_models(model_derivation_fixture.config)
+        derive_models(model_derivation_fixture.config)
 
 
 @pytest.mark.parametrize(
@@ -300,11 +300,10 @@ def test_route_references_unknown_model_raises_internal_error(
     it is triggered here by deliberately removing a model from the config
     passed to derive_models.
     """
-    deriver = model_derivation_fixture.deriver
     cfg = model_derivation_fixture.config
     # Remove model 'B', which is referenced as the output of the A→B route
     broken_config = cfg.model_copy(
         update={"models": [m for m in cfg.models if m.name != "B"]}
     )
     with pytest.raises(ConsistencyError, match="internal consistency error"):
-        deriver.derive_models(broken_config)
+        derive_models(broken_config)

@@ -26,7 +26,6 @@ from ets.core import config_updater as config_updater_module
 from ets.core.config_pruning import prune_unproductive_subgraphs
 from ets.core.config_updater import ConfigUpdater, ConfigUpdaterError
 from ets.core.config_validation import ConfigValidationError
-from ets.core.model_derivation import ModelDeriver
 from ets.core.models import Model, PersistedConfig, RawConfig, ValidatedConfig
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
@@ -180,7 +179,6 @@ def _make_updater(
     *,
     raw_config: RawConfig,
     persisted_config: PersistedConfig,
-    model_deriver: ModelDeriver,
 ) -> tuple[ConfigUpdater, MagicMock, AsyncMock]:
     loader = MagicMock(spec=ConfigLoaderPort)
     loader.load_config_from_file.return_value = raw_config
@@ -191,7 +189,6 @@ def _make_updater(
 
     updater = ConfigUpdater(
         loader=loader,
-        model_deriver=model_deriver,
         writer=writer,
         versioner=MagicMock(spec=ConfigVersionerPort),
     )
@@ -232,13 +229,12 @@ async def test_resolve_and_persist(
     monkeypatch.setattr(config_updater_module, "validate", validate)
 
     derived_models = [MagicMock(spec=Model)]
-    model_deriver = MagicMock(spec=ModelDeriver)
-    model_deriver.derive_models.return_value = derived_models
+    derive_models = MagicMock(return_value=derived_models)
+    monkeypatch.setattr(config_updater_module, "derive_models", derive_models)
 
     updater, loader, writer = _make_updater(
         raw_config=raw_config,
         persisted_config=persisted,
-        model_deriver=model_deriver,
     )
 
     await updater.resolve_and_persist(Path("/fake/config.yaml"))
@@ -249,7 +245,7 @@ async def test_resolve_and_persist(
 
     if compare_returns_raw and not validation_raises:
         validate.assert_called_once_with(raw_config)
-        model_deriver.derive_models.assert_called_once()
+        derive_models.assert_called_once()
         writer.write_config.assert_awaited_once()
         written = writer.write_config.await_args.args[0]
         assert isinstance(written, PersistedConfig)
@@ -257,7 +253,7 @@ async def test_resolve_and_persist(
     else:
         # validation_fallback and unchanged_config both leave the DB alone:
         # write_config would bump the version and trigger spurious reprocessing.
-        model_deriver.derive_models.assert_not_called()
+        derive_models.assert_not_called()
         writer.write_config.assert_not_awaited()
 
 
@@ -304,12 +300,9 @@ async def test_resolve_and_persist_stops_when_no_persisted_config(
         MagicMock(side_effect=ConfigValidationError("invalid")),
     )
 
-    model_deriver = MagicMock(spec=ModelDeriver)
-
     updater, _, writer = _make_updater(
         raw_config=raw_config,
         persisted_config=incomplete_persisted,
-        model_deriver=model_deriver,
     )
 
     with pytest.raises(ConfigUpdaterError, match="no previous valid config"):

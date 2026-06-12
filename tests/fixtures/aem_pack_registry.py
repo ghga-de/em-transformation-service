@@ -25,7 +25,7 @@ from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
 
 from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.model_derivation import ModelDeriver
+from ets.core.model_derivation import derive_models
 from ets.core.models import (
     IncomingAEMPack,
     PersistedConfig,
@@ -92,7 +92,7 @@ def load_aem_pack_config(
 ) -> PersistedConfig:
     """Load a YAML config, derive schemas, and return a PersistedConfig."""
     validated = load_model_derivation_config(path)
-    models = ModelDeriver().derive_models(validated)
+    models = derive_models(validated)
 
     if publish_models:
         models = [

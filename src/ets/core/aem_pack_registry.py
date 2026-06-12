@@ -289,7 +289,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
         workflow: Workflow,
     ) -> DataPack:
         """Apply the workflow to a DataPack and return the result."""
-        runner = WorkflowRunner(workflow=workflow.workflow, input_model=input_schema)
+        runner: WorkflowRunner = WorkflowRunner(
+            workflow=workflow.workflow, input_model=input_schema
+        )
         return runner.run_workflow(
             data=data, annotation=_AnnotationModel.model_validate(annotation)
         )
