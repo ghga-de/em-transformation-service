@@ -1,13 +1,14 @@
-# invalid config since a non-ingress model has a defined schema_
+# Invalid: a non-ingress model defines a schema_ (only ingress models may define one).
+
 models:
-  - name: model_a
+  - name: ingress_model
     description: Ingress model
     is_ingress: true
     version: "1.0.0"
     schema_:
       schemapack: "4.0.0"
       classes:
-        Class_A:
+        TestClass:
           id:
             propertyName: id
           content:
@@ -17,14 +18,14 @@ models:
             type: object
     publish: false
 
-  - name: model_b
-    description: Another model
+  - name: derived_model_with_schema
+    description: Non-ingress model that wrongly defines a schema_
     is_ingress: false # <-
     version: "2.0.0"
     schema_: # <-
       schemapack: "4.0.0"
       classes:
-        Class_B:
+        OtherClass:
           id:
             propertyName: id
           content:
@@ -34,8 +35,8 @@ models:
             type: object
     publish: false
 
-  - name: model_c
-    description: Another model with publish true
+  - name: derived_model
+    description: Non-ingress model with publish true
     is_ingress: false
     version: "3.0.0"
     schema_: null
@@ -43,31 +44,31 @@ models:
 
 
 workflows:
-  - name: workflow_1
-    description: duplicate class
+  - name: duplicate_test_class
+    description: Duplicate TestClass
     workflow:
       operations:
         - name: duplicate_class
-          description: Duplicate Class_A
+          description: Duplicate TestClass
           args:
-            source_class_name: Class_A
-            target_class_name: Class_C
-  - name: workflow_2
-    description: duplicate class
+            source_class_name: TestClass
+            target_class_name: TestClassCopy
+  - name: duplicate_other_class
+    description: Duplicate OtherClass
     workflow:
       operations:
         - name: duplicate_class
-          description: Duplicate Class_B
+          description: Duplicate OtherClass
           args:
-            source_class_name: Class_B
-            target_class_name: Class_D
+            source_class_name: OtherClass
+            target_class_name: OtherClassCopy
 
 routes:
-  - input_model_name: model_a
-    workflow_name: workflow_1
-    output_model_name: model_b
+  - input_model_name: ingress_model
+    workflow_name: duplicate_test_class
+    output_model_name: derived_model_with_schema
 
 
-  - input_model_name: model_b
-    workflow_name: workflow_2
-    output_model_name: model_c
+  - input_model_name: derived_model_with_schema
+    workflow_name: duplicate_other_class
+    output_model_name: derived_model

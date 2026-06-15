@@ -8,7 +8,7 @@
 #     PublishedSource
 #
 # Subgraph 3:
-#     UnpublishedSource_2 --[workflow]--> UnpublishedLeaf
+#     UnpublishedSource2 --[workflow]--> UnpublishedLeaf
 
 config:
   models:
@@ -17,7 +17,7 @@ config:
       publish: false
       is_ingress: true
       version: null
-      schema_:
+      schema_: &item_schema
         schemapack: "4.0.0"
         classes:
           Item:
@@ -31,29 +31,13 @@ config:
       publish: true
       is_ingress: true
       version: null
-      schema_:
-        schemapack: "4.0.0"
-        classes:
-          Item:
-            id:
-              propertyName: id
-            content:
-              type: object
-              additionalProperties: false
-    - name: UnpublishedSource_2
+      schema_: *item_schema
+    - name: UnpublishedSource2
       order: 2
       publish: false
       is_ingress: true
       version: null
-      schema_:
-        schemapack: "4.0.0"
-        classes:
-          Item:
-            id:
-              propertyName: id
-            content:
-              type: object
-              additionalProperties: false
+      schema_: *item_schema
     - name: UnpublishedLeaf
       order: 3
       publish: false
@@ -61,7 +45,7 @@ config:
       version: null
       schema_: null
   routes:
-    - input_model_name: UnpublishedSource_2
+    - input_model_name: UnpublishedSource2
       workflow_name: workflow
       output_model_name: UnpublishedLeaf
   workflows:

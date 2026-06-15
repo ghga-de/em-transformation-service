@@ -1,5 +1,9 @@
-# Test YAML Configuration with RawConfig structure
-# Contains valid variants of models, workflows, and routes
+# Valid raw config (larger variant): two ingress models share the File class and feed
+# two derived models, with both ingress paths converging on processed_file_information.
+#
+# Graph:
+#     basic_ingress_model → extracted_file_information → processed_file_information
+#     ingress_files_only → processed_file_information
 
 models:
   - name: basic_ingress_model
@@ -9,7 +13,7 @@ models:
     schema_:
       schemapack: 4.0.0
       classes:
-        File:
+        File: &file_class
           id:
             propertyName: alias
           content:
@@ -53,6 +57,16 @@ models:
                 target: true
     publish: false
 
+  - name: ingress_files_only
+    description: EMIM containing only file information
+    is_ingress: true
+    version: "1.0.0"
+    schema_:
+      schemapack: 4.0.0
+      classes:
+        File: *file_class
+    publish: false
+
   - name: extracted_file_information
     description: Model containing only specific file information
     is_ingress: false
@@ -77,46 +91,7 @@ workflows:
           description: Extract content properties as they are
           args:
             class_name: File
-            content_schema: {
-              "$schema": "http://json-schema.org/draft-07/schema#",
-              "additionalProperties": false,
-              "description": "A file is an object that contains information generated from a process, either an Experiment or an Analysis.",
-              "properties": {
-                "checksum": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "format": {
-                  "type": "string"
-                },
-                "size": {
-                  "type": "integer"
-                },
-              },
-              "required": [
-                "filename",
-                "format",
-                "checksum",
-                "size",
-              ],
-              "type": "object"
-            }
-            embedding_profile: {}
-            content_template_yaml: |
-              {% for key in content_property_names %}
-                {{ key }}: {{ original[key] }}
-              {% endfor %}
-  - name: extract_more_file_information
-    description: Extract more file information for further processing
-    workflow:
-      operations:
-        - name: transform_content
-          description: Extract content properties as they are with compression information
-          args:
-            class_name: File
-            content_schema: {
+            content_schema: &workflow_content_schema {
               "$schema": "http://json-schema.org/draft-07/schema#",
               "additionalProperties": false,
               "description": "A file is an object that contains information generated from a process, either an Experiment or an Analysis.",
@@ -163,11 +138,29 @@ workflows:
               {% for key in content_property_names %}
                 {{ key }}: {{ original[key] }}
               {% endfor %}
+  - name: extract_more_file_information
+    description: Extract more file information for further processing
+    workflow:
+      operations:
+        - name: transform_content
+          description: Extract content properties as they are with compression information
+          args:
+            class_name: File
+            content_schema: *workflow_content_schema
+            embedding_profile: {}
+            content_template_yaml: |
+              {% for key in content_property_names %}
+                {{ key }}: {{ original[key] }}
+              {% endfor %}
 routes:
   - input_model_name: basic_ingress_model
     workflow_name: extract_file_information
     output_model_name: extracted_file_information
 
   - input_model_name: extracted_file_information
+    workflow_name: extract_more_file_information
+    output_model_name: processed_file_information
+
+  - input_model_name: ingress_files_only
     workflow_name: extract_more_file_information
     output_model_name: processed_file_information

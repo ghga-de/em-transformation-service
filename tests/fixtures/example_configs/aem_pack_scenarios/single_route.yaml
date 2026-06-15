@@ -15,18 +15,7 @@ models:
         File:
           id:
             propertyName: alias
-          content: {
-            "$schema": "http://json-schema.org/draft-07/schema#",
-            "additionalProperties": false,
-            "properties": {
-              "checksum": {"type": "string"},
-              "filename": {"type": "string"},
-              "format": {"type": "string"},
-              "size": {"type": "integer"}
-            },
-            "required": ["filename", "format", "checksum", "size"],
-            "type": "object"
-          }
+          content: ../_schemas/file_content.json
 
   - name: DerivedModel1
     is_ingress: false
@@ -37,11 +26,11 @@ models:
 
 workflows:
   - name: rename_to_file_id
-    description: Rename the id property to file_id
+    description: Renames the File id property from alias to file_id
     workflow:
       operations:
         - name: rename_id_property
-          description: Rename the id property to file_id
+          description: Rename id from alias to file_id
           args:
             class_name: File
             id_property_name: file_id

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for behavior when the config changes between processing runs."""
+"""Tests for processing under config inconsistencies and mid-flight changes."""
 
 import logging
 from unittest.mock import AsyncMock, patch
@@ -21,17 +21,17 @@ from uuid import uuid4
 
 import pytest
 
-from ets.core.aem_pack_registry import AEMPackRegistry
+from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
+from ets.core.config_updater import ConfigUpdater
 from ets.core.models import PersistedConfig
-from tests.fixtures.aem_pack_registry import (
+from tests.fixtures.aem_pack import (
     make_ingress_pack,
-    populate_db_config,
     queue_and_claim,
 )
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
-pytestmark = pytest.mark.asyncio
+pytestmark = pytest.mark.asyncio()
 
 
 async def test_unreachable_pack_deleted_after_route_removal(
@@ -39,12 +39,11 @@ async def test_unreachable_pack_deleted_after_route_removal(
     caplog: pytest.LogCaptureFixture,
 ):
     """Ensure removing a route causes previously derived packs to be deleted on re-processing."""
-    config = await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+    config = await joint_fixture.seed_config(
+        AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
+    registry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
     pid = str(uuid4())
 
@@ -59,10 +58,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
         correlation_id=unprocessed.correlation_id,
     )
 
-    derived = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
-    ]
+    derived = await joint_fixture.derived_packs(pid)
     assert len(derived) == 3
     deleted_pack_id = next(
         pack.id for pack in derived if pack.model_name == "DerivedModel3"
@@ -87,7 +83,9 @@ async def test_unreachable_pack_deleted_after_route_removal(
     )
     # Inject the modified config directly — update_config won't overwrite it
     # because the DB version hasn't changed.
-    registry._config_updater._current_config = new_config
+    config_updater = registry._config_updater
+    assert isinstance(config_updater, ConfigUpdater)
+    config_updater._current_config = new_config
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="ets.core.aem_pack_registry"):
         await registry._process_next_aem_pack(
@@ -96,10 +94,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
         )
 
     # DerivedModel3 deleted (unreachable), DerivedModel1 and DerivedModel2 remain
-    derived = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
-    ]
+    derived = await joint_fixture.derived_packs(pid)
     assert len(derived) == 2
     assert {pack.model_name for pack in derived} == {
         "DerivedModel1",
@@ -121,12 +116,11 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
     """When a route is removed but the model remains in the config, the previously
     derived pack is deleted with a 'no longer reachable' warning.
     """
-    config = await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+    config = await joint_fixture.seed_config(
+        AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
+    registry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
     pid = str(uuid4())
 
@@ -141,10 +135,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         correlation_id=unprocessed.correlation_id,
     )
 
-    derived = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
-    ]
+    derived = await joint_fixture.derived_packs(pid)
     assert len(derived) == 3
     orphaned_pack = next(pack for pack in derived if pack.model_name == "DerivedModel3")
 
@@ -166,7 +157,9 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         registry=registry,
         pack=ingress,
     )
-    registry._config_updater._current_config = new_config
+    config_updater = registry._config_updater
+    assert isinstance(config_updater, ConfigUpdater)
+    config_updater._current_config = new_config
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         await registry._process_next_aem_pack(
@@ -175,10 +168,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         )
 
     # DerivedModel3 pack deleted, DerivedModel1 and DerivedModel2 remain
-    derived = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
-    ]
+    derived = await joint_fixture.derived_packs(pid)
     assert len(derived) == 2
     assert {pack.model_name for pack in derived} == {
         "DerivedModel1",
@@ -198,12 +188,9 @@ async def test_pack_freed_when_config_changes_mid_processing(
     caplog: pytest.LogCaptureFixture,
 ):
     """Ensure an in-flight AEMPack is freed for reprocessing when the graph config changes."""
-    await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["single_route"],
-        publish_models={"DerivedModel1"},
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["single_route"], publish_models={"DerivedModel1"}
     )
-    registry: AEMPackRegistry = joint_fixture.aem_pack_registry
     aem_id = uuid4()
     pid = str(uuid4())
 
@@ -213,6 +200,7 @@ async def test_pack_freed_when_config_changes_mid_processing(
     # Simulate a config change occurring mid-processing by bumping the version
     # the versioner reports on its second call.
     config_updater = registry._config_updater
+    assert isinstance(config_updater, ConfigUpdater)
     await config_updater.update_config()
     version = config_updater.known_version
     with (
@@ -229,10 +217,7 @@ async def test_pack_freed_when_config_changes_mid_processing(
         )
 
     # No derived packs should have been published
-    derived = [
-        pack
-        async for pack in joint_fixture.daos.aem_pack_dao.find_all(mapping={"pid": pid})
-    ]
+    derived = await joint_fixture.derived_packs(pid)
     assert len(derived) == 0
 
     # The pack must be available to claim again (freed, not marked processed)
@@ -244,3 +229,42 @@ async def test_pack_freed_when_config_changes_mid_processing(
         "Graph config changed" in record.message and str(aem_id) in record.message
         for record in caplog.records
     )
+
+
+async def test_nonexistent_model_raises_error_in_pipeline(
+    joint_fixture: JointFixture, monkeypatch: pytest.MonkeyPatch
+):
+    """Ensure processing an AEMPack for a model not in the config raises ValueError."""
+    config = await joint_fixture.seed_config(
+        AEM_PACK_REGISTRY_CONFIGS["chained_routes"]
+    )
+    registry = joint_fixture.aem_pack_registry
+    ingress = make_ingress_pack("NonExistent")
+
+    # Bypass queue_unprocessed's model_name + schema validation so the pack reaches the claim step
+    permissive_config = config.model_copy(
+        update={
+            "models": [
+                *config.models,
+                config.models[0].model_copy(update={"name": "NonExistent"}),
+            ]
+        }
+    )
+    monkeypatch.setattr(
+        ConfigLoaderAdapter,
+        "load_config_from_db",
+        AsyncMock(return_value=permissive_config),
+    )
+    unprocessed = await queue_and_claim(
+        registry=registry,
+        pack=ingress,
+    )
+    # Inject the original (non-permissive) config so processing sees NonExistent as missing
+    config_updater = registry._config_updater
+    assert isinstance(config_updater, ConfigUpdater)
+    config_updater._current_config = config
+    with pytest.raises(ValueError, match="No model with name NonExistent"):
+        await registry._process_next_aem_pack(
+            incoming_aem=unprocessed,
+            correlation_id=unprocessed.correlation_id,
+        )

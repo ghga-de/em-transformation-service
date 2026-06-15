@@ -20,7 +20,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from yaml import safe_load
 
 from ets.core import config_updater as config_updater_module
 from ets.core.config_pruning import prune_unproductive_subgraphs
@@ -30,8 +29,13 @@ from ets.core.models import Model, PersistedConfig, RawConfig, ValidatedConfig
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
 from ets.ports.outbound.config_writer import ConfigWriterPort
-from tests.fixtures.config_updater import pruning_fixture  # noqa: F401
-from tests.fixtures.examples import PRUNING_CASES, VALID_CONFIGS
+from tests.fixtures.examples import (
+    PRUNING_CASES,
+    VALID_CONFIGS,
+    load_pruning_config,
+    load_raw_config,
+    pruning_fixture,  # noqa: F401
+)
 
 
 @dataclass
@@ -81,14 +85,14 @@ class PruningResult:
                     "UnpublishedSource",
                     "PublishedSource",
                     "Bottleneck",
-                    "Published1",
-                    "Published2",
+                    "PublishedDerived1",
+                    "PublishedDerived2",
                 },
                 routes={
                     "UnpublishedSource:workflow:Bottleneck",
                     "PublishedSource:workflow:Bottleneck",
-                    "Bottleneck:workflow:Published1",
-                    "Bottleneck:workflow:Published2",
+                    "Bottleneck:workflow:PublishedDerived1",
+                    "Bottleneck:workflow:PublishedDerived2",
                 },
                 workflows={"workflow"},
             ),
@@ -96,7 +100,7 @@ class PruningResult:
         (
             PRUNING_CASES["nothing_pruned"],
             PruningResult(
-                models={"PublishedSource", "PublishedDerived", "PublishedSource_2"},
+                models={"PublishedSource", "PublishedDerived", "PublishedSource2"},
                 routes={"PublishedSource:workflow:PublishedDerived"},
                 workflows={"workflow"},
             ),
@@ -207,10 +211,8 @@ async def test_resolve_and_persist(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """Confirm resolve_and_persist handles the happy paths and validation fallback."""
-    with VALID_CONFIGS["basic_config"].open() as fh:
-        raw_config = RawConfig.model_validate(safe_load(fh))
-    with PRUNING_CASES["nothing_pruned"].open() as fh:
-        validated_config = ValidatedConfig.model_validate(safe_load(fh)["config"])
+    raw_config = load_raw_config(VALID_CONFIGS["basic_config"])
+    validated_config = load_pruning_config(PRUNING_CASES["nothing_pruned"])
 
     persisted = MagicMock(spec=PersistedConfig)
     persisted.models = [MagicMock()]
@@ -283,8 +285,7 @@ async def test_resolve_and_persist_stops_when_no_persisted_config(
     models, routes, workflows, monkeypatch: pytest.MonkeyPatch
 ):
     """When validation fails and no valid config is persisted, raise ConfigUpdaterError."""
-    with VALID_CONFIGS["basic_config"].open() as fh:
-        raw_config = RawConfig.model_validate(safe_load(fh))
+    raw_config = load_raw_config(VALID_CONFIGS["basic_config"])
 
     incomplete_persisted = PersistedConfig(models=[], routes=[], workflows=[])
     incomplete_persisted.models = models

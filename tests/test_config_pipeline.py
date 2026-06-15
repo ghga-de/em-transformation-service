@@ -13,13 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test transformation config loading."""
+"""End-to-end tests for the config load - validate pipeline."""
 
 from pathlib import Path
 
 import pytest
 
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
+from ets.core.config_validation import ConfigValidationError, validate
 from ets.ports.outbound.config_loader import ConfigurationLoaderError
 from tests.fixtures.examples import (
     INVALID_ON_LOAD_CONFIGS,
@@ -27,41 +28,35 @@ from tests.fixtures.examples import (
     VALID_CONFIGS,
 )
 
-# As long as there is structural integrity of the workflow config,
-# it will be valid on loading
 
-# Check for overlapping keys
-overlapping_keys = INVALID_ON_VALIDATION_CONFIGS.keys() & VALID_CONFIGS.keys()
-if overlapping_keys:
-    raise ValueError(
-        "Duplicate config IDs across INVALID_ON_VALIDATION_CONFIGS and VALID_CONFIGS: "
-        f"{sorted(overlapping_keys)}"
-        "Invalid configs must be prefixed with the name of the invalid component, "
-        "e.g. 'invalid_model_...'"
-    )
-
-VALID_ON_LOAD_CONFIGS = INVALID_ON_VALIDATION_CONFIGS | VALID_CONFIGS
-
-
-@pytest.mark.parametrize(
-    "path",
-    VALID_ON_LOAD_CONFIGS.values(),
-    ids=VALID_ON_LOAD_CONFIGS.keys(),
-)
-def test_load_config_happy(path: Path, loader: ConfigLoaderAdapter):
-    """Test loading RawConfig from a transformation config file."""
+@pytest.mark.parametrize("path", VALID_CONFIGS.values(), ids=VALID_CONFIGS.keys())
+def test_valid_config_loads_and_validates(path: Path, loader: ConfigLoaderAdapter):
+    """Ensure valid configs both load and pass validation."""
     raw_config = loader.load_config_from_file(path)
     assert raw_config.models
     assert raw_config.routes
     assert raw_config.workflows
+    validate(raw_config)
+
+
+@pytest.mark.parametrize(
+    "path", INVALID_ON_LOAD_CONFIGS.values(), ids=INVALID_ON_LOAD_CONFIGS.keys()
+)
+def test_invalid_on_load_raises(path: Path, loader: ConfigLoaderAdapter):
+    """Ensure structurally invalid configs raise during loading."""
+    with pytest.raises(ConfigurationLoaderError):
+        loader.load_config_from_file(path)
 
 
 @pytest.mark.parametrize(
     "path",
-    INVALID_ON_LOAD_CONFIGS.values(),
-    ids=INVALID_ON_LOAD_CONFIGS.keys(),
+    INVALID_ON_VALIDATION_CONFIGS.values(),
+    ids=INVALID_ON_VALIDATION_CONFIGS.keys(),
 )
-def test_error_on_loading(path: Path, loader: ConfigLoaderAdapter):
-    """Check structural errors in the transformation config triggers ConfigurationLoaderError."""
-    with pytest.raises(ConfigurationLoaderError):
-        loader.load_config_from_file(path)
+def test_invalid_on_validation_loads_then_raises(
+    path: Path, loader: ConfigLoaderAdapter
+):
+    """Ensure configs with semantic errors load successfully but fail validation."""
+    raw_config = loader.load_config_from_file(path)
+    with pytest.raises(ConfigValidationError):
+        validate(raw_config)
