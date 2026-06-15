@@ -22,7 +22,7 @@ models:
         File:
           id:
             propertyName: alias
-          content: ../_schemas/file_content.json
+          content: ../../_schemas/file_content.json
 
   - name: IngressModel2
     is_ingress: true

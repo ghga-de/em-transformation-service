@@ -1,57 +1,56 @@
-# Fork graph: one ingress feeds two independent arms; DerivedModel1 forks further.
+# Two parallel chains with different operation order.
 #
 # Graph:
-#     IngressModel → DerivedModel1 → DerivedModel1a     (rename_id + replace_resource_ids)
-#                                  → DerivedModel1b     (rename_id + duplicate_class)
-#     IngressModel → DerivedModel2 → DerivedModel2a     (replace_resource_ids + rename_id)
+#     IngressModel1 → DerivedModel1 → DerivedModel2     (rename_id + replace_resource_ids)
+#     IngressModel2 → DerivedModel3 → DerivedModel4     (replace_resource_ids + rename_id)
 
 models:
-  - name: IngressModel
+  - name: IngressModel1
     is_ingress: true
     version: "1.0.0"
     publish: false
     order: 0
-    schema_:
+    schema_: &file_schema
       schemapack: "4.0.0"
       classes:
         File:
           id:
             propertyName: alias
-          content: ../_schemas/file_content.json
+          content: ../../_schemas/file_content.json
 
-  - name: DerivedModel1
-    is_ingress: false
+  - name: IngressModel2
+    is_ingress: true
     version: "1.0.0"
     publish: false
     order: 3
-    schema_: null
+    schema_: *file_schema
 
-  - name: DerivedModel2
+  - name: DerivedModel1
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 1
     schema_: null
 
-  - name: DerivedModel1a
+  - name: DerivedModel2
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 5
+    order: 2
     schema_: null
 
-  - name: DerivedModel1b
+  - name: DerivedModel3
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 4
     schema_: null
 
-  - name: DerivedModel2a
+  - name: DerivedModel4
     is_ingress: false
     version: "1.0.0"
     publish: false
-    order: 2
+    order: 5
     schema_: null
 
 workflows:
@@ -74,33 +73,19 @@ workflows:
           args:
             class_name: File
 
-  - name: add_backup_class
-    description: Duplicates the File class as FileBackup
-    workflow:
-      operations:
-        - name: duplicate_class
-          description: Duplicate File as FileBackup
-          args:
-            source_class_name: File
-            target_class_name: FileBackup
-
 routes:
-  - input_model_name: IngressModel
+  - input_model_name: DerivedModel3
     workflow_name: rename_to_file_id
-    output_model_name: DerivedModel1
+    output_model_name: DerivedModel4
 
-  - input_model_name: IngressModel
+  - input_model_name: DerivedModel1
     workflow_name: replace_file_ids
     output_model_name: DerivedModel2
 
-  - input_model_name: DerivedModel1
+  - input_model_name: IngressModel2
     workflow_name: replace_file_ids
-    output_model_name: DerivedModel1a
+    output_model_name: DerivedModel3
 
-  - input_model_name: DerivedModel1
-    workflow_name: add_backup_class
-    output_model_name: DerivedModel1b
-
-  - input_model_name: DerivedModel2
+  - input_model_name: IngressModel1
     workflow_name: rename_to_file_id
-    output_model_name: DerivedModel2a
+    output_model_name: DerivedModel1

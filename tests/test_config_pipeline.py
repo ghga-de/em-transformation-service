@@ -15,7 +15,6 @@
 
 """End-to-end tests for the config load - validate pipeline."""
 
-import itertools
 from pathlib import Path
 
 import pytest
@@ -28,21 +27,6 @@ from tests.fixtures.examples import (
     INVALID_ON_VALIDATION_CONFIGS,
     VALID_CONFIGS,
 )
-
-# Sanity check: stems (after prefix stripping) must be unique across config groups.
-_GROUPS = {
-    "VALID_CONFIGS": VALID_CONFIGS,
-    "INVALID_ON_LOAD_CONFIGS": INVALID_ON_LOAD_CONFIGS,
-    "INVALID_ON_VALIDATION_CONFIGS": INVALID_ON_VALIDATION_CONFIGS,
-}
-for _a, _b in itertools.combinations(_GROUPS, 2):
-    _overlap = _GROUPS[_a].keys() & _GROUPS[_b].keys()
-    if _overlap:
-        raise ValueError(
-            f"Duplicate config IDs across {_a} and {_b}: {sorted(_overlap)}. "
-            f"Files in raw_configs/ are prefixed with 'valid_', 'loading_', or "
-            f"'validation_'; names after the prefix must not collide."
-        )
 
 
 @pytest.mark.parametrize("path", VALID_CONFIGS.values(), ids=VALID_CONFIGS.keys())

@@ -52,15 +52,6 @@ def _examples_in(subpath: str) -> Mapping[str, Path]:
     )
 
 
-def _examples_by_prefix(subpath: str, prefix: str) -> Mapping[str, Path]:
-    """Return `{stem-without-prefix: path}` for prefixed files under `subpath`."""
-    return {
-        stem.removeprefix(prefix): path
-        for stem, path in _examples_in(subpath).items()
-        if stem.startswith(prefix)
-    }
-
-
 @contextlib.contextmanager
 def _cwd(path: Path) -> Iterator[None]:
     """Chdir to `path` for the block; restore on exit.
@@ -128,12 +119,18 @@ def load_aem_pack_config(
     )
 
 
-VALID_CONFIGS = _examples_by_prefix("raw_configs", "valid_")
-INVALID_ON_LOAD_CONFIGS = _examples_by_prefix("raw_configs", "loading_")
-INVALID_ON_VALIDATION_CONFIGS = _examples_by_prefix("raw_configs", "validation_")
-VALID_MODEL_DERIVATION_CONFIGS = _examples_by_prefix("validated_configs", "valid_")
-INVALID_MODEL_DERIVATION_CONFIGS = _examples_by_prefix("validated_configs", "invalid_")
-AEM_PACK_REGISTRY_CONFIGS = _examples_by_prefix("validated_configs", "pipeline_")
+# Raw configs, grouped by their fate in the load -> validate pipeline.
+VALID_CONFIGS = _examples_in("baseline_valid")
+INVALID_ON_LOAD_CONFIGS = _examples_in("invalid_on_loading")
+INVALID_ON_VALIDATION_CONFIGS = _examples_in("invalid_on_validation")
+
+# Already-validated configs, grouped by their fate in model derivation.
+VALID_MODEL_DERIVATION_CONFIGS = _examples_in("model_derivation/valid")
+INVALID_MODEL_DERIVATION_CONFIGS = _examples_in("model_derivation/invalid")
+
+# Validated configs that feed the AEM pack registry pipeline.
+AEM_PACK_REGISTRY_CONFIGS = _examples_in("aem_pack_scenarios")
+
 PRUNING_CASES = _examples_in("pruning")
 
 with MOCK_JSON_PATH.open("r") as _fh:
