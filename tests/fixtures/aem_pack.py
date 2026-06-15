@@ -98,7 +98,7 @@ def make_ingress_pack(
     annotation: dict | None = None,
     correlation_id: UUID4 | None = None,
 ) -> IncomingAEMPack:
-    """Create an UnprocessedAEMPack for the given ingress model."""
+    """Create an IncomingAEMPack for the given ingress model."""
     return IncomingAEMPack(
         id=aem_id or uuid4(),
         pid=pid or str(uuid4()),
