@@ -21,8 +21,7 @@ from typing import Any
 from uuid import uuid4
 
 from hexkit.correlation import set_correlation_id
-from metldata import get_transformation_registry
-from metldata.transform.handling import TransformationHandler
+from metldata import WorkflowRunner
 from pydantic import UUID4, BaseModel, ConfigDict
 from schemapack import SchemaPackValidator
 from schemapack.exceptions import ValidationError
@@ -65,7 +64,6 @@ class AEMPackRegistry(AEMPackRegistryPort):
         self._config_updater = config_updater
         self._config_lock = config_lock
         self._incoming_aem_pack_queue = incoming_aem_pack_queue
-        self._transformation_registry = get_transformation_registry()
 
     async def queue_unprocessed(self, aem_pack: AEMPack):
         """Fetch new AEMPacks via event subscriber and put them into the queue for processing."""
@@ -290,22 +288,13 @@ class AEMPackRegistry(AEMPackRegistryPort):
         input_schema: SchemaPack,
         workflow: Workflow,
     ) -> DataPack:
-        """Apply every step of a workflow to a DataPack and return the result."""
-        current_data = data
-        current_schema = input_schema
-        for step in workflow.workflow.operations:
-            transformation_def = self._transformation_registry[step.name]
-            typed_config = transformation_def.config_cls.model_validate(step.args)
-            handler: TransformationHandler = TransformationHandler(
-                transformation_definition=transformation_def,
-                transformation_config=typed_config,
-                input_model=current_schema,
-            )
-            current_data = handler.transform_data(
-                current_data, _AnnotationModel.model_validate(annotation)
-            )
-            current_schema = handler.transformed_model
-        return current_data
+        """Apply the workflow to a DataPack and return the result."""
+        runner: WorkflowRunner = WorkflowRunner(
+            workflow=workflow.workflow, input_model=input_schema
+        )
+        return runner.run_workflow(
+            data=data, annotation=_AnnotationModel.model_validate(annotation)
+        )
 
     def _create_aem_pack(
         self,

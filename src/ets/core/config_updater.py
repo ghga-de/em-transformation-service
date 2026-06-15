@@ -21,7 +21,7 @@ from pathlib import Path
 from ets.core.config_comparison import compare_configs
 from ets.core.config_pruning import prune_unproductive_subgraphs
 from ets.core.config_validation import ConfigValidationError, validate
-from ets.core.model_derivation import ModelDerivationError, ModelDeriver
+from ets.core.model_derivation import ModelDerivationError, derive_models
 from ets.core.models import PersistedConfig, RawConfig
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_version import ConfigVersionerPort
@@ -42,12 +42,10 @@ class ConfigUpdater:
         *,
         loader: ConfigLoaderPort,
         versioner: ConfigVersionerPort,
-        model_deriver: ModelDeriver,
         writer: ConfigWriterPort,
     ):
         self._versioner = versioner
         self._loader = loader
-        self._model_deriver = model_deriver
         self._writer = writer
         self._known_version: int = 0
         self._current_config: PersistedConfig | None = None
@@ -149,7 +147,7 @@ class ConfigUpdater:
             return False
 
         try:
-            derived_models = self._model_deriver.derive_models(pruned)
+            derived_models = derive_models(pruned)
         except ModelDerivationError:
             log.warning(
                 "Could not derive model schemas for new configuration."

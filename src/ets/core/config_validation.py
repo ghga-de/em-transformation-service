@@ -14,7 +14,7 @@
 # limitations under the License.
 """Contains functionality to validate the loaded config."""
 
-from metldata import get_transformation_registry, validate_workflow_against_registry
+from metldata import validate_workflow
 from metldata.workflow.exceptions import WorkflowValidationError
 
 from ets.core.graph import CyclicGraphError, NonUniquePathError, get_topological_order
@@ -109,13 +109,9 @@ def _validate_workflows(raw_config: RawConfig) -> None:
     Raises:
         ConfigValidationError: If any workflow validation fails.
     """
-    transformation_registry = get_transformation_registry()
     for workflow in raw_config.workflows:
         try:
-            validate_workflow_against_registry(
-                workflow=workflow.workflow,
-                transformation_registry=transformation_registry,
-            )
+            validate_workflow(workflow.workflow)
         except WorkflowValidationError as error:
             raise ConfigValidationError(str(error)) from error
 

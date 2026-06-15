@@ -49,7 +49,6 @@ from ets.constants import (
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.config_manager import ConfigManager
 from ets.core.config_updater import ConfigUpdater
-from ets.core.model_derivation import ModelDeriver
 from ets.ports.inbound.aem_pack_registry import AEMPackRegistryPort
 from ets.ports.outbound.config_loader import ConfigLoaderPort
 from ets.ports.outbound.config_lock import ConfigLockPort
@@ -112,7 +111,6 @@ async def _prepare_base_wiring(
     config_updater = ConfigUpdater(
         loader=loader,
         versioner=versioner,
-        model_deriver=ModelDeriver(),
         writer=writer,
     )
     config_lock = ConfigLockAdapter(

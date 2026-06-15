@@ -30,7 +30,7 @@ from pydantic import BaseModel
 from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
 
-from ets.core.model_derivation import ModelDeriver
+from ets.core import model_derivation
 from ets.core.models import PersistedConfig, RawConfig, ValidatedConfig
 
 BASE_DIR = Path(__file__).parent.resolve()
@@ -103,8 +103,7 @@ def load_aem_pack_config(
     `publish_models` sets `publish=True` on all models named in the collection.
     """
     validated = load_validated_config(path)
-    deriver = ModelDeriver()
-    models = deriver.derive_models(validated)
+    models = model_derivation.derive_models(validated)
 
     if publish_models:
         models = [
@@ -171,10 +170,9 @@ RENAMED_ID_WITH_BACKUP_SCHEMA = _file_schema(
 
 @dataclass
 class ModelDerivationFixture:
-    """Holds a loaded ValidatedConfig and the corresponding ModelDeriver."""
+    """Holds a loaded ValidatedConfig."""
 
     config: ValidatedConfig
-    deriver: ModelDeriver
 
 
 @pytest.fixture
@@ -182,17 +180,15 @@ def model_derivation_fixture(
     request: pytest.FixtureRequest,
 ) -> Generator[ModelDerivationFixture]:
     """Build a ModelDerivationFixture from the YAML path passed via ``indirect``."""
-    yield ModelDerivationFixture(
-        config=load_validated_config(request.param), deriver=ModelDeriver()
-    )
+    yield ModelDerivationFixture(config=load_validated_config(request.param))
 
 
 @pytest.fixture
 def mock_apply_workflow(
     model_derivation_fixture: ModelDerivationFixture,
 ) -> Generator[MagicMock]:
-    """Patch `_apply_workflow` on the deriver and yield the mock."""
-    with patch.object(model_derivation_fixture.deriver, "_apply_workflow") as mock:
+    """Patch `_apply_workflow` in the model_derivation module and yield the mock."""
+    with patch.object(model_derivation, "_apply_workflow") as mock:
         yield mock
 
 
