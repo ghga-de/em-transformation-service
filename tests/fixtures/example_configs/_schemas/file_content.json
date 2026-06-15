@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "checksum": {
+      "type": "string"
+    },
+    "filename": {
+      "type": "string"
+    },
+    "format": {
+      "type": "string"
+    },
+    "size": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "filename",
+    "format",
+    "checksum",
+    "size"
+  ],
+  "type": "object"
+}

@@ -13,10 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Session-scoped fixture setup"""
+"""Shared pytest fixtures."""
 
 from unittest.mock import MagicMock
-from uuid import uuid4
 
 import pytest
 from hexkit.providers.akafka.testutils import (  # noqa: F401
@@ -27,12 +26,14 @@ from hexkit.providers.mongodb.testutils import (  # noqa: F401
     mongodb_container_fixture,
     mongodb_fixture,
 )
-from schemapack.spec.datapack import DataPack
 
 from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
-from ets.core.models import AEMPack
-from tests.fixtures.aem_pack_registry import aem_pack_config  # noqa: F401
-from tests.fixtures.joint import JointFixture, joint_fixture  # noqa: F401
+from tests.fixtures.aem_pack import (
+    aem_pack_config,  # noqa: F401
+    mock_registry,  # noqa: F401
+)
+from tests.fixtures.joint import joint_fixture  # noqa: F401
+from tests.fixtures.mongo import mongo_collection  # noqa: F401
 
 
 @pytest.fixture
@@ -41,18 +42,3 @@ def loader() -> ConfigLoaderAdapter:
     return ConfigLoaderAdapter(
         model_dao=MagicMock(), route_dao=MagicMock(), workflow_dao=MagicMock()
     )
-
-
-TEST_DATAPACK = DataPack.model_validate(
-    {"datapack": "3.0.0", "resources": {"File": {}}}
-)
-
-TEST_ANNOTATED_EM_PACK_ID = uuid4()
-
-TEST_AEM_PACK = AEMPack(
-    id=TEST_ANNOTATED_EM_PACK_ID,
-    model_name="test_model",
-    pid="test-pid",
-    data=TEST_DATAPACK,
-    annotation={"model_version": "test.0.0"},
-)

@@ -5,8 +5,8 @@
 # Graph:
 #     UnpublishedSource --[workflow]--> Bottleneck
 #     PublishedSource   --[workflow]--> Bottleneck
-#                                        Bottleneck --[workflow]--> Published1
-#                                        Bottleneck --[workflow]--> Published2
+#                                        Bottleneck --[workflow]--> PublishedDerived1
+#                                        Bottleneck --[workflow]--> PublishedDerived2
 #                                        Bottleneck --[workflow]--> UnpublishedLeaf
 
 config:
@@ -16,7 +16,7 @@ config:
       publish: false
       is_ingress: true
       version: null
-      schema_:
+      schema_: &item_schema
         schemapack: "4.0.0"
         classes:
           Item:
@@ -30,28 +30,20 @@ config:
       publish: true
       is_ingress: true
       version: null
-      schema_:
-        schemapack: "4.0.0"
-        classes:
-          Item:
-            id:
-              propertyName: id
-            content:
-              type: object
-              additionalProperties: false
+      schema_: *item_schema
     - name: Bottleneck
       order: 2
       publish: true
       is_ingress: false
       version: null
       schema_: null
-    - name: Published1
+    - name: PublishedDerived1
       order: 3
       publish: true
       is_ingress: false
       version: null
       schema_: null
-    - name: Published2
+    - name: PublishedDerived2
       order: 4
       publish: true
       is_ingress: false
@@ -72,10 +64,10 @@ config:
       output_model_name: Bottleneck
     - input_model_name: Bottleneck
       workflow_name: workflow
-      output_model_name: Published1
+      output_model_name: PublishedDerived1
     - input_model_name: Bottleneck
       workflow_name: workflow
-      output_model_name: Published2
+      output_model_name: PublishedDerived2
     - input_model_name: Bottleneck
       workflow_name: workflow
       output_model_name: UnpublishedLeaf

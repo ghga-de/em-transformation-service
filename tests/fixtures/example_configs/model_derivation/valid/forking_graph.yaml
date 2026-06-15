@@ -1,12 +1,12 @@
-# Fork graph: one ingress feeds two independent arms; D1 forks further.
+# Fork graph: one ingress feeds two independent arms; DerivedModel1 forks further.
 #
 # Graph:
-#     I → D1 → D1a     (rename_id + replace_resource_ids)
-#            → D1b     (rename_id + duplicate_class)
-#     I → D2 → D2a     (replace_resource_ids + rename_id)
+#     IngressModel → DerivedModel1 → DerivedModel1a     (rename_id + replace_resource_ids)
+#                                  → DerivedModel1b     (rename_id + duplicate_class)
+#     IngressModel → DerivedModel2 → DerivedModel2a     (replace_resource_ids + rename_id)
 
 models:
-  - name: I
+  - name: IngressModel
     is_ingress: true
     version: "1.0.0"
     publish: false
@@ -17,48 +17,37 @@ models:
         File:
           id:
             propertyName: alias
-          content: {
-            "$schema": "http://json-schema.org/draft-07/schema#",
-            "additionalProperties": false,
-            "properties": {
-              "checksum": {"type": "string"},
-              "filename": {"type": "string"},
-              "format": {"type": "string"},
-              "size": {"type": "integer"}
-            },
-            "required": ["filename", "format", "checksum", "size"],
-            "type": "object"
-          }
+          content: ../../_schemas/file_content.json
 
-  - name: D1
+  - name: DerivedModel1
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 3
     schema_: null
 
-  - name: D2
+  - name: DerivedModel2
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 1
     schema_: null
 
-  - name: D1a
+  - name: DerivedModel1a
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 5
     schema_: null
 
-  - name: D1b
+  - name: DerivedModel1b
     is_ingress: false
     version: "1.0.0"
     publish: false
     order: 4
     schema_: null
 
-  - name: D2a
+  - name: DerivedModel2a
     is_ingress: false
     version: "1.0.0"
     publish: false
@@ -96,22 +85,22 @@ workflows:
             target_class_name: FileBackup
 
 routes:
-  - input_model_name: I
+  - input_model_name: IngressModel
     workflow_name: rename_to_file_id
-    output_model_name: D1
+    output_model_name: DerivedModel1
 
-  - input_model_name: I
+  - input_model_name: IngressModel
     workflow_name: replace_file_ids
-    output_model_name: D2
+    output_model_name: DerivedModel2
 
-  - input_model_name: D1
+  - input_model_name: DerivedModel1
     workflow_name: replace_file_ids
-    output_model_name: D1a
+    output_model_name: DerivedModel1a
 
-  - input_model_name: D1
+  - input_model_name: DerivedModel1
     workflow_name: add_backup_class
-    output_model_name: D1b
+    output_model_name: DerivedModel1b
 
-  - input_model_name: D2
+  - input_model_name: DerivedModel2
     workflow_name: rename_to_file_id
-    output_model_name: D2a
+    output_model_name: DerivedModel2a

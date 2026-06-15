@@ -18,16 +18,13 @@
 import pytest_asyncio
 
 from ets.core.aem_pack_registry import AEMPackRegistry
-from tests.fixtures.aem_pack_registry import populate_db_config
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture
 
 
 @pytest_asyncio.fixture
 async def registry(joint_fixture: JointFixture) -> AEMPackRegistry:
-    """Populate DB with single_route config and return the AEM pack registry."""
-    await populate_db_config(
-        daos=joint_fixture.daos,
-        config_yaml_path=AEM_PACK_REGISTRY_CONFIGS["single_route"],
+    """Seed the DB with the single_route config and return the AEM pack registry."""
+    return await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["single_route"]
     )
-    return joint_fixture.aem_pack_registry

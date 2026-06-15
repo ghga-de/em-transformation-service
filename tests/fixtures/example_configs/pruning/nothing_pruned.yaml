@@ -4,7 +4,7 @@
 #     PublishedSource --[workflow]--> PublishedDerived
 #
 # Subgraph 2:
-#     PublishedSource_2
+#     PublishedSource2
 
 config:
   models:
@@ -13,7 +13,7 @@ config:
       publish: true
       is_ingress: true
       version: null
-      schema_:
+      schema_: &item_schema
         schemapack: "4.0.0"
         classes:
           Item:
@@ -28,20 +28,12 @@ config:
       is_ingress: false
       version: null
       schema_: null
-    - name: PublishedSource_2
+    - name: PublishedSource2
       order: 2
       publish: true
       is_ingress: true
       version: null
-      schema_:
-        schemapack: "4.0.0"
-        classes:
-          Item:
-            id:
-              propertyName: id
-            content:
-              type: object
-              additionalProperties: false
+      schema_: *item_schema
   routes:
     - input_model_name: PublishedSource
       workflow_name: workflow
