@@ -36,3 +36,8 @@ class AEMPackEventConfig(BaseSettings):
 
 class OriginalAEMPack(AEMPack):
     """Model for the incoming AEMPack payload."""
+
+    version: int = Field(
+        default=...,
+        description="Version assigned by the publishing service (RS), incremented on each republish.",
+    )

@@ -65,10 +65,10 @@ async def test_double_queue_before_processing_stays_claimable(
     """Ensure queuing the same ID twice before any claim yields one doc with latest data."""
     aem_id = uuid4()
 
-    pack_v1 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    pack_v1 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, version=1)
     await queue_pack(registry, pack_v1)
 
-    pack_v2 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    pack_v2 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, version=2)
     await queue_pack(registry, pack_v2)
 
     raw = await joint_fixture.incoming_doc(aem_id)
@@ -81,6 +81,33 @@ async def test_double_queue_before_processing_stays_claimable(
         {"_id": aem_id}
     )
     assert count == 1
+
+
+async def test_queue_rejects_non_newer_version(
+    registry: AEMPackRegistry, joint_fixture: JointFixture
+):
+    """Ensure an equal-or-lower version does not overwrite the stored document."""
+    aem_id = uuid4()
+
+    await queue_pack(
+        registry,
+        make_ingress_pack(
+            model_name="IngressModel", aem_id=aem_id, annotation={"v": 2}, version=2
+        ),
+    )
+
+    # An older version for the same id must be rejected, leaving the stored doc intact.
+    await queue_pack(
+        registry,
+        make_ingress_pack(
+            model_name="IngressModel", aem_id=aem_id, annotation={"v": 1}, version=1
+        ),
+    )
+
+    raw = await joint_fixture.incoming_doc(aem_id)
+    assert raw is not None
+    assert raw["version"] == 2
+    assert raw["annotation"] == {"v": 2}
 
 
 async def test_abandoned_pack_reclaimed_by_same_instance(

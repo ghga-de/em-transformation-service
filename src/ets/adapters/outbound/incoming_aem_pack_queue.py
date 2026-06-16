@@ -22,12 +22,15 @@ from hexkit.utils import now_utc_ms_prec
 from pydantic import UUID4
 from pymongo import ReturnDocument
 from pymongo.asynchronous.collection import AsyncCollection
+from pymongo.errors import DuplicateKeyError
 
 from ets.constants import (
+    FAILED_AT_FIELD,
     NEEDS_REPROCESSING_FIELD,
     PROCESSED_AT_FIELD,
     PROCESSOR_FIELD,
     TOMBSTONE_FIELD,
+    VERSION_FIELD,
 )
 from ets.core.models import AEMPack, IncomingAEMPack
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
@@ -52,44 +55,64 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         self._worker_id = worker_id
 
     async def queue(self, aem_pack: AEMPack) -> None:
-        """Upsert an AEMPack into the queue."""
+        """Upsert an AEMPack into the queue if its version is newer than the stored one.
+
+        The incoming version is compared against any document already stored for the
+        same id. The document is only (over)written when the incoming version is
+        strictly higher; equal or lower versions are rejected and logged (the likely
+        cause is a republish on the RS side). Accepting a newer version also resets
+        ``failed_at``, so a previously failed pack is reprocessed under the new version.
+        """
         doc = aem_pack.model_dump(mode="json")
         doc.pop("id")
         doc["correlation_id"] = str(get_correlation_id())
+        incoming_version = doc[VERSION_FIELD]
 
-        await self._collection.find_one_and_update(
-            filter={"_id": aem_pack.id},
-            update=[
-                {
-                    "$set": {
-                        **doc,
-                        # Preserve the current processor so the in-flight instance can still
-                        # complete and mark the doc as done; it will be requeued via needs_reprocessing.
-                        PROCESSOR_FIELD: {
-                            "$cond": {
-                                "if": f"${PROCESSOR_FIELD}",
-                                "then": f"${PROCESSOR_FIELD}",
-                                "else": None,
-                            }
-                        },
-                        NEEDS_REPROCESSING_FIELD: {
-                            "$or": [
-                                {"$ne": [f"${PROCESSOR_FIELD}", None]},
-                                {"$ne": [f"${PROCESSED_AT_FIELD}", None]},
-                            ]
-                        },
-                        PROCESSED_AT_FIELD: {
-                            "$cond": {
-                                "if": f"${PROCESSED_AT_FIELD}",
-                                "then": f"${PROCESSED_AT_FIELD}",
-                                "else": None,
-                            }
-                        },
+        try:
+            await self._collection.find_one_and_update(
+                # No match when the stored version is >= incoming: upsert then tries to
+                # insert a duplicate _id, which surfaces as DuplicateKeyError (rejection).
+                filter={"_id": aem_pack.id, VERSION_FIELD: {"$lt": incoming_version}},
+                update=[
+                    {
+                        "$set": {
+                            **doc,
+                            # Preserve the current processor so the in-flight instance can still
+                            # complete and mark the doc as done; it will be requeued via needs_reprocessing.
+                            PROCESSOR_FIELD: {
+                                "$cond": {
+                                    "if": f"${PROCESSOR_FIELD}",
+                                    "then": f"${PROCESSOR_FIELD}",
+                                    "else": None,
+                                }
+                            },
+                            NEEDS_REPROCESSING_FIELD: {
+                                "$or": [
+                                    {"$ne": [f"${PROCESSOR_FIELD}", None]},
+                                    {"$ne": [f"${PROCESSED_AT_FIELD}", None]},
+                                ]
+                            },
+                            PROCESSED_AT_FIELD: {
+                                "$cond": {
+                                    "if": f"${PROCESSED_AT_FIELD}",
+                                    "then": f"${PROCESSED_AT_FIELD}",
+                                    "else": None,
+                                }
+                            },
+                            # A newer version clears any prior failure so the pack is
+                            # reprocessed instead of staying parked as failed.
+                            FAILED_AT_FIELD: None,
+                        }
                     }
-                }
-            ],
-            upsert=True,
-        )
+                ],
+                upsert=True,
+            )
+        except DuplicateKeyError:
+            log.info(
+                "AEMPack %s version %s is not newer than the stored version; rejecting.",
+                aem_pack.id,
+                incoming_version,
+            )
 
     async def claim_next(self) -> IncomingAEMPack | None:
         """Claim the next available AEMPack for processing."""
@@ -185,8 +208,28 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         )
 
     async def mark_all_for_reprocessing(self) -> None:
-        """Flag all processed AEMPacks for reprocessing."""
+        """Flag all processed AEMPacks for reprocessing.
+
+        Failed AEMPacks are included and their ``failed_at`` is cleared: a config
+        change may be exactly what fixes the transformation that previously failed,
+        so they are retried fresh under the new config.
+        """
         await self._collection.update_many(
             {PROCESSED_AT_FIELD: {"$ne": None}, TOMBSTONE_FIELD: {"$ne": True}},
-            {"$set": {NEEDS_REPROCESSING_FIELD: True}},
+            {"$set": {NEEDS_REPROCESSING_FIELD: True, FAILED_AT_FIELD: None}},
         )
+
+    async def mark_as_failed(self, aem_pack_id: UUID4) -> None:
+        """Mark an AEMPack as failed when data derivation raises an exception.
+        It is marked as processed for the sake of state management to ensure
+        that it is not picked up again for processing.
+        """
+        await self._collection.update_one(
+            {"_id": aem_pack_id},
+            {
+                "$set": {
+                    FAILED_AT_FIELD: now_utc_ms_prec(),
+                }
+            },
+        )
+        await self.mark_processed(aem_pack_id)

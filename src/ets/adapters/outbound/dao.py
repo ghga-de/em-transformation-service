@@ -22,8 +22,9 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 from ets.core import models
-from ets.core.models import AEMPack
+from ets.core.models import AEMPack, AEMPackFailedEvent
 from ets.ports.outbound.dao import (
+    FailedEventDao,
     ModelDao,
     RouteDao,
     WorkflowDao,
@@ -59,6 +60,14 @@ class AEMPackDaoConfig(BaseSettings):
         description="Topic for events informing about derived AEMPacks.",
         examples=["derived-aempacks"],
     )
+    aem_pack_processing_event_topic: str = Field(
+        default=...,
+        description=(
+            "Topic for AEMPack processing-lifecycle (status) events, e.g. processing"
+            " failures, and later successes."
+        ),
+        examples=["aempack-processing-events"],
+    )
 
 
 async def get_aem_pack_dao(
@@ -73,4 +82,18 @@ async def get_aem_pack_dao(
         event_topic=topic,
         autopublish=True,
         indexes=[MongoDbIndex(fields={"pid": 1, "model_name": 1})],
+    )
+
+
+async def get_failed_event_dao(
+    *, dao_publisher_factory: DaoPublisherFactoryProtocol, topic: str
+) -> FailedEventDao:
+    """Construct an outbox DAO for AEMPack processing-failure events."""
+    return await dao_publisher_factory.get_dao(
+        name="aem_pack_failed_events",
+        id_field="id",
+        dto_model=AEMPackFailedEvent,
+        dto_to_event=lambda event: event.model_dump(mode="json"),
+        event_topic=topic,
+        autopublish=True,
     )

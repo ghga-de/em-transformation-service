@@ -22,6 +22,7 @@ from uuid import uuid4
 
 from hexkit.correlation import set_correlation_id
 from metldata import WorkflowRunner
+from metldata.workflow.exceptions import WorkflowExecutionError
 from pydantic import UUID4, BaseModel, ConfigDict
 from schemapack import SchemaPackValidator
 from schemapack.exceptions import ValidationError
@@ -30,12 +31,19 @@ from schemapack.spec.schemapack import SchemaPack
 
 from ets.config import Config
 from ets.core.config_updater import ConfigUpdater
-from ets.core.models import AEMPack, PersistedConfig, Workflow
+from ets.core.models import (
+    AEMPack,
+    AEMPackFailedEvent,
+    IncomingAEMPack,
+    PersistedConfig,
+    Workflow,
+)
 from ets.ports.inbound.aem_pack_registry import (
     AEMPackRegistryPort,
+    DataDerivationError,
 )
 from ets.ports.outbound.config_lock import ConfigLockPort
-from ets.ports.outbound.dao import AEMPackDao
+from ets.ports.outbound.dao import AEMPackDao, FailedEventDao
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 log = logging.getLogger(__name__)
@@ -50,17 +58,19 @@ class _AnnotationModel(BaseModel):
 class AEMPackRegistry(AEMPackRegistryPort):
     """Core service for managing AEMPack transformations."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         config: Config,
         aem_pack_dao: AEMPackDao,
+        failed_event_dao: FailedEventDao,
         config_updater: ConfigUpdater,
         config_lock: ConfigLockPort,
         incoming_aem_pack_queue: IncomingAEMPackQueuePort,
     ):
         self._config = config
         self._aem_pack_dao = aem_pack_dao
+        self._failed_event_dao = failed_event_dao
         self._config_updater = config_updater
         self._config_lock = config_lock
         self._incoming_aem_pack_queue = incoming_aem_pack_queue
@@ -111,7 +121,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 await asyncio.sleep(self._config.sleep_for)
 
     async def _process_next_aem_pack(
-        self, *, incoming_aem: AEMPack, correlation_id: UUID4
+        self, *, incoming_aem: IncomingAEMPack, correlation_id: UUID4
     ):
         """Perform transformation on the whole subgraph matching the incoming AEMPack ingress model."""
         dirty_map = {
@@ -127,12 +137,47 @@ class AEMPackRegistry(AEMPackRegistryPort):
         config = self._config_updater.current_config
         version_before = self._config_updater.known_version
 
-        aem_packs_to_publish, dirty_map = self._traverse_graph(
-            incoming=incoming_aem,
-            dirty_map=dirty_map,
-            transformed_map=transformed_map,
-            config=config,
-        )
+        try:
+            aem_packs_to_publish, dirty_map = self._traverse_graph(
+                incoming=incoming_aem,
+                dirty_map=dirty_map,
+                transformed_map=transformed_map,
+                config=config,
+            )
+        except DataDerivationError as error:
+            # Deterministic transformation failure: publish a failure event, mark the
+            # AEMPack as failed, and abort without propagating any (partial) derived
+            # results. The loop continues with the next AEMPack instead of crashing.
+            # step name is exposed by metldata's WorkflowExecutionError
+            transformation_step = getattr(error.error, "_step_name", None)
+            error_type = type(error.error).__name__
+            error_message = str(error.error)
+            log.error(
+                "Data derivation failed for AEMPack '%s'. Marking as failed and aborting.",
+                incoming_aem.id,
+                extra={
+                    "pid": error.pid,
+                    "model_name": error.model_name,
+                    "transformation_step": transformation_step,
+                    "error_type": error_type,
+                    "error_message": error_message,
+                },
+            )
+            # Publish before updating queue state: a crash after publishing only causes
+            # a reprocess that republishes (at-least-once), never a lost failure event.
+            async with set_correlation_id(correlation_id):
+                await self._failed_event_dao.insert(
+                    AEMPackFailedEvent(
+                        pid=error.pid,
+                        model_name=error.model_name,
+                        version=incoming_aem.version,
+                        transformation_step=transformation_step,
+                        error_type=error_type,
+                        error_message=error_message,
+                    )
+                )
+            await self._incoming_aem_pack_queue.mark_as_failed(incoming_aem.id)
+            return
 
         await self._config_lock.wait_for_lock_release()
         await self._config_updater.update_config()
@@ -260,8 +305,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
             )
             for route in current_routes:
                 transformed_data = self._apply_workflow_to_data(
-                    data=current_aem_pack.data,
-                    annotation=current_aem_pack.annotation,
+                    aem_pack=current_aem_pack,
                     input_schema=current_model.schema_,
                     workflow=workflows_by_name[route.workflow_name],
                 )
@@ -283,18 +327,31 @@ class AEMPackRegistry(AEMPackRegistryPort):
     def _apply_workflow_to_data(
         self,
         *,
-        data: DataPack,
-        annotation: dict,
+        aem_pack: AEMPack,
         input_schema: SchemaPack,
         workflow: Workflow,
     ) -> DataPack:
-        """Apply the workflow to a DataPack and return the result."""
+        """Apply the workflow to the AEMPack's DataPack and return the result.
+
+        Raises:
+            DataDerivationError: if any workflow data step fails. Model derivation
+                during ``WorkflowRunner`` construction is assumed to have succeeded
+                already at config time and is not guarded here.
+        """
         runner: WorkflowRunner = WorkflowRunner(
             workflow=workflow.workflow, input_model=input_schema
         )
-        return runner.run_workflow(
-            data=data, annotation=_AnnotationModel.model_validate(annotation)
-        )
+        try:
+            return runner.run_workflow(
+                data=aem_pack.data,
+                annotation=_AnnotationModel.model_validate(aem_pack.annotation),
+            )
+        except WorkflowExecutionError as error:
+            raise DataDerivationError(
+                pid=aem_pack.pid,
+                model_name=aem_pack.model_name,
+                error=error,
+            ) from error
 
     def _create_aem_pack(
         self,

@@ -18,6 +18,7 @@
 import json
 from collections.abc import Mapping
 from typing import Annotated, Any
+from uuid import uuid4
 
 from annotated_types import MinLen
 from ghga_service_commons.utils.utc_dates import UTCDatetime
@@ -296,6 +297,14 @@ class AEMPack(BaseModel):
 class IncomingAEMPack(AEMPack):
     """Variant of the AEMPack for the processing queue."""
 
+    version: int = Field(
+        default=...,
+        description=(
+            "Version of the incoming AEMPack as assigned by the publishing service,"
+            " incremented on each republish. Used to gate queuing: only a"
+            " strictly higher version than the stored one is accepted."
+        ),
+    )
     correlation_id: UUID4 = Field(
         default=...,
         description="Correlation ID of the event that triggered ingestion of this AEMPack.",
@@ -313,3 +322,41 @@ class IncomingAEMPack(AEMPack):
         description="Set to True when a new version of this AEMPack arrives while it is being processed, signalling that reprocessing is required after the current run completes.",
     )
     model_config = ConfigDict(frozen=True)
+
+
+class AEMPackProcessingEvent(BaseModel):
+    """Base for AEMPack processing-lifecycle events published on the status channel.
+
+    Siblings (e.g. a future succeeded event) share these fields so they can sit on
+    the same topic and be correlated back to the originating incoming AEMPack.
+    """
+
+    id: UUID4 = Field(
+        default_factory=uuid4, description="Unique identifier of the event."
+    )
+    pid: str = Field(
+        default=...,
+        description="Shared identifier of the incoming AEMPack and its derived packs.",
+    )
+    model_name: str = Field(
+        default=...,
+        description="Name of the model the AEMPack being processed conforms to.",
+    )
+    version: int = Field(
+        default=..., description="Version of the incoming AEMPack this event concerns."
+    )
+
+
+class AEMPackFailedEvent(AEMPackProcessingEvent):
+    """Published when data derivation fails for an incoming AEMPack."""
+
+    transformation_step: str | None = Field(
+        default=None,
+        description="Name of the workflow step that failed, if known.",
+    )
+    error_type: str = Field(
+        default=..., description="Class name of the error that caused the failure."
+    )
+    error_message: str = Field(
+        default=..., description="Human-readable message of the underlying error."
+    )

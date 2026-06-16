@@ -43,9 +43,10 @@ async def test_reuses_derived_pack_ids(joint_fixture: JointFixture):
         pack.model_name: pack.id for pack in await joint_fixture.derived_packs(pid)
     }
 
-    # Second processing
+    # Second processing (a higher version is required to be re-queued)
     await process_pack(
-        registry, make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
+        registry,
+        make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid, version=2),
     )
     derived = await joint_fixture.derived_packs(pid)
     re_derived_pack_names = {pack.model_name: pack.id for pack in derived}

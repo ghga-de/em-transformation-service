@@ -61,6 +61,15 @@ class IncomingAEMPackQueuePort(ABC):
         """Flag all processed AEMPacks for reprocessing.
 
         Sets needs_reprocessing=True on every non-tombstoned doc that has already
-        been processed, so claim_next will pick them up again.  Intended to be
-        called once after a config change, while the config lock is still held.
+        been processed, so claim_next will pick them up again. Failed packs are
+        included and their failed_at is cleared, since a config change may fix the
+        transformation that failed. Intended to be called once after a config
+        change, while the config lock is still held.
+        """
+
+    @abstractmethod
+    async def mark_as_failed(self, aem_pack_id: UUID4) -> None:
+        """Mark an AEMPack as failed when data derivation raises an exception.
+        It is marked as processed for the sake of state management to ensure
+        that it is not picked up again for processing.
         """

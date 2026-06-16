@@ -22,6 +22,26 @@ from pydantic import UUID4
 from ets.core.models import AEMPack
 
 
+class DataDerivationError(RuntimeError):
+    """Raised when data derivation fails for an AEMPack during graph traversal.
+
+    Unlike infrastructure errors, this signals a deterministic transformation
+    failure (e.g.,a workflow data step) that retrying the same AEMPack against the
+    same config will not resolve. It carries the pid and model_name of the
+    AEMPack being transformed for logging and audit context; the failing
+    workflow step is available on the wrapped ``error``.
+    """
+
+    def __init__(self, *, pid: str, model_name: str, error: Exception) -> None:
+        super().__init__(
+            f"Data derivation failed for AEMPack pid '{pid}' at model "
+            f"'{model_name}': {error}"
+        )
+        self.pid = pid
+        self.model_name = model_name
+        self.error = error
+
+
 class AEMPackRegistryPort(ABC):
     """Port for managing AEMPack lifecycle and transformation operations.
 

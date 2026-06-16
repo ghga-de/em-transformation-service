@@ -1,3 +1,4 @@
+aem_pack_processing_event_topic: aempack-processing-events
 db_name: dev
 derived_aem_pack_topic: derived-aempacks
 generate_correlation_id: true
