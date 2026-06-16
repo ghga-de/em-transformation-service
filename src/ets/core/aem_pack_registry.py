@@ -106,9 +106,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
             else:
                 log.info(
                     "No new AEM found, sleeping for %d seconds.",
-                    self._config.sleep_for,
+                    self._config.processing_poll_pause,
                 )
-                await asyncio.sleep(self._config.sleep_for)
+                await asyncio.sleep(self._config.processing_poll_pause)
 
     async def _process_next_aem_pack(
         self, *, incoming_aem: AEMPack, correlation_id: UUID4

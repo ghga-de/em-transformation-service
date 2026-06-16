@@ -116,9 +116,9 @@ async def _prepare_base_wiring(
     config_lock = ConfigLockAdapter(
         collection=db[CONFIG_LOCK_COLLECTION],
         worker_id=config.worker_id,
-        lock_expiry_seconds=config.lock_expiry_seconds,
-        poll_interval=config.lock_poll_interval,
-        timeout=config.lock_timeout,
+        lock_expiry_seconds=config.config_lock_expiry_seconds,
+        poll_interval=config.config_lock_poll_interval,
+        timeout=config.config_lock_timeout,
     )
     incoming_aem_pack_queue = IncomingAEMPackQueue(
         collection=db[INCOMING_AEM_PACK_COLLECTION], worker_id=config.worker_id
@@ -144,7 +144,7 @@ async def prepare_config_manager(*, config: Config) -> AsyncGenerator[ConfigMana
         _prepare_base_wiring(config=config, client=client) as base,
     ):
         yield ConfigManager(
-            input_config_path=config.input_config_path,
+            input_config_path=config.processing_definition_path,
             config_lock=base.config_lock,
             config_updater=base.config_updater,
             incoming_aem_pack_queue=base.incoming_aem_pack_queue,
