@@ -250,7 +250,7 @@
       "type": "boolean"
     },
     "processing_definition_path": {
-      "description": "Path to the transformation config file used to populate the database.",
+      "description": "Path to the config file used to populate the database with models, transformations and workflows.",
       "format": "path",
       "title": "Processing Definition Path",
       "type": "string"

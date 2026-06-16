@@ -39,7 +39,7 @@ class Config(
     )
     processing_definition_path: Path = Field(
         default=...,
-        description="Path to the transformation config file used to populate the database.",
+        description="Path to the config file used to populate the database with models, transformations and workflows.",
     )
     processing_poll_pause: int = Field(
         default=60,
