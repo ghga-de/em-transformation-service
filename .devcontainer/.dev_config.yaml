@@ -5,7 +5,7 @@ kafka_servers: ["kafka:9092"]
 mongo_dsn: "mongodb://mongodb:27017"
 db_name: "dev"
 kafka_enable_dlq: True
-input_config_path: input_dummy.yaml
+processing_configuration_path: input_dummy.yaml
 original_aem_pack_topic: original-aempacks
 derived_aem_pack_topic: derived-aempacks
 worker_id: test-worker
