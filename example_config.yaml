@@ -23,7 +23,7 @@ log_traceback: true
 mongo_dsn: '**********'
 mongo_timeout: null
 original_aem_pack_topic: original-aempacks
-processing_definition_path: input_dummy.yaml
+processing_configuration_path: input_dummy.yaml
 processing_poll_pause: 60
 service_instance_id: '1'
 service_name: ets

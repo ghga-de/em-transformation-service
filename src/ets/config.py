@@ -37,7 +37,7 @@ class Config(
     service_name: str = Field(
         default=SERVICE_NAME, description="Short name of this service"
     )
-    processing_definition_path: Path = Field(
+    processing_configuration_path: Path = Field(
         default=...,
         description="Path to the config file used to populate the database with models, transformations and workflows.",
     )

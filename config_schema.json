@@ -249,10 +249,10 @@
       "title": "Log Traceback",
       "type": "boolean"
     },
-    "processing_definition_path": {
+    "processing_configuration_path": {
       "description": "Path to the config file used to populate the database with models, transformations and workflows.",
       "format": "path",
-      "title": "Processing Definition Path",
+      "title": "Processing Configuration Path",
       "type": "string"
     },
     "processing_poll_pause": {
@@ -292,7 +292,7 @@
     "kafka_servers",
     "mongo_dsn",
     "db_name",
-    "processing_definition_path",
+    "processing_configuration_path",
     "worker_id"
   ],
   "title": "ModSettings",

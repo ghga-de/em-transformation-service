@@ -246,7 +246,7 @@ The service requires the following configuration parameters:
   ```
 
 - <a id="properties/log_traceback"></a>**`log_traceback`** *(boolean)*: Whether to include exception tracebacks in log messages. Default: `true`.
-- <a id="properties/processing_definition_path"></a>**`processing_definition_path`** *(string, format: path, required)*: Path to the config file used to populate the database with models, transformations and workflows.
+- <a id="properties/processing_configuration_path"></a>**`processing_configuration_path`** *(string, format: path, required)*: Path to the config file used to populate the database with models, transformations and workflows.
 - <a id="properties/processing_poll_pause"></a>**`processing_poll_pause`** *(integer)*: Seconds to sleep when no unprocessed AEMPacks are found. Default: `60`.
 - <a id="properties/worker_id"></a>**`worker_id`** *(string, required)*: Unique identifier for a service instance used specifically for the reclamation logic.
 - <a id="properties/config_lock_expiry_seconds"></a>**`config_lock_expiry_seconds`** *(integer)*: TTL in seconds for the config lock document. MongoDB automatically removes stale locks after this duration. Default: `120`.

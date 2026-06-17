@@ -144,7 +144,7 @@ async def prepare_config_manager(*, config: Config) -> AsyncGenerator[ConfigMana
         _prepare_base_wiring(config=config, client=client) as base,
     ):
         yield ConfigManager(
-            input_config_path=config.processing_definition_path,
+            input_config_path=config.processing_configuration_path,
             config_lock=base.config_lock,
             config_updater=base.config_updater,
             incoming_aem_pack_queue=base.incoming_aem_pack_queue,
