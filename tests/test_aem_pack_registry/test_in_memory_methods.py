@@ -116,6 +116,30 @@ def test_apply_workflow_to_data_wraps_error_with_step_name(
     assert error.model_name == "IngressModel"
 
 
+def test_apply_workflow_to_data_wraps_runner_init_error(
+    mock_registry: AEMPackRegistry,
+):
+    """A WorkflowExecutionError raised while constructing the WorkflowRunner is
+    wrapped in a DataDerivationError tagged with the ``runner_init`` step.
+    """
+    aem_pack = make_ingress_pack("IngressModel", pid="test-pid")
+    init_error = WorkflowExecutionError(
+        step_index=0, step_name="model_step", error=ValueError("bad model")
+    )
+
+    with patch("ets.core.aem_pack_registry.WorkflowRunner", side_effect=init_error):
+        with pytest.raises(DataDerivationError) as exc_info:
+            mock_registry._apply_workflow_to_data(
+                aem_pack=aem_pack,
+                input_schema=MagicMock(),
+                workflow=MagicMock(),
+            )
+
+    error = exc_info.value
+    assert error.transformation_step == "runner_init"
+    assert error.error is init_error
+
+
 @pytest.mark.parametrize(
     "aem_pack_config, dirty_names",
     [

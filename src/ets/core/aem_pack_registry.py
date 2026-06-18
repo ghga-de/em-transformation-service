@@ -359,13 +359,25 @@ class AEMPackRegistry(AEMPackRegistryPort):
         """Apply the workflow to the AEMPack's DataPack and return the result.
 
         Raises:
-            DataDerivationError: if any workflow data step fails. Model derivation
-                during ``WorkflowRunner`` construction is assumed to have succeeded
-                already at config time and is not guarded here.
+            DataDerivationError: if ``WorkflowRunner`` construction (model
+                derivation) fails, or if any workflow data step fails. Construction
+                failures are reported with ``transformation_step="runner_init"`` to
+                distinguish them from a failing data step. They are not expected here
+                (model derivation should have succeeded at config time) but are
+                guarded so they surface as a normal failure rather than a crash.
         """
-        runner: WorkflowRunner = WorkflowRunner(
-            workflow=workflow.workflow, input_model=input_schema
-        )
+        try:
+            runner: WorkflowRunner = WorkflowRunner(
+                workflow=workflow.workflow, input_model=input_schema
+            )
+        except WorkflowExecutionError as error:
+            raise DataDerivationError(
+                pid=aem_pack.pid,
+                model_name=aem_pack.model_name,
+                error=error,
+                transformation_step="runner_init",
+            ) from error
+
         try:
             return runner.run_workflow(
                 data=aem_pack.data,
