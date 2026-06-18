@@ -20,7 +20,7 @@ from unittest.mock import patch
 import pytest
 from metldata.workflow.exceptions import WorkflowExecutionError
 
-from ets.ports.inbound.aem_pack_registry import DataDerivationError
+from emts.ports.inbound.aem_pack_registry import DataDerivationError
 from tests.fixtures.aem_pack import make_ingress_pack, process_pack, queue_and_claim
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture

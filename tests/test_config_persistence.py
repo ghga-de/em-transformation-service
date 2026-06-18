@@ -20,11 +20,11 @@ from pathlib import Path
 import pytest
 from schemapack import is_equal_schemapack
 
-from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
-from ets.core.config_comparison import compare_configs
-from ets.core.config_validation import validate
-from ets.core.model_derivation import derive_models
-from ets.core.models import Model, ModelBase, PersistedConfig, RawConfig
+from emts.adapters.outbound.config_loader import ConfigLoaderAdapter
+from emts.core.config_comparison import compare_configs
+from emts.core.config_validation import validate
+from emts.core.model_derivation import derive_models
+from emts.core.models import Model, ModelBase, PersistedConfig, RawConfig
 from tests.fixtures.examples import MOCK_SCHEMA, VALID_CONFIGS
 from tests.fixtures.joint import JointFixture
 

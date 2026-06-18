@@ -50,9 +50,9 @@ COPY --from=dep-builder /opt/runtime-bin/ /usr/local/bin/
 USER 1000
 
 # Please adapt to package name
-COPY --from=dep-builder /usr/bin/ets /usr/local/bin/ets
+COPY --from=dep-builder /usr/bin/emts /usr/local/bin/emts
 
 ENV PYTHONUNBUFFERED=1
 
 # Please adapt to package name:
-ENTRYPOINT ["ets"]
+ENTRYPOINT ["emts"]

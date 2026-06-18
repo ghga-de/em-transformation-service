@@ -13,18 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shared fixtures for aem_pack_registry tests."""
+"""Entrypoint of the package."""
 
-import pytest_asyncio
-
-from emts.core.aem_pack_registry import AEMPackRegistry
-from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
-from tests.fixtures.joint import JointFixture
+from emts.cli import cli
 
 
-@pytest_asyncio.fixture
-async def registry(joint_fixture: JointFixture) -> AEMPackRegistry:
-    """Seed the DB with the single_route config and return the AEM pack registry."""
-    return await joint_fixture.seeded_registry(
-        AEM_PACK_REGISTRY_CONFIGS["single_route"]
-    )
+def run():
+    """Run the service"""
+    cli()
+
+
+if __name__ == "__main__":
+    run()

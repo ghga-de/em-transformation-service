@@ -20,7 +20,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Intended Audience :: Developers",
 ]
-name = "ets"
+name = "emts"
 version = "0.1.0"
 description = "EM-Transformation-Service - a service that transforms Experimental Metadata"
 dependencies = [
@@ -38,7 +38,7 @@ text = "Apache 2.0"
 Repository = "https://github.com/ghga-de/em-transformation-service"
 
 [project.scripts]
-ets = "ets.__main__:run"
+emts = "emts.__main__:run"
 
 [tool.setuptools.packages.find]
 where = [

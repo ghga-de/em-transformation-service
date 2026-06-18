@@ -1,6 +1,6 @@
 [project]
 # please adapt to package name
-name = "ets"
+name = "emts"
 version = "0.1.0"
 description = "EM-Transformation-Service - a service that transforms Experimental Metadata"
 dependencies = [
@@ -17,4 +17,4 @@ Repository = "https://github.com/ghga-de/em-transformation-service"
 
 [project.scripts]
 # please adapt to package name
-ets = "ets.__main__:run"
+emts = "emts.__main__:run"

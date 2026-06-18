@@ -13,18 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shared fixtures for aem_pack_registry tests."""
+"""Entrypoint of the package"""
 
-import pytest_asyncio
+import asyncio
 
-from emts.core.aem_pack_registry import AEMPackRegistry
-from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
-from tests.fixtures.joint import JointFixture
+import typer
+
+from emts.main import consume_events, process_aem_packs
+
+cli = typer.Typer()
 
 
-@pytest_asyncio.fixture
-async def registry(joint_fixture: JointFixture) -> AEMPackRegistry:
-    """Seed the DB with the single_route config and return the AEM pack registry."""
-    return await joint_fixture.seeded_registry(
-        AEM_PACK_REGISTRY_CONFIGS["single_route"]
-    )
+@cli.command(name="consume-events")
+def sync_consume_events(run_forever: bool = True):
+    """Run an event consumer listening to the specified topic."""
+    asyncio.run(consume_events(run_forever=run_forever))
+
+
+@cli.command(name="process-aempacks")
+def sync_process_aem_packs():
+    """Run processing on incoming annotated experimental metadata that has been stored in the database."""
+    asyncio.run(process_aem_packs())

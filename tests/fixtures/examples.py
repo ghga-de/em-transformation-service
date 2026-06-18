@@ -30,8 +30,8 @@ from pydantic import BaseModel
 from schemapack.spec.schemapack import SchemaPack
 from yaml import safe_load
 
-from ets.core import model_derivation
-from ets.core.models import PersistedConfig, RawConfig, ValidatedConfig
+from emts.core import model_derivation
+from emts.core.models import PersistedConfig, RawConfig, ValidatedConfig
 
 BASE_DIR = Path(__file__).parent.resolve()
 CONFIG_DIR = BASE_DIR / "example_configs"

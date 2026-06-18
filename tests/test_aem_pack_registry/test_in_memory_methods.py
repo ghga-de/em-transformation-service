@@ -22,9 +22,9 @@ import pytest
 from metldata.workflow.exceptions import WorkflowExecutionError
 from pydantic import UUID4
 
-from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.models import AEMPack, Model, PersistedConfig
-from ets.ports.inbound.aem_pack_registry import DataDerivationError
+from emts.core.aem_pack_registry import AEMPackRegistry
+from emts.core.models import AEMPack, Model, PersistedConfig
+from emts.ports.inbound.aem_pack_registry import DataDerivationError
 from tests.fixtures.aem_pack import (
     EXPECTED_AEM_ID,
     TEST_DATAPACK,
@@ -102,7 +102,7 @@ def test_apply_workflow_to_data_wraps_error_with_step_name(
         step_index=0, step_name="failing_step", error=ValueError("boom")
     )
 
-    with patch("ets.core.aem_pack_registry.WorkflowRunner", return_value=runner):
+    with patch("emts.core.aem_pack_registry.WorkflowRunner", return_value=runner):
         with pytest.raises(DataDerivationError) as exc_info:
             mock_registry._apply_workflow_to_data(
                 aem_pack=aem_pack,

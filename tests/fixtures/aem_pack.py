@@ -24,16 +24,16 @@ from hexkit.correlation import set_correlation_id
 from pydantic import UUID4
 from schemapack.spec.datapack import DataPack
 
-from ets.config import Config
-from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.config_updater import ConfigUpdater
-from ets.core.models import (
+from emts.config import Config
+from emts.core.aem_pack_registry import AEMPackRegistry
+from emts.core.config_updater import ConfigUpdater
+from emts.core.models import (
     IncomingAEMPack,
     PersistedConfig,
 )
-from ets.ports.outbound.config_lock import ConfigLockPort
-from ets.ports.outbound.dao import AEMPackDao, StatusEventDao
-from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
+from emts.ports.outbound.config_lock import ConfigLockPort
+from emts.ports.outbound.dao import AEMPackDao, StatusEventDao
+from emts.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 from tests.fixtures.examples import load_aem_pack_config
 
 # Fixed UUID used in parametrized tests

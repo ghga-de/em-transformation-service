@@ -13,18 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shared fixtures for aem_pack_registry tests."""
+"""Outbound port for persisting the resolved transformation configuration."""
 
-import pytest_asyncio
+from abc import ABC, abstractmethod
 
-from emts.core.aem_pack_registry import AEMPackRegistry
-from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
-from tests.fixtures.joint import JointFixture
+from emts.core.models import PersistedConfig
 
 
-@pytest_asyncio.fixture
-async def registry(joint_fixture: JointFixture) -> AEMPackRegistry:
-    """Seed the DB with the single_route config and return the AEM pack registry."""
-    return await joint_fixture.seeded_registry(
-        AEM_PACK_REGISTRY_CONFIGS["single_route"]
-    )
+class ConfigWriterPort(ABC):
+    """Persists a fully resolved transformation configuration to the database."""
+
+    @abstractmethod
+    async def write_config(self, config: PersistedConfig) -> None:
+        """Upsert all models, routes, and workflows from the given config.
+
+        Args:
+            config: The resolved configuration containing derived models, routes,
+                and workflows to persist.
+        """

@@ -21,9 +21,9 @@ from uuid import uuid4
 
 import pytest
 
-from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
-from ets.core.config_updater import ConfigUpdater
-from ets.core.models import PersistedConfig
+from emts.adapters.outbound.config_loader import ConfigLoaderAdapter
+from emts.core.config_updater import ConfigUpdater
+from emts.core.models import PersistedConfig
 from tests.fixtures.aem_pack import (
     make_ingress_pack,
     queue_and_claim,
@@ -87,7 +87,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
     assert isinstance(config_updater, ConfigUpdater)
     config_updater._current_config = new_config
     caplog.clear()
-    with caplog.at_level(logging.WARNING, logger="ets.core.aem_pack_registry"):
+    with caplog.at_level(logging.WARNING, logger="emts.core.aem_pack_registry"):
         await registry._process_next_aem_pack(
             incoming_aem=unprocessed,
             correlation_id=unprocessed.correlation_id,
@@ -209,7 +209,7 @@ async def test_pack_freed_when_config_changes_mid_processing(
             "get_version",
             AsyncMock(side_effect=[version, version + 1]),
         ),
-        caplog.at_level(logging.INFO, logger="ets.core.aem_pack_registry"),
+        caplog.at_level(logging.INFO, logger="emts.core.aem_pack_registry"),
     ):
         await registry._process_next_aem_pack(
             incoming_aem=claimed,
