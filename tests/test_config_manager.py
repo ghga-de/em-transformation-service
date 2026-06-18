@@ -20,10 +20,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from ets.core.config_manager import ConfigManager
-from ets.core.config_updater import ConfigUpdater
-from ets.ports.outbound.config_lock import ConfigLockPort
-from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
+from emts.core.config_manager import ConfigManager
+from emts.core.config_updater import ConfigUpdater
+from emts.ports.outbound.config_lock import ConfigLockPort
+from emts.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 CONFIG_PATH = Path("/fake/config.yaml")
 

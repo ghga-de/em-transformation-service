@@ -21,14 +21,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from ets.core import config_updater as config_updater_module
-from ets.core.config_pruning import prune_unproductive_subgraphs
-from ets.core.config_updater import ConfigUpdater, ConfigUpdaterError
-from ets.core.config_validation import ConfigValidationError
-from ets.core.models import Model, PersistedConfig, RawConfig, ValidatedConfig
-from ets.ports.outbound.config_loader import ConfigLoaderPort
-from ets.ports.outbound.config_version import ConfigVersionerPort
-from ets.ports.outbound.config_writer import ConfigWriterPort
+from emts.core import config_updater as config_updater_module
+from emts.core.config_pruning import prune_unproductive_subgraphs
+from emts.core.config_updater import ConfigUpdater, ConfigUpdaterError
+from emts.core.config_validation import ConfigValidationError
+from emts.core.models import Model, PersistedConfig, RawConfig, ValidatedConfig
+from emts.ports.outbound.config_loader import ConfigLoaderPort
+from emts.ports.outbound.config_version import ConfigVersionerPort
+from emts.ports.outbound.config_writer import ConfigWriterPort
 from tests.fixtures.examples import (
     PRUNING_CASES,
     VALID_CONFIGS,

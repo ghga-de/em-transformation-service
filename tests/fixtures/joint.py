@@ -27,14 +27,14 @@ from hexkit.providers.mongodb.testutils import MongoDbFixture
 from pydantic_settings import BaseSettings
 from pymongo.asynchronous.collection import AsyncCollection
 
-from ets.config import Config
-from ets.constants import INCOMING_AEM_PACK_COLLECTION
-from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.models import AEMPack, PersistedConfig
-from ets.inject import prepare_wiring
-from ets.ports.outbound.config_loader import ConfigLoaderPort
-from ets.ports.outbound.config_writer import ConfigWriterPort
-from ets.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
+from emts.config import Config
+from emts.constants import INCOMING_AEM_PACK_COLLECTION
+from emts.core.aem_pack_registry import AEMPackRegistry
+from emts.core.models import AEMPack, PersistedConfig
+from emts.inject import prepare_wiring
+from emts.ports.outbound.config_loader import ConfigLoaderPort
+from emts.ports.outbound.config_writer import ConfigWriterPort
+from emts.ports.outbound.dao import AEMPackDao, ModelDao, RouteDao, WorkflowDao
 from tests.fixtures.examples import BASE_DIR, load_aem_pack_config
 
 TEST_CONFIG_YAML = BASE_DIR / "test_config.yaml"

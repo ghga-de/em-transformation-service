@@ -17,7 +17,7 @@
 
 import pytest
 
-from ets.core.graph import CyclicGraphError, NonUniquePathError, get_topological_order
+from emts.core.graph import CyclicGraphError, NonUniquePathError, get_topological_order
 
 # For the test cases, graphs are represented as strings,
 # where the edges are given as pairs of letters (from, to).

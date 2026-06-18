@@ -13,18 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shared fixtures for aem_pack_registry tests."""
+"""DAO interface for accessing the database."""
 
-import pytest_asyncio
+from hexkit.protocols.dao import Dao
+from hexkit.protocols.daopub import DaoPublisher
 
-from emts.core.aem_pack_registry import AEMPackRegistry
-from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
-from tests.fixtures.joint import JointFixture
+from emts.core.models import AEMPack, Model, Route, Workflow
 
-
-@pytest_asyncio.fixture
-async def registry(joint_fixture: JointFixture) -> AEMPackRegistry:
-    """Seed the DB with the single_route config and return the AEM pack registry."""
-    return await joint_fixture.seeded_registry(
-        AEM_PACK_REGISTRY_CONFIGS["single_route"]
-    )
+ModelDao = Dao[Model]
+WorkflowDao = Dao[Workflow]
+RouteDao = Dao[Route]
+AEMPackDao = DaoPublisher[AEMPack]

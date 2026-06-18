@@ -26,5 +26,5 @@ original_aem_pack_topic: original-aempacks
 processing_configuration_path: input_dummy.yaml
 processing_poll_pause: 60
 service_instance_id: '1'
-service_name: ets
+service_name: emts
 worker_id: test-worker

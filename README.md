@@ -41,7 +41,7 @@ If you prefer not to use containers, you may install the service from source:
 pip install .
 
 # To run the service:
-ets --help
+emts --help
 ```
 
 ## Configuration
@@ -63,7 +63,7 @@ The service requires the following configuration parameters:
   "original-aempacks"
   ```
 
-- <a id="properties/service_name"></a>**`service_name`** *(string)*: Short name of this service. Default: `"ets"`.
+- <a id="properties/service_name"></a>**`service_name`** *(string)*: Short name of this service. Default: `"emts"`.
 - <a id="properties/service_instance_id"></a>**`service_instance_id`** *(string, required)*: A string that uniquely identifies this instance across all instances of this service. This is included in log messages.
 
   Examples:
@@ -257,9 +257,9 @@ The service requires the following configuration parameters:
 
 A template YAML file for configuring the service can be found at
 [`./example_config.yaml`](./example_config.yaml).
-Please adapt it, rename it to `.ets.yaml`, and place it in one of the following locations:
-- in the current working directory where you execute the service (on Linux: `./.ets.yaml`)
-- in your home directory (on Linux: `~/.ets.yaml`)
+Please adapt it, rename it to `.emts.yaml`, and place it in one of the following locations:
+- in the current working directory where you execute the service (on Linux: `./.emts.yaml`)
+- in your home directory (on Linux: `~/.emts.yaml`)
 
 The config YAML file will be automatically parsed by the service.
 
@@ -268,8 +268,8 @@ The config YAML file will be automatically parsed by the service.
 All parameters mentioned in the [`./example_config.yaml`](./example_config.yaml)
 can also be set using environment variables or file secrets.
 
-For naming the environment variables, just prefix the parameter name with `ets_`,
-e.g. for the `host` set an environment variable named `ets_host`
+For naming the environment variables, just prefix the parameter name with `emts_`,
+e.g. for the `host` set an environment variable named `emts_host`
 (you may use both upper or lower cases, however, it is standard to define all env
 variables in upper cases).
 

@@ -20,8 +20,8 @@ from uuid import uuid4
 import pytest
 from pydantic import UUID4
 
-from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.models import AEMPack, Model, PersistedConfig
+from emts.core.aem_pack_registry import AEMPackRegistry
+from emts.core.models import AEMPack, Model, PersistedConfig
 from tests.fixtures.aem_pack import (
     EXPECTED_AEM_ID,
     TEST_DATAPACK,

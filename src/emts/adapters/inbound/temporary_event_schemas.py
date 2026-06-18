@@ -13,18 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shared fixtures for aem_pack_registry tests."""
+"""Temporary models and config for KafkaEventSubscriber to be replaced by ghga_event_schemas."""
 
-import pytest_asyncio
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
-from emts.core.aem_pack_registry import AEMPackRegistry
-from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
-from tests.fixtures.joint import JointFixture
+from emts.core.models import AEMPack
 
 
-@pytest_asyncio.fixture
-async def registry(joint_fixture: JointFixture) -> AEMPackRegistry:
-    """Seed the DB with the single_route config and return the AEM pack registry."""
-    return await joint_fixture.seeded_registry(
-        AEM_PACK_REGISTRY_CONFIGS["single_route"]
+class AEMPackEventConfig(BaseSettings):
+    """Config for events communicating changes in AEMPacks.
+
+    The event types are hardcoded by `hexkit`.
+    """
+
+    original_aem_pack_topic: str = Field(
+        default=...,
+        description="Topic informing about new ingress AEMPacks.",
+        examples=["original-aempacks"],
     )
+
+
+class OriginalAEMPack(AEMPack):
+    """Model for the incoming AEMPack payload."""

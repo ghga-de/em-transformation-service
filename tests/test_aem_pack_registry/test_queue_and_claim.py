@@ -25,9 +25,9 @@ from pydantic import UUID4
 from schemapack.exceptions import ValidationError
 from schemapack.spec.datapack import DataPack
 
-from ets.constants import PROCESSOR_FIELD
-from ets.core.aem_pack_registry import AEMPackRegistry
-from ets.core.models import IncomingAEMPack
+from emts.constants import PROCESSOR_FIELD
+from emts.core.aem_pack_registry import AEMPackRegistry
+from emts.core.models import IncomingAEMPack
 from tests.fixtures.aem_pack import (
     INVALID_DATAPACK,
     TEST_DATAPACK,
@@ -161,7 +161,7 @@ async def test_idle_path_logs_and_sleeps(
     registry: AEMPackRegistry = joint_fixture.aem_pack_registry
 
     with (
-        caplog.at_level(logging.INFO, logger="ets.core.aem_pack_registry"),
+        caplog.at_level(logging.INFO, logger="emts.core.aem_pack_registry"),
         pytest.raises(asyncio.TimeoutError),
     ):
         await asyncio.wait_for(registry.process_aem_packs(), timeout=0.5)
