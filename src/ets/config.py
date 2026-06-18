@@ -37,11 +37,11 @@ class Config(
     service_name: str = Field(
         default=SERVICE_NAME, description="Short name of this service"
     )
-    input_config_path: Path = Field(
+    processing_configuration_path: Path = Field(
         default=...,
-        description="Path to the transformation config file used to populate the database.",
+        description="Path to the config file used to populate the database with models, transformations and workflows.",
     )
-    sleep_for: int = Field(
+    processing_poll_pause: int = Field(
         default=60,
         description="Seconds to sleep when no unprocessed AEMPacks are found.",
     )
@@ -49,15 +49,15 @@ class Config(
         default=...,
         description="Unique identifier for a service instance used specifically for the reclamation logic.",
     )
-    lock_expiry_seconds: int = Field(
+    config_lock_expiry_seconds: int = Field(
         default=120,
         description="TTL in seconds for the config lock document. MongoDB automatically removes stale locks after this duration.",
     )
-    lock_poll_interval: int = Field(
+    config_lock_poll_interval: int = Field(
         default=5,
         description="Seconds between polls when waiting for the config lock to be released.",
     )
-    lock_timeout: int = Field(
+    config_lock_timeout: int = Field(
         default=150,
         description="Maximum seconds to wait for the config lock to be released before raising a TimeoutError.",
     )
