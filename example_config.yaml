@@ -1,4 +1,4 @@
-aem_pack_processing_event_topic: aempack-processing-events
+aem_pack_processing_status_topic: aempack-processing-status
 config_lock_expiry_seconds: 120
 config_lock_poll_interval: 5
 config_lock_timeout: 150
