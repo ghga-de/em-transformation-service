@@ -162,8 +162,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
             # Deterministic transformation failure: publish a failure event, mark the
             # AEMPack as failed, and abort without propagating any (partial) derived
             # results. The loop continues with the next AEMPack instead of crashing.
-            # step name is exposed by metldata's WorkflowExecutionError
-            transformation_step = getattr(error.error, "_step_name", None)
+            transformation_step = error.transformation_step
             error_type = type(error.error).__name__
             error_message = str(error.error)
             log.error(
@@ -377,6 +376,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 pid=aem_pack.pid,
                 model_name=aem_pack.model_name,
                 error=error,
+                # step name is only exposed as a private attribute by metldata; read
+                # it here at the single wrap boundary rather than at every catch site.
+                transformation_step=getattr(error, "_step_name", None),
             ) from error
 
     def _create_aem_pack(

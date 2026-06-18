@@ -15,16 +15,20 @@
 
 """Tests for the in-memory methods of AEMPackRegistry."""
 
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from metldata.workflow.exceptions import WorkflowExecutionError
 from pydantic import UUID4
 
 from ets.core.aem_pack_registry import AEMPackRegistry
 from ets.core.models import AEMPack, Model, PersistedConfig
+from ets.ports.inbound.aem_pack_registry import DataDerivationError
 from tests.fixtures.aem_pack import (
     EXPECTED_AEM_ID,
     TEST_DATAPACK,
+    make_ingress_pack,
 )
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS, load_aem_pack_config
 
@@ -84,6 +88,32 @@ def test_create_aem_pack(
     assert aem_pack.annotation == {}
     if expected_aem_id:
         assert aem_pack.id == EXPECTED_AEM_ID
+
+
+def test_apply_workflow_to_data_wraps_error_with_step_name(
+    mock_registry: AEMPackRegistry,
+):
+    """A WorkflowExecutionError from the runner is wrapped in a DataDerivationError
+    that exposes the failing step name as a public field, resolved at the wrap site.
+    """
+    aem_pack = make_ingress_pack("IngressModel", pid="test-pid")
+    runner = MagicMock()
+    runner.run_workflow.side_effect = WorkflowExecutionError(
+        step_index=0, step_name="failing_step", error=ValueError("boom")
+    )
+
+    with patch("ets.core.aem_pack_registry.WorkflowRunner", return_value=runner):
+        with pytest.raises(DataDerivationError) as exc_info:
+            mock_registry._apply_workflow_to_data(
+                aem_pack=aem_pack,
+                input_schema=MagicMock(),
+                workflow=MagicMock(),
+            )
+
+    error = exc_info.value
+    assert error.transformation_step == "failing_step"
+    assert error.pid == "test-pid"
+    assert error.model_name == "IngressModel"
 
 
 @pytest.mark.parametrize(

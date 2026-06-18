@@ -28,11 +28,19 @@ class DataDerivationError(RuntimeError):
     Unlike infrastructure errors, this signals a deterministic transformation
     failure (e.g.,a workflow data step) that retrying the same AEMPack against the
     same config will not resolve. It carries the pid and model_name of the
-    AEMPack being transformed for logging and audit context; the failing
-    workflow step is available on the wrapped ``error``.
+    AEMPack being transformed for logging and audit context, plus the name of the
+    failing workflow step (resolved at the wrap site, since the underlying error
+    does not expose it publicly).
     """
 
-    def __init__(self, *, pid: str, model_name: str, error: Exception) -> None:
+    def __init__(
+        self,
+        *,
+        pid: str,
+        model_name: str,
+        error: Exception,
+        transformation_step: str | None = None,
+    ) -> None:
         super().__init__(
             f"Data derivation failed for AEMPack pid '{pid}' at model "
             f"'{model_name}': {error}"
@@ -40,6 +48,7 @@ class DataDerivationError(RuntimeError):
         self.pid = pid
         self.model_name = model_name
         self.error = error
+        self.transformation_step = transformation_step
 
 
 class AEMPackRegistryPort(ABC):

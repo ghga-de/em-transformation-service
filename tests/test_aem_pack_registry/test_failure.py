@@ -46,7 +46,10 @@ async def test_failed_derivation_publishes_event_and_marks_failed(
 
     def _raise_data_derivation_error(*, incoming, dirty_map, transformed_map, config):
         raise DataDerivationError(
-            pid=ingress.pid, model_name=ingress.model_name, error=workflow_error
+            pid=ingress.pid,
+            model_name=ingress.model_name,
+            error=workflow_error,
+            transformation_step="some_step",
         )
 
     async with joint_fixture.kafka.record_events(

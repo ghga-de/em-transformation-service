@@ -300,11 +300,7 @@ class IncomingAEMPack(AEMPack):
 
     version: int = Field(
         default=...,
-        description=(
-            "Version of the incoming AEMPack as assigned by the publishing service,"
-            " incremented on each republish. Used to gate queuing: only a"
-            " strictly higher version than the stored one is accepted."
-        ),
+        description=("Version of the incoming AEMPack this event concerns."),
     )
     correlation_id: UUID4 = Field(
         default=...,
