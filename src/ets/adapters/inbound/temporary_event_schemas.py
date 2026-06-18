@@ -39,5 +39,5 @@ class OriginalAEMPack(AEMPack):
 
     version: int = Field(
         default=...,
-        description="Version assigned by the publishing service (RS), incremented on each republish.",
+        description="Current version of the AEMPack. Used to resolve republishing conflicts.",
     )

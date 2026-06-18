@@ -8,5 +8,5 @@ kafka_enable_dlq: True
 processing_configuration_path: input_dummy.yaml
 original_aem_pack_topic: original-aempacks
 derived_aem_pack_topic: derived-aempacks
-aem_pack_processing_event_topic: aempack-processing-events
+aem_pack_processing_status_topic: aempack-processing-status
 worker_id: test-worker

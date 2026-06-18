@@ -54,7 +54,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         self._collection = collection
         self._worker_id = worker_id
 
-    async def queue(self, aem_pack: AEMPack) -> None:
+    async def queue(self, aem_pack: AEMPack) -> bool:
         """Upsert an AEMPack into the queue if its version is newer than the stored one.
 
         The incoming version is compared against any document already stored for the
@@ -62,6 +62,8 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         strictly higher; equal or lower versions are rejected and logged (the likely
         cause is a republish on the RS side). Accepting a newer version also resets
         ``failed_at``, so a previously failed pack is reprocessed under the new version.
+
+        Returns True if the pack was stored, False if it was rejected as not newer.
         """
         doc = aem_pack.model_dump(mode="json")
         doc.pop("id")
@@ -113,6 +115,8 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 aem_pack.id,
                 incoming_version,
             )
+            return False
+        return True
 
     async def claim_next(self) -> IncomingAEMPack | None:
         """Claim the next available AEMPack for processing."""
@@ -224,12 +228,14 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         It is marked as processed for the sake of state management to ensure
         that it is not picked up again for processing.
         """
+        now = now_utc_ms_prec()
         await self._collection.update_one(
             {"_id": aem_pack_id},
             {
                 "$set": {
-                    FAILED_AT_FIELD: now_utc_ms_prec(),
+                    FAILED_AT_FIELD: now,
+                    PROCESSOR_FIELD: None,
+                    PROCESSED_AT_FIELD: now,
                 }
             },
         )
-        await self.mark_processed(aem_pack_id)

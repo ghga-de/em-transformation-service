@@ -35,9 +35,9 @@ from ets.adapters.outbound.config_version import ConfigVersioner
 from ets.adapters.outbound.config_writer import ConfigWriterAdapter
 from ets.adapters.outbound.dao import (
     get_aem_pack_dao,
-    get_failed_event_dao,
     get_persisted_model_dao,
     get_route_dao,
+    get_status_event_dao,
     get_workflow_dao,
 )
 from ets.adapters.outbound.incoming_aem_pack_queue import IncomingAEMPackQueue
@@ -167,14 +167,14 @@ async def prepare_wiring(*, config: Config) -> AsyncGenerator[Wiring]:
             dao_publisher_factory=dao_pub_factory,
             topic=config.derived_aem_pack_topic,
         )
-        failed_event_dao = await get_failed_event_dao(
+        status_event_dao = await get_status_event_dao(
             dao_publisher_factory=dao_pub_factory,
-            topic=config.aem_pack_processing_event_topic,
+            topic=config.aem_pack_processing_status_topic,
         )
         aem_pack_registry = AEMPackRegistry(
             config=config,
             aem_pack_dao=aem_pack_dao,
-            failed_event_dao=failed_event_dao,
+            status_event_dao=status_event_dao,
             config_updater=base.config_updater,
             config_lock=base.config_lock,
             incoming_aem_pack_queue=base.incoming_aem_pack_queue,

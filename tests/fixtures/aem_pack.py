@@ -32,7 +32,7 @@ from ets.core.models import (
     PersistedConfig,
 )
 from ets.ports.outbound.config_lock import ConfigLockPort
-from ets.ports.outbound.dao import AEMPackDao, FailedEventDao
+from ets.ports.outbound.dao import AEMPackDao, StatusEventDao
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 from tests.fixtures.examples import load_aem_pack_config
 
@@ -158,7 +158,7 @@ def mock_registry() -> AEMPackRegistry:
     return AEMPackRegistry(
         config=MagicMock(spec=Config),
         aem_pack_dao=AsyncMock(spec=AEMPackDao),
-        failed_event_dao=AsyncMock(spec=FailedEventDao),
+        status_event_dao=AsyncMock(spec=StatusEventDao),
         config_updater=AsyncMock(spec=ConfigUpdater),
         config_lock=AsyncMock(spec=ConfigLockPort),
         incoming_aem_pack_queue=AsyncMock(spec=IncomingAEMPackQueuePort),

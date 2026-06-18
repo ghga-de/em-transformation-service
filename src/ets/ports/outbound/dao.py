@@ -18,10 +18,10 @@
 from hexkit.protocols.dao import Dao
 from hexkit.protocols.daopub import DaoPublisher
 
-from ets.core.models import AEMPack, AEMPackFailedEvent, Model, Route, Workflow
+from ets.core.models import AEMPack, AEMPackStatusEvent, Model, Route, Workflow
 
 ModelDao = Dao[Model]
 WorkflowDao = Dao[Workflow]
 RouteDao = Dao[Route]
 AEMPackDao = DaoPublisher[AEMPack]
-FailedEventDao = DaoPublisher[AEMPackFailedEvent]
+StatusEventDao = DaoPublisher[AEMPackStatusEvent]

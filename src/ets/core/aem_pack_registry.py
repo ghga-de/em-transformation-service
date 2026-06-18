@@ -33,7 +33,8 @@ from ets.config import Config
 from ets.core.config_updater import ConfigUpdater
 from ets.core.models import (
     AEMPack,
-    AEMPackFailedEvent,
+    AEMPackStatus,
+    AEMPackStatusEvent,
     IncomingAEMPack,
     PersistedConfig,
     Workflow,
@@ -43,7 +44,7 @@ from ets.ports.inbound.aem_pack_registry import (
     DataDerivationError,
 )
 from ets.ports.outbound.config_lock import ConfigLockPort
-from ets.ports.outbound.dao import AEMPackDao, FailedEventDao
+from ets.ports.outbound.dao import AEMPackDao, StatusEventDao
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 log = logging.getLogger(__name__)
@@ -63,14 +64,14 @@ class AEMPackRegistry(AEMPackRegistryPort):
         *,
         config: Config,
         aem_pack_dao: AEMPackDao,
-        failed_event_dao: FailedEventDao,
+        status_event_dao: StatusEventDao,
         config_updater: ConfigUpdater,
         config_lock: ConfigLockPort,
         incoming_aem_pack_queue: IncomingAEMPackQueuePort,
     ):
         self._config = config
         self._aem_pack_dao = aem_pack_dao
-        self._failed_event_dao = failed_event_dao
+        self._status_event_dao = status_event_dao
         self._config_updater = config_updater
         self._config_lock = config_lock
         self._incoming_aem_pack_queue = incoming_aem_pack_queue
@@ -101,7 +102,20 @@ class AEMPackRegistry(AEMPackRegistryPort):
             log.error(error)
             raise
 
-        await self._incoming_aem_pack_queue.queue(aem_pack)
+        stored = await self._incoming_aem_pack_queue.queue(aem_pack)
+        if stored:
+            # Only emitted once the pack is actually accepted (a strictly newer
+            # version); rejected republishes do not produce a status event.
+            # version lives on the concrete incoming DTO, not the AEMPack base, so
+            # it is read from the dumped doc (as the queue adapter itself does).
+            await self._status_event_dao.insert(
+                AEMPackStatusEvent(
+                    pid=aem_pack.pid,
+                    model_name=aem_pack.model_name,
+                    version=aem_pack.model_dump(include={"version"})["version"],
+                    status=AEMPackStatus.QUEUED,
+                )
+            )
 
     async def process_aem_packs(self) -> None:
         """Derives AEMPacks from incoming AEMPacks."""
@@ -166,11 +180,12 @@ class AEMPackRegistry(AEMPackRegistryPort):
             # Publish before updating queue state: a crash after publishing only causes
             # a reprocess that republishes (at-least-once), never a lost failure event.
             async with set_correlation_id(correlation_id):
-                await self._failed_event_dao.insert(
-                    AEMPackFailedEvent(
+                await self._status_event_dao.insert(
+                    AEMPackStatusEvent(
                         pid=error.pid,
                         model_name=error.model_name,
                         version=incoming_aem.version,
+                        status=AEMPackStatus.FAILED,
                         transformation_step=transformation_step,
                         error_type=error_type,
                         error_message=error_message,
@@ -221,6 +236,17 @@ class AEMPackRegistry(AEMPackRegistryPort):
             for aem_pack in aem_packs_to_publish:
                 log.info("Upserting derived AEMPack %s.", aem_pack.id)
                 await self._aem_pack_dao.upsert(aem_pack)
+
+            # Published before marking processed: a crash after publishing only causes
+            # a reprocess that republishes (at-least-once), never a lost status event.
+            await self._status_event_dao.insert(
+                AEMPackStatusEvent(
+                    pid=incoming_aem.pid,
+                    model_name=incoming_aem.model_name,
+                    version=incoming_aem.version,
+                    status=AEMPackStatus.PROCESSED,
+                )
+            )
 
         await self._incoming_aem_pack_queue.mark_processed(incoming_aem.id)
 

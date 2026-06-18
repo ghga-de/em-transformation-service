@@ -50,15 +50,18 @@ async def test_failed_derivation_publishes_event_and_marks_failed(
         )
 
     async with joint_fixture.kafka.record_events(
-        in_topic=joint_fixture.config.aem_pack_processing_event_topic
+        in_topic=joint_fixture.config.aem_pack_processing_status_topic
     ) as recorder:
         with patch.object(registry, "_traverse_graph", _raise_data_derivation_error):
             await process_pack(registry, ingress)
 
-    # Exactly one failure event, carrying the failure context.
-    events = recorder.recorded_events
-    assert len(events) == 1
-    payload = events[0].payload
+    # Exactly one failure event, carrying the failure context. (A queued event is
+    # also emitted on the same status topic when the pack is first queued.)
+    failed_events = [
+        e for e in recorder.recorded_events if e.payload["status"] == "failed"
+    ]
+    assert len(failed_events) == 1
+    payload = failed_events[0].payload
     assert payload["pid"] == ingress.pid
     assert payload["model_name"] == ingress.model_name
     assert payload["version"] == 3

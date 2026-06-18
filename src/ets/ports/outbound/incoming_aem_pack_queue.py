@@ -29,8 +29,12 @@ class IncomingAEMPackQueuePort(ABC):
     """
 
     @abstractmethod
-    async def queue(self, aem_pack: AEMPack) -> None:
-        """Upsert an AEMPack into the queue."""
+    async def queue(self, aem_pack: AEMPack) -> bool:
+        """Upsert an AEMPack into the queue.
+
+        Returns True if the pack was stored (a strictly newer version), False if it
+        was rejected as not newer than the stored version.
+        """
 
     @abstractmethod
     async def claim_next(self) -> IncomingAEMPack | None:

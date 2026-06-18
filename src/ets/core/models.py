@@ -17,6 +17,7 @@
 
 import json
 from collections.abc import Mapping
+from enum import StrEnum
 from typing import Annotated, Any
 from uuid import uuid4
 
@@ -324,11 +325,25 @@ class IncomingAEMPack(AEMPack):
     model_config = ConfigDict(frozen=True)
 
 
-class AEMPackProcessingEvent(BaseModel):
-    """Base for AEMPack processing-lifecycle events published on the status channel.
+class AEMPackStatus(StrEnum):
+    """Final lifecycle states of an incoming AEMPack that are published as events.
 
-    Siblings (e.g. a future succeeded event) share these fields so they can sit on
-    the same topic and be correlated back to the originating incoming AEMPack.
+    Intermediate states (e.g. being claimed for processing) are intentionally not
+    represented: only states an outside consumer cares about are emitted.
+    """
+
+    QUEUED = "queued"
+    PROCESSED = "processed"
+    FAILED = "failed"
+
+
+class AEMPackStatusEvent(BaseModel):
+    """A processing-lifecycle event published on the status channel.
+
+    A single model carries every status so all events sit on the same topic and can
+    be correlated back to the originating incoming AEMPack via (pid, model_name,
+    version). The ``transformation_step``/``error_*`` fields are only populated for
+    ``FAILED`` events.
     """
 
     id: UUID4 = Field(
@@ -345,18 +360,19 @@ class AEMPackProcessingEvent(BaseModel):
     version: int = Field(
         default=..., description="Version of the incoming AEMPack this event concerns."
     )
-
-
-class AEMPackFailedEvent(AEMPackProcessingEvent):
-    """Published when data derivation fails for an incoming AEMPack."""
-
+    status: AEMPackStatus = Field(
+        default=...,
+        description="The lifecycle state this event reports.",
+    )
     transformation_step: str | None = Field(
         default=None,
-        description="Name of the workflow step that failed, if known.",
+        description="Name of the workflow step that failed, if known. Only set for FAILED.",
     )
-    error_type: str = Field(
-        default=..., description="Class name of the error that caused the failure."
+    error_type: str | None = Field(
+        default=None,
+        description="Class name of the error that caused the failure. Only set for FAILED.",
     )
-    error_message: str = Field(
-        default=..., description="Human-readable message of the underlying error."
+    error_message: str | None = Field(
+        default=None,
+        description="Human-readable message of the underlying error. Only set for FAILED.",
     )
