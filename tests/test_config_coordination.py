@@ -20,9 +20,9 @@ import asyncio
 import pytest
 from pymongo.asynchronous.collection import AsyncCollection
 
-from ets.adapters.outbound.config_lock import ConfigLockAdapter
-from ets.adapters.outbound.config_version import ConfigVersioner
-from ets.constants import (
+from emts.adapters.outbound.config_lock import ConfigLockAdapter
+from emts.adapters.outbound.config_version import ConfigVersioner
+from emts.constants import (
     CONFIG_LOCK_COLLECTION,
     CONFIG_LOCK_ID,
     CONFIG_VERSION_COLLECTION,

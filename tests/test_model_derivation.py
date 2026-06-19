@@ -23,7 +23,7 @@ from metldata.workflow.exceptions import WorkflowExecutionError
 from schemapack import is_equal_schemapack
 from schemapack.spec.schemapack import SchemaPack
 
-from ets.core.model_derivation import (
+from emts.core.model_derivation import (
     ConsistencyError,
     ModelDerivationError,
     _apply_workflow,
@@ -98,7 +98,7 @@ def test_apply_workflow_exception_handling(
     step_name = workflow.workflow.operations[0].name
 
     with patch(
-        "ets.core.model_derivation.WorkflowRunner",
+        "emts.core.model_derivation.WorkflowRunner",
         side_effect=WorkflowExecutionError(
             step_index=0, step_name=step_name, error=side_effect_exc
         ),

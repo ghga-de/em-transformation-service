@@ -20,8 +20,8 @@ from uuid import uuid4
 import pytest
 from hexkit.correlation import set_correlation_id
 
-from ets.constants import TOMBSTONE_FIELD
-from ets.core.aem_pack_registry import AEMPackRegistry
+from emts.constants import TOMBSTONE_FIELD
+from emts.core.aem_pack_registry import AEMPackRegistry
 from tests.fixtures.aem_pack import make_ingress_pack, process_pack, queue_pack
 from tests.fixtures.examples import AEM_PACK_REGISTRY_CONFIGS
 from tests.fixtures.joint import JointFixture

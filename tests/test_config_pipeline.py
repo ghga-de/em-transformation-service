@@ -19,9 +19,9 @@ from pathlib import Path
 
 import pytest
 
-from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
-from ets.core.config_validation import ConfigValidationError, validate
-from ets.ports.outbound.config_loader import ConfigurationLoaderError
+from emts.adapters.outbound.config_loader import ConfigLoaderAdapter
+from emts.core.config_validation import ConfigValidationError, validate
+from emts.ports.outbound.config_loader import ConfigurationLoaderError
 from tests.fixtures.examples import (
     INVALID_ON_LOAD_CONFIGS,
     INVALID_ON_VALIDATION_CONFIGS,

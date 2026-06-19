@@ -27,7 +27,7 @@ from hexkit.providers.mongodb.testutils import (  # noqa: F401
     mongodb_fixture,
 )
 
-from ets.adapters.outbound.config_loader import ConfigLoaderAdapter
+from emts.adapters.outbound.config_loader import ConfigLoaderAdapter
 from tests.fixtures.aem_pack import (
     aem_pack_config,  # noqa: F401
     mock_registry,  # noqa: F401

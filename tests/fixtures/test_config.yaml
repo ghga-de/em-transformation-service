@@ -1,4 +1,4 @@
-service_name: ets
+service_name: emts
 service_instance_id: "1"
 kafka_servers: ["kafka:9092"]
 mongo_dsn: "mongodb://mongodb:27017"

@@ -27,7 +27,7 @@
       "type": "string"
     },
     "service_name": {
-      "default": "ets",
+      "default": "emts",
       "description": "Short name of this service",
       "title": "Service Name",
       "type": "string"

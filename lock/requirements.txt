@@ -261,7 +261,7 @@ ghga-event-schemas==13.0.0 \
     --hash=sha256:814a634e26465413e095a76e6fbe2f4a669fff6bebf0b02bd4068f5293286c6c
     # via
     #   -c lock/requirements-dev.txt
-    #   ets (pyproject.toml)
+    #   emts (pyproject.toml)
 ghga-jsonsubschema==0.1.0 \
     --hash=sha256:255720ee1aba01f5de139e699838ff1f969e6d9eb9cd9927674079567a7f93ff \
     --hash=sha256:7153fc532f1cbcdaf08929cc146c94a7b9ff9d80f98ec964de0b0391befd18c8
@@ -273,7 +273,7 @@ ghga-service-commons==7.0.2 \
     --hash=sha256:c7d59fd632cb3e5c0a1da13f7997acef4186dc03821a859c69ffe95173cd230f
     # via
     #   -c lock/requirements-dev.txt
-    #   ets (pyproject.toml)
+    #   emts (pyproject.toml)
     #   ghga-event-schemas
 greenery==4.2.2 \
     --hash=sha256:6221d5727d19b4f46fc794635aa00b3dbbab33ed7ff1d686a0011d9197a4b7a0 \
@@ -293,7 +293,7 @@ hexkit==8.3.0 \
     --hash=sha256:56419698b1b2a4e26150b6241b969ab0b2592cecb90efdacd49dff27b12b2b28
     # via
     #   -c lock/requirements-dev.txt
-    #   ets (pyproject.toml)
+    #   emts (pyproject.toml)
     #   ghga-service-commons
 httpcore==1.0.9 \
     --hash=sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55 \
@@ -519,7 +519,7 @@ metldata==5.2.0 \
     --hash=sha256:711616a77ab94d7e79a811c2b424e5048f62b81b867b82bc89b894b02cbe98dc
     # via
     #   -c lock/requirements-dev.txt
-    #   ets (pyproject.toml)
+    #   emts (pyproject.toml)
 opentelemetry-api==1.42.1 \
     --hash=sha256:51a69edacadbc03a8950ace1c4c21099cacc538820ac2c9e36277e78cebba714 \
     --hash=sha256:56c63bea9f77b62856be8c47600474acad853b2924b99b1687c4cb6297166716
@@ -1114,7 +1114,7 @@ typer==0.26.7 \
     --hash=sha256:e314a34c617e419c091b2830dda3ea1f257134ff593061a8f5b9717ab8dddb3a
     # via
     #   -c lock/requirements-dev.txt
-    #   ets (pyproject.toml)
+    #   emts (pyproject.toml)
     #   schemapack
 typing-extensions==4.15.0 \
     --hash=sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466 \
