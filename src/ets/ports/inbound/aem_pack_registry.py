@@ -29,8 +29,7 @@ class DataDerivationError(RuntimeError):
     failure (e.g.,a workflow data step) that retrying the same AEMPack against the
     same config will not resolve. It carries the pid and model_name of the
     AEMPack being transformed for logging and audit context, plus the name of the
-    failing workflow step (resolved at the wrap site, since the underlying error
-    does not expose it publicly).
+    failing workflow step.
     """
 
     def __init__(
