@@ -63,7 +63,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         cause is a republish on the RS side). Accepting a newer version also resets
         ``failed_at``, so a previously failed pack is reprocessed under the new version.
 
-        Returns True if the pack was stored, False if it was rejected as not newer.
+        Returns True if the pack was stored, False if it was rejected.
         """
         doc = aem_pack.model_dump(mode="json")
         doc.pop("id")
