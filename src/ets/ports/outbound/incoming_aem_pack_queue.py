@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import UUID4
 
-from ets.core.models import AEMPack, IncomingAEMPack
+from ets.core.models import IncomingAEMPack, VersionedAEMPack
 
 
 class IncomingAEMPackQueuePort(ABC):
@@ -29,7 +29,7 @@ class IncomingAEMPackQueuePort(ABC):
     """
 
     @abstractmethod
-    async def queue(self, aem_pack: AEMPack) -> bool:
+    async def queue(self, aem_pack: VersionedAEMPack) -> bool:
         """Upsert an AEMPack into the queue.
 
         Returns True if the pack was stored (a strictly newer version), False in all other cases.

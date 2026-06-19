@@ -32,7 +32,7 @@ from ets.constants import (
     TOMBSTONE_FIELD,
     VERSION_FIELD,
 )
-from ets.core.models import AEMPack, IncomingAEMPack
+from ets.core.models import IncomingAEMPack, VersionedAEMPack
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 
 log = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         self._collection = collection
         self._worker_id = worker_id
 
-    async def queue(self, aem_pack: AEMPack) -> bool:
+    async def queue(self, aem_pack: VersionedAEMPack) -> bool:
         """Upsert an AEMPack into the queue if its version is newer than the stored one.
 
         The incoming version is compared against any document already stored with the

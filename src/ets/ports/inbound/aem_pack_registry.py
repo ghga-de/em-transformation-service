@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import UUID4
 
-from ets.core.models import AEMPack
+from ets.core.models import VersionedAEMPack
 
 
 class DataDerivationError(RuntimeError):
@@ -59,7 +59,7 @@ class AEMPackRegistryPort(ABC):
     """
 
     @abstractmethod
-    async def queue_unprocessed(self, aem_pack: AEMPack):
+    async def queue_unprocessed(self, aem_pack: VersionedAEMPack):
         """Put new AEMPacks from event subscriber into the processing queue."""
 
     @abstractmethod

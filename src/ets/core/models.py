@@ -295,13 +295,18 @@ class AEMPack(BaseModel):
         return json.loads(v.model_dump_json())
 
 
-class IncomingAEMPack(AEMPack):
-    """Variant of the AEMPack for the processing queue."""
+class VersionedAEMPack(AEMPack):
+    """An AEMPack that additionally carries a version."""
 
     version: int = Field(
         default=...,
-        description=("Version of the incoming AEMPack this event concerns."),
+        description="Current version of the AEMPack. Used to resolve republishing conflicts.",
     )
+
+
+class IncomingAEMPack(VersionedAEMPack):
+    """Variant of the AEMPack for the processing queue."""
+
     correlation_id: UUID4 = Field(
         default=...,
         description="Correlation ID of the event that triggered ingestion of this AEMPack.",

@@ -37,6 +37,7 @@ from ets.core.models import (
     AEMPackStatusEvent,
     IncomingAEMPack,
     PersistedConfig,
+    VersionedAEMPack,
     Workflow,
 )
 from ets.ports.inbound.aem_pack_registry import (
@@ -76,7 +77,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         self._config_lock = config_lock
         self._incoming_aem_pack_queue = incoming_aem_pack_queue
 
-    async def queue_unprocessed(self, aem_pack: AEMPack):
+    async def queue_unprocessed(self, aem_pack: VersionedAEMPack):
         """Fetch new AEMPacks via event subscriber and put them into the queue for processing."""
         await self._config_lock.wait_for_lock_release()
         # load the most recent config
@@ -106,13 +107,11 @@ class AEMPackRegistry(AEMPackRegistryPort):
         if stored:
             # Only emitted once the pack is actually accepted (a strictly newer
             # version); rejected republishes do not produce a status event.
-            # version lives on the concrete incoming DTO, not the AEMPack base, so
-            # it is read from the dumped doc (as the queue adapter itself does).
             await self._status_event_dao.insert(
                 AEMPackStatusEvent(
                     pid=aem_pack.pid,
                     model_name=aem_pack.model_name,
-                    version=aem_pack.model_dump(include={"version"})["version"],
+                    version=aem_pack.version,
                     status=AEMPackStatus.QUEUED,
                 )
             )
@@ -359,24 +358,11 @@ class AEMPackRegistry(AEMPackRegistryPort):
         """Apply the workflow to the AEMPack's DataPack and return the result.
 
         Raises:
-            DataDerivationError: if ``WorkflowRunner`` construction (model
-                derivation) fails, or if any workflow data step fails. Construction
-                failures are reported with ``transformation_step="runner_init"`` to
-                distinguish them from a failing data step. They are not expected here
-                (model derivation should have succeeded at config time) but are
-                guarded so they surface as a normal failure rather than a crash.
+            DataDerivationError: if any workflow data step fails.
         """
-        try:
-            runner: WorkflowRunner = WorkflowRunner(
-                workflow=workflow.workflow, input_model=input_schema
-            )
-        except WorkflowExecutionError as error:
-            raise DataDerivationError(
-                pid=aem_pack.pid,
-                model_name=aem_pack.model_name,
-                error=error,
-                transformation_step="runner_init",
-            ) from error
+        runner: WorkflowRunner = WorkflowRunner(
+            workflow=workflow.workflow, input_model=input_schema
+        )
 
         try:
             return runner.run_workflow(
