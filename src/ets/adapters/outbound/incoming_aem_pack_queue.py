@@ -57,10 +57,9 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
     async def queue(self, aem_pack: AEMPack) -> bool:
         """Upsert an AEMPack into the queue if its version is newer than the stored one.
 
-        The incoming version is compared against any document already stored for the
+        The incoming version is compared against any document already stored with the
         same id. The document is only (over)written when the incoming version is
-        strictly higher; equal or lower versions are rejected and logged (the likely
-        cause is a republish on the RS side). Accepting a newer version also resets
+        strictly higher. Equal or lower versions are rejected and logged. Accepting a newer version also resets
         ``failed_at``, so a previously failed pack is reprocessed under the new version.
 
         Returns True if the pack was stored, False if it was rejected.
