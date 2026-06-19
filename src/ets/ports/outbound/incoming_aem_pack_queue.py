@@ -32,8 +32,7 @@ class IncomingAEMPackQueuePort(ABC):
     async def queue(self, aem_pack: AEMPack) -> bool:
         """Upsert an AEMPack into the queue.
 
-        Returns True if the pack was stored (a strictly newer version), False if it
-        was rejected as not newer than the stored version.
+        Returns True if the pack was stored (a strictly newer version), False in all other cases.
         """
 
     @abstractmethod
