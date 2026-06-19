@@ -319,6 +319,14 @@ class IncomingAEMPack(VersionedAEMPack):
         default=None,
         description="When this AEMPack was successfully processed. None if not yet processed.",
     )
+    failed_at: UTCDatetime | None = Field(
+        default=None,
+        description=(
+            "When this AEMPack's processing failed. None if it has not failed."
+            " Failures also set ``processed_at`` (so the pack is not re-claimed);"
+            " this field is what distinguishes a failed pack from a successful one."
+        ),
+    )
     needs_reprocessing: bool = Field(
         default=False,
         description="Set to True when a new version of this AEMPack arrives while it is being processed, signalling that reprocessing is required after the current run completes.",
