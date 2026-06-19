@@ -323,8 +323,8 @@ class IncomingAEMPack(VersionedAEMPack):
         default=None,
         description=(
             "When this AEMPack's processing failed. None if it has not failed."
-            " Failures also set ``processed_at`` (so the pack is not re-claimed);"
-            " this field is what distinguishes a failed pack from a successful one."
+            " Failures also set ``processed_at`` (so the pack is not re-claimed)."
+            " This field is what distinguishes a failed pack from a successful one."
         ),
     )
     needs_reprocessing: bool = Field(
