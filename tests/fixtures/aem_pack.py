@@ -32,7 +32,7 @@ from ets.core.models import (
     PersistedConfig,
 )
 from ets.ports.outbound.config_lock import ConfigLockPort
-from ets.ports.outbound.dao import AEMPackDao
+from ets.ports.outbound.dao import AEMPackDao, StatusEventDao
 from ets.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 from tests.fixtures.examples import load_aem_pack_config
 
@@ -97,6 +97,7 @@ def make_ingress_pack(
     data: DataPack | None = None,
     annotation: dict | None = None,
     correlation_id: UUID4 | None = None,
+    version: int = 1,
 ) -> IncomingAEMPack:
     """Create an IncomingAEMPack for the given ingress model."""
     return IncomingAEMPack(
@@ -106,6 +107,7 @@ def make_ingress_pack(
         data=data or TEST_DATAPACK,
         annotation=annotation or {},
         correlation_id=correlation_id or uuid4(),
+        version=version,
     )
 
 
@@ -156,6 +158,7 @@ def mock_registry() -> AEMPackRegistry:
     return AEMPackRegistry(
         config=MagicMock(spec=Config),
         aem_pack_dao=AsyncMock(spec=AEMPackDao),
+        status_event_dao=AsyncMock(spec=StatusEventDao),
         config_updater=AsyncMock(spec=ConfigUpdater),
         config_lock=AsyncMock(spec=ConfigLockPort),
         incoming_aem_pack_queue=AsyncMock(spec=IncomingAEMPackQueuePort),

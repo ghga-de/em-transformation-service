@@ -10,6 +10,14 @@
       "title": "Derived Aem Pack Topic",
       "type": "string"
     },
+    "aem_pack_processing_status_topic": {
+      "description": "Topic for AEMPack processing-lifecycle (status) events, e.g. processing failures, and later successes.",
+      "examples": [
+        "aempack-processing-status"
+      ],
+      "title": "Aem Pack Processing Status Topic",
+      "type": "string"
+    },
     "original_aem_pack_topic": {
       "description": "Topic informing about new ingress AEMPacks.",
       "examples": [
@@ -287,6 +295,7 @@
   },
   "required": [
     "derived_aem_pack_topic",
+    "aem_pack_processing_status_topic",
     "original_aem_pack_topic",
     "service_instance_id",
     "kafka_servers",

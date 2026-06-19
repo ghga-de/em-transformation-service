@@ -56,6 +56,13 @@ The service requires the following configuration parameters:
   "derived-aempacks"
   ```
 
+- <a id="properties/aem_pack_processing_status_topic"></a>**`aem_pack_processing_status_topic`** *(string, required)*: Topic for AEMPack processing-lifecycle (status) events, e.g. processing failures, and later successes.
+
+  Examples:
+  ```json
+  "aempack-processing-status"
+  ```
+
 - <a id="properties/original_aem_pack_topic"></a>**`original_aem_pack_topic`** *(string, required)*: Topic informing about new ingress AEMPacks.
 
   Examples:

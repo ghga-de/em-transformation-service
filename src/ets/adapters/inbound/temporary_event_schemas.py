@@ -18,7 +18,7 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-from ets.core.models import AEMPack
+from ets.core.models import VersionedAEMPack
 
 
 class AEMPackEventConfig(BaseSettings):
@@ -34,5 +34,5 @@ class AEMPackEventConfig(BaseSettings):
     )
 
 
-class OriginalAEMPack(AEMPack):
+class OriginalAEMPack(VersionedAEMPack):
     """Model for the incoming AEMPack payload."""

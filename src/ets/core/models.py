@@ -17,7 +17,9 @@
 
 import json
 from collections.abc import Mapping
+from enum import StrEnum
 from typing import Annotated, Any
+from uuid import uuid4
 
 from annotated_types import MinLen
 from ghga_service_commons.utils.utc_dates import UTCDatetime
@@ -293,7 +295,16 @@ class AEMPack(BaseModel):
         return json.loads(v.model_dump_json())
 
 
-class IncomingAEMPack(AEMPack):
+class VersionedAEMPack(AEMPack):
+    """An AEMPack that additionally carries a version."""
+
+    version: int = Field(
+        default=...,
+        description="Current version of the AEMPack. Used to resolve republishing conflicts.",
+    )
+
+
+class IncomingAEMPack(VersionedAEMPack):
     """Variant of the AEMPack for the processing queue."""
 
     correlation_id: UUID4 = Field(
@@ -308,8 +319,69 @@ class IncomingAEMPack(AEMPack):
         default=None,
         description="When this AEMPack was successfully processed. None if not yet processed.",
     )
+    failed_at: UTCDatetime | None = Field(
+        default=None,
+        description=(
+            "When this AEMPack's processing failed. None if it has not failed."
+            " Failures also set ``processed_at`` (so the pack is not re-claimed)."
+            " This field is what distinguishes a failed pack from a successful one."
+        ),
+    )
     needs_reprocessing: bool = Field(
         default=False,
         description="Set to True when a new version of this AEMPack arrives while it is being processed, signalling that reprocessing is required after the current run completes.",
     )
     model_config = ConfigDict(frozen=True)
+
+
+class AEMPackStatus(StrEnum):
+    """Final lifecycle states of an incoming AEMPack that are published as events.
+
+    Intermediate states (e.g. being claimed for processing) are intentionally not
+    represented: only states an outside consumer cares about are emitted.
+    """
+
+    QUEUED = "queued"
+    PROCESSED = "processed"
+    FAILED = "failed"
+
+
+class AEMPackStatusEvent(BaseModel):
+    """A processing-lifecycle event published on the status channel.
+
+    A single model carries every status so all events sit on the same topic and can
+    be correlated back to the originating incoming AEMPack via (pid, model_name,
+    version). The ``transformation_step``/``error_*`` fields are only populated for
+    ``FAILED`` events.
+    """
+
+    id: UUID4 = Field(
+        default_factory=uuid4, description="Unique identifier of the event."
+    )
+    pid: str = Field(
+        default=...,
+        description="Shared identifier of the incoming AEMPack and its derived packs.",
+    )
+    model_name: str = Field(
+        default=...,
+        description="Name of the model the AEMPack being processed conforms to.",
+    )
+    version: int = Field(
+        default=..., description="Version of the incoming AEMPack this event concerns."
+    )
+    status: AEMPackStatus = Field(
+        default=...,
+        description="The lifecycle state this event reports.",
+    )
+    transformation_step: str | None = Field(
+        default=None,
+        description="Name of the workflow step that failed, if known. Only set for FAILED.",
+    )
+    error_type: str | None = Field(
+        default=None,
+        description="Class name of the error that caused the failure. Only set for FAILED.",
+    )
+    error_message: str | None = Field(
+        default=None,
+        description="Human-readable message of the underlying error. Only set for FAILED.",
+    )
