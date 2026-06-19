@@ -111,7 +111,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
             )
         except DuplicateKeyError:
             log.info(
-                "AEMPack %s version %s is not newer than the stored version; rejecting.",
+                "Skip queuing AEMPack %s, as a newer version (%s) is already stored.",
                 aem_pack.id,
                 incoming_version,
             )
