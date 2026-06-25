@@ -39,7 +39,7 @@ lock_collection = pytest.mark.parametrize(
 def make_lock(
     collection: AsyncCollection,
     *,
-    worker_id: str = "worker-1",
+    owner_id: str = "worker-1",
     lock_expiry_seconds: int = 60,
     poll_interval: int = 1,
     timeout: int = 3,
@@ -47,7 +47,7 @@ def make_lock(
     """Construct a ConfigLockAdapter with sensible defaults for tests."""
     return ConfigLockAdapter(
         collection=collection,
-        worker_id=worker_id,
+        worker_id=owner_id,
         lock_expiry_seconds=lock_expiry_seconds,
         poll_interval=poll_interval,
         timeout=timeout,
@@ -64,14 +64,14 @@ async def test_acquire_lock_succeeds(mongo_collection: AsyncCollection):
 
     doc = await mongo_collection.find_one({"_id": CONFIG_LOCK_ID})
     assert doc is not None
-    assert doc["worker_id"] == "worker-1"
+    assert doc["owner_id"] == "worker-1"
 
 
 @lock_collection
 async def test_acquire_lock_fails_when_held(mongo_collection: AsyncCollection):
     """Ensure second acquire while lock is held returns False."""
     lock1 = make_lock(mongo_collection)
-    lock2 = make_lock(mongo_collection, worker_id="worker-2")
+    lock2 = make_lock(mongo_collection, owner_id="worker-2")
     await lock1.setup_index()
 
     assert await lock1.try_acquire_lock() is True
@@ -82,7 +82,7 @@ async def test_acquire_lock_fails_when_held(mongo_collection: AsyncCollection):
 async def test_release_then_acquire(mongo_collection: AsyncCollection):
     """Ensure another worker can acquire after release."""
     lock1 = make_lock(mongo_collection)
-    lock2 = make_lock(mongo_collection, worker_id="worker-2")
+    lock2 = make_lock(mongo_collection, owner_id="worker-2")
     await lock1.setup_index()
 
     await lock1.try_acquire_lock()
@@ -94,7 +94,7 @@ async def test_release_then_acquire(mongo_collection: AsyncCollection):
 async def test_release_by_wrong_worker_is_noop(mongo_collection: AsyncCollection):
     """Ensure release by non-holder does not remove the lock."""
     lock1 = make_lock(mongo_collection)
-    lock2 = make_lock(mongo_collection, worker_id="worker-2")
+    lock2 = make_lock(mongo_collection, owner_id="worker-2")
     await lock1.setup_index()
 
     await lock1.try_acquire_lock()
@@ -102,7 +102,7 @@ async def test_release_by_wrong_worker_is_noop(mongo_collection: AsyncCollection
 
     doc = await mongo_collection.find_one({"_id": CONFIG_LOCK_ID})
     assert doc is not None
-    assert doc["worker_id"] == "worker-1"
+    assert doc["owner_id"] == "worker-1"
 
 
 @lock_collection
@@ -119,9 +119,9 @@ async def test_wait_returns_immediately_when_unlocked(
 @lock_collection
 async def test_wait_returns_after_release(mongo_collection: AsyncCollection):
     """Ensure wait_for_lock_release returns once another task releases the lock."""
-    holder = make_lock(mongo_collection, worker_id="holder")
+    holder = make_lock(mongo_collection, owner_id="holder")
     waiter = make_lock(
-        mongo_collection, worker_id="waiter", poll_interval=1, timeout=10
+        mongo_collection, owner_id="waiter", poll_interval=1, timeout=10
     )
     await holder.setup_index()
     await holder.try_acquire_lock()
@@ -140,10 +140,10 @@ async def test_wait_raises_timeout(mongo_collection: AsyncCollection):
     """Ensure wait_for_lock_release raises TimeoutError after the timeout elapses."""
     poll_interval = 1
     timeout = 2
-    holder = make_lock(mongo_collection, worker_id="holder")
+    holder = make_lock(mongo_collection, owner_id="holder")
     waiter = make_lock(
         mongo_collection,
-        worker_id="waiter",
+        owner_id="waiter",
         poll_interval=poll_interval,
         timeout=timeout,
     )

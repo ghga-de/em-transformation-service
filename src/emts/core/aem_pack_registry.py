@@ -17,6 +17,7 @@
 
 import asyncio
 import logging
+import time
 from typing import Any
 from uuid import uuid4
 
@@ -123,8 +124,17 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
             claimed = await self._incoming_aem_pack_queue.claim_next()
             if claimed:
+                start = time.monotonic()
                 await self._process_next_aem_pack(
                     incoming_aem=claimed, correlation_id=claimed.correlation_id
+                )
+                # Empirical signal for tuning the claim TTL: handling time must stay
+                # well below it, otherwise live packs get reclaimed and reprocessed.
+                log.info(
+                    "Finished handling AEMPack '%s' in %.1fs (claim TTL is %ds).",
+                    claimed.id,
+                    time.monotonic() - start,
+                    self._config.claim_ttl_seconds,
                 )
             else:
                 log.info(
@@ -189,7 +199,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                         error_message=error_message,
                     )
                 )
-            await self._incoming_aem_pack_queue.mark_as_failed(incoming_aem.id)
+            await self._incoming_aem_pack_queue.mark_as_failed(
+                incoming_aem.id, incoming_aem.version
+            )
             return
 
         await self._config_lock.wait_for_lock_release()
@@ -203,6 +215,23 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 incoming_aem.id,
             )
             await self._incoming_aem_pack_queue.free(incoming_aem.id)
+            return
+
+        # Discard before preparing or publishing anything if this run's results are
+        # stale: another instance already processed this pack (it was reclaimed as
+        # stale while still in flight here), or a newer version was queued mid-flight
+        # so the content we derived is outdated. Best-effort early-out only;
+        # mark_processed re-checks the same condition atomically, and the requeued
+        # needs_reprocessing flag drives the newer version to be reprocessed.
+        if await self._incoming_aem_pack_queue.is_superseded_or_processed(
+            incoming_aem.id, incoming_aem.version
+        ):
+            log.info(
+                "AEMPack '%s' (version %d) was superseded by a newer version or already"
+                " processed by another instance; discarding stale derived results.",
+                incoming_aem.id,
+                incoming_aem.version,
+            )
             return
 
         aem_packs_to_publish = await self._prune_derived_aem_packs_on_delete(
@@ -246,7 +275,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 )
             )
 
-        await self._incoming_aem_pack_queue.mark_processed(incoming_aem.id)
+        await self._incoming_aem_pack_queue.mark_processed(
+            incoming_aem.id, incoming_aem.version
+        )
 
     async def _prune_derived_aem_packs_on_delete(
         self,

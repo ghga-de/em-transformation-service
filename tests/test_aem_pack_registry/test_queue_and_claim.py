@@ -17,6 +17,7 @@
 
 import asyncio
 import logging
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -25,7 +26,6 @@ from pydantic import UUID4
 from schemapack.exceptions import ValidationError
 from schemapack.spec.datapack import DataPack
 
-from emts.constants import PROCESSOR_FIELD
 from emts.core.aem_pack_registry import AEMPackRegistry
 from emts.core.models import IncomingAEMPack
 from tests.fixtures.aem_pack import (
@@ -44,7 +44,7 @@ pytestmark = pytest.mark.asyncio()
 async def test_queue_creates_correct_document(
     registry: AEMPackRegistry, joint_fixture: JointFixture
 ):
-    """Ensure queue_unprocessed creates a doc with correct fields, no processor, and deserializable data."""
+    """Ensure queue_unprocessed creates a doc with correct fields, no claim, and deserializable data."""
     aem_id = uuid4()
     pack = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
     await queue_pack(registry, pack)
@@ -53,7 +53,7 @@ async def test_queue_creates_correct_document(
     assert raw is not None
     assert raw["model_name"] == "IngressModel"
     assert raw["annotation"] == {}
-    assert raw["processor"] is None
+    assert raw["claimed_at"] is None
     assert raw["processed_at"] is None
     assert str(raw["correlation_id"]) == str(pack.correlation_id)
     assert DataPack.model_validate(raw["data"]) == TEST_DATAPACK
@@ -73,7 +73,7 @@ async def test_double_queue_before_processing_stays_claimable(
 
     raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None
-    assert raw["processor"] is None
+    assert raw["claimed_at"] is None
     assert raw["processed_at"] is None
     assert raw["annotation"] == {}
 
@@ -108,22 +108,6 @@ async def test_queue_rejects_non_newer_version(
     assert raw is not None
     assert raw["version"] == 2
     assert raw["annotation"] == {"v": 2}
-
-
-async def test_abandoned_pack_reclaimed_by_same_instance(
-    registry: AEMPackRegistry, joint_fixture: JointFixture
-):
-    """Ensure process_aem_packs reclaims a pack left claimed by a previous crash of this instance."""
-    ingress = make_ingress_pack("IngressModel")
-    await queue_pack(registry, ingress)
-
-    # Simulate a previous crash: the doc is already claimed by this instance
-    await joint_fixture.incoming_aem_pack_collection.update_one(
-        {"_id": ingress.id},
-        {"$set": {PROCESSOR_FIELD: joint_fixture.config.worker_id}},
-    )
-
-    await _assert_pack_claimed_during_processing(registry, ingress.id)
 
 
 async def test_fresh_pack_claimed_on_first_query(registry: AEMPackRegistry):
@@ -196,48 +180,134 @@ async def test_idle_path_logs_and_sleeps(
     assert any("No new AEM found" in record.message for record in caplog.records)
 
 
-async def test_concurrent_queue_publishes_and_leaves_for_reprocessing(
+async def test_superseded_version_discards_stale_results(
     joint_fixture: JointFixture,
 ):
-    """Ensure processing publishes results even when a new version was queued concurrently, and leaves the doc for reprocessing."""
+    """A claim processed after a strictly newer version was queued must NOT publish its
+    now-stale results, and must not reach the terminal state. The content it derived is
+    outdated, so it is discarded and the doc is left unprocessed for the newer version
+    to be reprocessed in its place.
+    """
     registry = await joint_fixture.seeded_registry(
         AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
         publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
     )
     aem_id = uuid4()
+    pid = str(uuid4())
 
-    # Queue v1 and claim
-    pack_v1 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
-    unprocessed = await queue_and_claim(
-        registry=registry,
-        pack=pack_v1,
+    # Claim v1, then a strictly newer v2 of the same pack arrives while v1 is in flight.
+    pack_v1 = make_ingress_pack(
+        model_name="IngressModel", aem_id=aem_id, pid=pid, version=1
     )
+    unprocessed = await queue_and_claim(registry=registry, pack=pack_v1)
 
-    # Simulate concurrent update: queue v2 with same ID while v1 is claimed
-    pack_v2 = make_ingress_pack(model_name="IngressModel", aem_id=aem_id)
+    pack_v2 = make_ingress_pack(
+        model_name="IngressModel", aem_id=aem_id, pid=pid, version=2
+    )
     await queue_pack(registry, pack_v2)
 
-    # Processor is preserved so in-flight instance can complete; needs_reprocessing signals v2 is pending
+    # v2 overwrote the content; v1's claim is preserved and reprocessing is flagged.
     raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None
-    assert raw["processor"] == joint_fixture.config.worker_id
+    assert raw["version"] == 2
+    assert raw["claimed_at"] is not None
     assert raw["needs_reprocessing"] is True
 
-    # Process v1 — should still publish
+    # Finish processing the now-stale v1.
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
         correlation_id=unprocessed.correlation_id,
     )
 
-    derived = await joint_fixture.derived_packs(pack_v1.pid)
-    assert len(derived) == 3
-
-    # Doc flagged for reprocessing: processor released, processed_at stamped, needs_reprocessing still True
+    # Nothing published, and the pack is not marked processed: v1's results were
+    # discarded. The claim is retained, so v2 is reprocessed once it ages out (stale).
+    assert await joint_fixture.derived_packs(pid) == []
     raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None
-    assert raw["processor"] is None
-    assert raw["processed_at"] is not None
+    assert raw["processed_at"] is None
+    assert raw["version"] == 2
     assert raw["needs_reprocessing"] is True
+
+
+async def test_newer_version_reprocessed_after_stale_claim_discarded(
+    joint_fixture: JointFixture,
+):
+    """End-to-end: after a stale v1 claim is discarded, it is v2's content — not v1's —
+    that the next claim reprocesses and publishes. The superseded version never wins.
+    """
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+        publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
+    )
+    aem_id = uuid4()
+    pid = str(uuid4())
+
+    pack_v1 = make_ingress_pack(
+        model_name="IngressModel", aem_id=aem_id, pid=pid, version=1
+    )
+    unprocessed = await queue_and_claim(registry=registry, pack=pack_v1)
+    pack_v2 = make_ingress_pack(
+        model_name="IngressModel", aem_id=aem_id, pid=pid, version=2
+    )
+    await queue_pack(registry, pack_v2)
+
+    # Stale v1 finishes and is discarded (verified in the previous test).
+    await registry._process_next_aem_pack(
+        incoming_aem=unprocessed,
+        correlation_id=unprocessed.correlation_id,
+    )
+    assert await joint_fixture.derived_packs(pid) == []
+
+    # v1's claim ages past the TTL, so the next claim reclaims the doc — now carrying
+    # v2's content — and processing it publishes v2's derived packs.
+    await joint_fixture.incoming_aem_pack_collection.update_one(
+        {"_id": aem_id},
+        {"$set": {"claimed_at": datetime.now(UTC) - timedelta(seconds=600)}},
+    )
+    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert reclaimed is not None
+    assert reclaimed.id == aem_id
+    assert reclaimed.version == 2
+
+    await registry._process_next_aem_pack(
+        incoming_aem=reclaimed,
+        correlation_id=reclaimed.correlation_id,
+    )
+
+    assert len(await joint_fixture.derived_packs(pid)) == 3
+    raw = await joint_fixture.incoming_doc(aem_id)
+    assert raw is not None
+    assert raw["processed_at"] is not None
+    assert raw["version"] == 2
+
+
+async def test_mark_processed_rejects_superseded_version(
+    registry: AEMPackRegistry, joint_fixture: JointFixture
+):
+    """The atomic backstop to the best-effort pre-publish guard: even if a slow worker
+    slips past the guard, mark_processed must not reach the terminal state for a version
+    the store has already moved past.
+    """
+    aem_id = uuid4()
+    pid = str(uuid4())
+    pack_v1 = make_ingress_pack(
+        model_name="IngressModel", aem_id=aem_id, pid=pid, version=1
+    )
+    await queue_and_claim(registry=registry, pack=pack_v1)
+    pack_v2 = make_ingress_pack(
+        model_name="IngressModel", aem_id=aem_id, pid=pid, version=2
+    )
+    await queue_pack(registry, pack_v2)
+
+    # A slow v1 worker tries to commit after v2 superseded it: must be a no-op.
+    await registry._incoming_aem_pack_queue.mark_processed(
+        pack_v1.id, pack_v1.version
+    )
+
+    raw = await joint_fixture.incoming_doc(aem_id)
+    assert raw is not None
+    assert raw["processed_at"] is None
+    assert raw["version"] == 2
 
 
 async def test_queue_rejects_marked_for_deletion(registry: AEMPackRegistry):

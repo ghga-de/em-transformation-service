@@ -25,7 +25,10 @@ from emts.core.models import IncomingAEMPack, VersionedAEMPack
 class IncomingAEMPackQueuePort(ABC):
     """Port for the incoming AEMPack processing queue.
 
-    Guarantees that each pack is claimed by exactly one processor at a time.
+    A pack is normally processed by a single instance at a time. Claims carry a
+    timestamp and a claim older than the configured TTL may be reclaimed, so
+    transient concurrent processing is possible. ``processed_at`` is the
+    single-writer terminal state that resolves it.
     """
 
     @abstractmethod
@@ -40,8 +43,38 @@ class IncomingAEMPackQueuePort(ABC):
         """Claim the next available AEMPack for processing."""
 
     @abstractmethod
-    async def mark_processed(self, aem_pack_id: UUID4) -> None:
-        """Mark an AEMPack as successfully processed."""
+    async def mark_processed(self, aem_pack_id: UUID4, version: int) -> None:
+        """Mark an AEMPack as successfully processed.
+
+        Conditional on ``processed_at`` being unset *and* the stored version still
+        equalling ``version``, so only the first worker to finish wins and a worker
+        whose version was superseded mid-flight is discarded rather than committing
+        stale results.
+        """
+
+    @abstractmethod
+    async def extend_all_claims(self, by_seconds: int) -> None:
+        """Push every in-flight claim's ``claimed_at`` forward by ``by_seconds``.
+
+        Called once by the instance holding the config lock: while the lock is held,
+        every other instance is blocked in ``wait_for_lock_release`` and its claimed
+        packs age without making progress. Rewinding all claims by the hold duration
+        keeps that involuntary idle time from counting against the reclaim TTL.
+        Already-processed (terminal) and unclaimed packs are left untouched. No-op for
+        a non-positive duration.
+        """
+
+    @abstractmethod
+    async def is_superseded_or_processed(
+        self, aem_pack_id: UUID4, version: int
+    ) -> bool:
+        """Whether a derivation for ``version`` of this pack must be discarded.
+
+        True when the stored pack is no longer unprocessed at exactly ``version`` —
+        already in a terminal state, or superseded by a newer version queued while
+        ``version`` was being derived. Either way the derived results are stale. A
+        non-atomic early-out mirroring the condition ``mark_processed`` enforces.
+        """
 
     @abstractmethod
     async def mark_for_deletion(self, aem_pack_id: UUID4) -> None:
@@ -71,8 +104,10 @@ class IncomingAEMPackQueuePort(ABC):
         """
 
     @abstractmethod
-    async def mark_as_failed(self, aem_pack_id: UUID4) -> None:
+    async def mark_as_failed(self, aem_pack_id: UUID4, version: int) -> None:
         """Mark an AEMPack as failed when data derivation raises an exception.
         It is marked as processed for the sake of state management to ensure
-        that it is not picked up again for processing.
+        that it is not picked up again for processing. Conditional on ``processed_at``
+        being unset *and* the stored version still equalling ``version``, mirroring
+        ``mark_processed`` so a stale failure never overwrites a newer version.
         """

@@ -21,7 +21,7 @@ CONFIG_LOCK_ID = "config_update_lock"
 CONFIG_VERSION_COLLECTION = "config_version"
 CONFIG_VERSION_ID = "current"
 
-PROCESSOR_FIELD = "processor"
+CLAIMED_AT_FIELD = "claimed_at"
 PROCESSED_AT_FIELD = "processed_at"
 NEEDS_REPROCESSING_FIELD = "needs_reprocessing"
 FAILED_AT_FIELD = "failed_at"

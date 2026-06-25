@@ -90,7 +90,9 @@ async def test_config_change_clears_failed_and_requeues(joint_fixture: JointFixt
     )
     ingress = make_ingress_pack(model_name="IngressModel")
     claimed = await queue_and_claim(registry=registry, pack=ingress)
-    await registry._incoming_aem_pack_queue.mark_as_failed(claimed.id)
+    await registry._incoming_aem_pack_queue.mark_as_failed(
+        claimed.id, claimed.version
+    )
 
     # Precondition: the pack is parked as failed.
     doc = await joint_fixture.incoming_doc(ingress.id)

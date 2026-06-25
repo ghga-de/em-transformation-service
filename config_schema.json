@@ -269,10 +269,11 @@
       "title": "Processing Poll Pause",
       "type": "integer"
     },
-    "worker_id": {
-      "description": "Unique identifier for a service instance used specifically for the reclamation logic.",
-      "title": "Worker Id",
-      "type": "string"
+    "claim_ttl_seconds": {
+      "default": 300,
+      "description": "Seconds after which a claimed but unprocessed AEMPack is considered stale and may be reclaimed by another instance. Must be chosen well above the worst-case processing time: too small a value lets up to processing_time/claim_ttl_seconds instances reprocess the same pack concurrently (all but one discard their result, wasting CPU and DB IO).",
+      "title": "Claim Ttl Seconds",
+      "type": "integer"
     },
     "config_lock_expiry_seconds": {
       "default": 120,
@@ -301,8 +302,7 @@
     "kafka_servers",
     "mongo_dsn",
     "db_name",
-    "processing_configuration_path",
-    "worker_id"
+    "processing_configuration_path"
   ],
   "title": "ModSettings",
   "type": "object"

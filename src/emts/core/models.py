@@ -311,9 +311,13 @@ class IncomingAEMPack(VersionedAEMPack):
         default=...,
         description="Correlation ID of the event that triggered ingestion of this AEMPack.",
     )
-    processor: str | None = Field(
+    claimed_at: UTCDatetime | None = Field(
         default=None,
-        description="ID of the service instance that is currently processing this AEMPack.",
+        description=(
+            "When this AEMPack was claimed for processing, recorded by the MongoDB"
+            " server clock. None if unclaimed. A claim older than the configured TTL"
+            " is considered stale and may be reclaimed by another instance."
+        ),
     )
     processed_at: UTCDatetime | None = Field(
         default=None,

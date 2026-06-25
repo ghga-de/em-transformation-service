@@ -1,4 +1,5 @@
 aem_pack_processing_status_topic: aempack-processing-status
+claim_ttl_seconds: 300
 config_lock_expiry_seconds: 120
 config_lock_poll_interval: 5
 config_lock_timeout: 150
@@ -28,4 +29,3 @@ processing_configuration_path: input_dummy.yaml
 processing_poll_pause: 60
 service_instance_id: '1'
 service_name: emts
-worker_id: test-worker
