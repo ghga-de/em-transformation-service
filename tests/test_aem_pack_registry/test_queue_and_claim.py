@@ -32,6 +32,7 @@ from tests.fixtures.aem_pack import (
     INVALID_DATAPACK,
     TEST_DATAPACK,
     make_ingress_pack,
+    process_pack,
     queue_and_claim,
     queue_pack,
 )
@@ -55,8 +56,30 @@ async def test_queue_creates_correct_document(
     assert raw["annotation"] == {}
     assert raw["claimed_at"] is None
     assert raw["processed_at"] is None
+    # A fresh insert is never flagged for reprocessing (only an overwrite of an
+    # already claimed/processed doc is).
+    assert raw["needs_reprocessing"] is False
     assert str(raw["correlation_id"]) == str(pack.correlation_id)
     assert DataPack.model_validate(raw["data"]) == TEST_DATAPACK
+
+
+async def test_successful_pack_is_not_reprocessed(
+    registry: AEMPackRegistry, joint_fixture: JointFixture
+):
+    """A pack queued fresh and processed once must not be picked up again. Regression
+    for needs_reprocessing being wrongly set on first insert, which made claim_next
+    reclaim every pack for a redundant second processing run.
+    """
+    pack = make_ingress_pack("IngressModel")
+    await process_pack(registry, pack)
+
+    doc = await joint_fixture.incoming_doc(pack.id)
+    assert doc is not None
+    assert doc["processed_at"] is not None
+    assert doc["needs_reprocessing"] is False
+
+    # The terminal pack is not reclaimed for a redundant reprocess.
+    assert await registry._incoming_aem_pack_queue.claim_next() is None
 
 
 async def test_double_queue_before_processing_stays_claimable(
@@ -300,9 +323,7 @@ async def test_mark_processed_rejects_superseded_version(
     await queue_pack(registry, pack_v2)
 
     # A slow v1 worker tries to commit after v2 superseded it: must be a no-op.
-    await registry._incoming_aem_pack_queue.mark_processed(
-        pack_v1.id, pack_v1.version
-    )
+    await registry._incoming_aem_pack_queue.mark_processed(pack_v1.id, pack_v1.version)
 
     raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None

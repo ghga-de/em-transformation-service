@@ -42,7 +42,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
 
     Claims are tracked with a ``claimed_at`` timestamp written by the MongoDB server
     clock. A pack is normally processed by a single instance, but a claim older than
-    ``claim_ttl_seconds`` is treated as stale and may be reclaimed by another instance. 
+    ``claim_ttl_seconds`` is treated as stale and may be reclaimed by another instance.
     Transient concurrent processing is therefore possible, but the first result is written
     and all other discarded.
     """
@@ -90,10 +90,31 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                                     "else": None,
                                 }
                             },
+                            # Reprocessing is only needed when a newer version
+                            # overwrites a doc that is already claimed or processed.
+                            # ``$ifNull`` coerces a *missing* field to null so a fresh
+                            # insert (where these fields do not yet exist) is not
+                            # mistaken for an in-flight claim: ``$ne`` treats a missing
+                            # field as distinct from null and would otherwise be true.
                             NEEDS_REPROCESSING_FIELD: {
                                 "$or": [
-                                    {"$ne": [f"${CLAIMED_AT_FIELD}", None]},
-                                    {"$ne": [f"${PROCESSED_AT_FIELD}", None]},
+                                    {
+                                        "$ne": [
+                                            {"$ifNull": [f"${CLAIMED_AT_FIELD}", None]},
+                                            None,
+                                        ]
+                                    },
+                                    {
+                                        "$ne": [
+                                            {
+                                                "$ifNull": [
+                                                    f"${PROCESSED_AT_FIELD}",
+                                                    None,
+                                                ]
+                                            },
+                                            None,
+                                        ]
+                                    },
                                 ]
                             },
                             PROCESSED_AT_FIELD: {

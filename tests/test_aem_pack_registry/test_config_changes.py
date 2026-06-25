@@ -75,12 +75,12 @@ async def test_unreachable_pack_deleted_after_route_removal(
         workflows=config.workflows,
     )
 
-    # Re-process same ingress
-    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
-    unprocessed = await queue_and_claim(
-        registry=registry,
-        pack=ingress,
-    )
+    # A config change flags already-processed packs for reprocessing; the same pack is
+    # then reclaimed and re-run under the new config.
+    await registry._incoming_aem_pack_queue.mark_all_for_reprocessing()
+    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert reclaimed is not None
+    assert reclaimed.id == aem_id
     # Inject the modified config directly — update_config won't overwrite it
     # because the DB version hasn't changed.
     config_updater = registry._config_updater
@@ -89,8 +89,8 @@ async def test_unreachable_pack_deleted_after_route_removal(
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="emts.core.aem_pack_registry"):
         await registry._process_next_aem_pack(
-            incoming_aem=unprocessed,
-            correlation_id=unprocessed.correlation_id,
+            incoming_aem=reclaimed,
+            correlation_id=reclaimed.correlation_id,
         )
 
     # DerivedModel3 deleted (unreachable), DerivedModel1 and DerivedModel2 remain
@@ -151,20 +151,20 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         workflows=config.workflows,
     )
 
-    # Re-process same ingress with modified config
-    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
-    unprocessed = await queue_and_claim(
-        registry=registry,
-        pack=ingress,
-    )
+    # A config change flags already-processed packs for reprocessing; the same pack is
+    # then reclaimed and re-run under the modified config.
+    await registry._incoming_aem_pack_queue.mark_all_for_reprocessing()
+    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert reclaimed is not None
+    assert reclaimed.id == aem_id
     config_updater = registry._config_updater
     assert isinstance(config_updater, ConfigUpdater)
     config_updater._current_config = new_config
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         await registry._process_next_aem_pack(
-            incoming_aem=unprocessed,
-            correlation_id=unprocessed.correlation_id,
+            incoming_aem=reclaimed,
+            correlation_id=reclaimed.correlation_id,
         )
 
     # DerivedModel3 pack deleted, DerivedModel1 and DerivedModel2 remain
