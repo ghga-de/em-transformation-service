@@ -241,7 +241,21 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         """
         await self._collection.update_one(
             filter=_unprocessed_version_filter(aem_pack_id, version),
-            update=[{"$set": {CLAIMED_AT_FIELD: None, PROCESSED_AT_FIELD: "$$NOW"}}],
+            # Clear needs_reprocessing as part of the terminal write. A newer version
+            # that superseded this pack while it was in flight sets needs_reprocessing
+            # on the doc (see queue()); reaching here means the version filter still
+            # matched, so nothing newer is pending and the flag is stale. Leaving it set
+            # would let claim_next's reprocess branch re-claim this now-terminal doc and
+            # redundantly re-derive and re-publish the same version.
+            update=[
+                {
+                    "$set": {
+                        CLAIMED_AT_FIELD: None,
+                        PROCESSED_AT_FIELD: "$$NOW",
+                        NEEDS_REPROCESSING_FIELD: False,
+                    }
+                }
+            ],
         )
 
     async def extend_all_claims(self, by_seconds: int) -> None:
@@ -315,10 +329,17 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 aem_pack_id,
             )
 
-    async def free(self, aem_pack_id: UUID4) -> None:
-        """Release an AEMPack back to the queue without marking it processed."""
+    async def free(self, aem_pack_id: UUID4, version: int) -> None:
+        """Release this worker's in-flight claim on ``version`` back to the queue.
+
+        Version-guarded and conditional on the pack still being unprocessed, so it only
+        releases the claim it was asked to free. If a newer version was queued
+        mid-flight (changing the stored version) or another instance already drove the
+        pack to a terminal state, this is a no-op instead of clobbering that newer state
+        or yanking an unrelated claim.
+        """
         await self._collection.update_one(
-            filter={"_id": aem_pack_id},
+            filter=_unprocessed_version_filter(aem_pack_id, version),
             update={
                 "$set": {
                     CLAIMED_AT_FIELD: None,
@@ -361,6 +382,9 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                         FAILED_AT_FIELD: "$$NOW",
                         CLAIMED_AT_FIELD: None,
                         PROCESSED_AT_FIELD: "$$NOW",
+                        # Clear a stale needs_reprocessing for the same reason as
+                        # mark_processed: the terminal write owns the flag's reset.
+                        NEEDS_REPROCESSING_FIELD: False,
                     }
                 }
             ],

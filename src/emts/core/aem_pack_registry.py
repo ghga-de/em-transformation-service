@@ -108,7 +108,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         if stored:
             # Only emitted once the pack is actually accepted (a strictly newer
             # version); rejected republishes do not produce a status event.
-            await self._status_event_dao.insert(
+            await self._status_event_dao.upsert(
                 AEMPackStatusEvent(
                     pid=aem_pack.pid,
                     model_name=aem_pack.model_name,
@@ -188,7 +188,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
             # Publish before updating queue state: a crash after publishing only causes
             # a reprocess that republishes (at-least-once), never a lost failure event.
             async with set_correlation_id(correlation_id):
-                await self._status_event_dao.insert(
+                await self._status_event_dao.upsert(
                     AEMPackStatusEvent(
                         pid=error.pid,
                         model_name=error.model_name,
@@ -214,7 +214,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 + "Discarding changes and freeing for reprocessing with new config",
                 incoming_aem.id,
             )
-            await self._incoming_aem_pack_queue.free(incoming_aem.id)
+            await self._incoming_aem_pack_queue.free(
+                incoming_aem.id, incoming_aem.version
+            )
             return
 
         # Discard before preparing or publishing anything if this run's results are
@@ -266,7 +268,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
             # Published before marking processed: a crash after publishing only causes
             # a reprocess that republishes (at-least-once), never a lost status event.
-            await self._status_event_dao.insert(
+            await self._status_event_dao.upsert(
                 AEMPackStatusEvent(
                     pid=incoming_aem.pid,
                     model_name=incoming_aem.model_name,

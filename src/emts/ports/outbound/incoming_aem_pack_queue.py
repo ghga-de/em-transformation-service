@@ -90,8 +90,13 @@ class IncomingAEMPackQueuePort(ABC):
         """Delete an AEMPack from the queue."""
 
     @abstractmethod
-    async def free(self, aem_pack_id: UUID4) -> None:
-        """Release an AEMPack back to the queue without marking it processed."""
+    async def free(self, aem_pack_id: UUID4, version: int) -> None:
+        """Release this worker's in-flight claim on ``version`` without marking it processed.
+
+        Version-guarded and conditional on the pack still being unprocessed, so a pack
+        superseded by a newer version or already driven to a terminal state mid-flight
+        is left untouched rather than having an unrelated claim yanked.
+        """
 
     @abstractmethod
     async def mark_all_for_reprocessing(self) -> None:
