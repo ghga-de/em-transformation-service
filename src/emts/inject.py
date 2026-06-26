@@ -115,7 +115,7 @@ async def _prepare_base_wiring(
         versioner=versioner,
         writer=writer,
     )
-    # Non-persistent identity for the config lock holder. Crashed lock documents are 
+    # Non-persistent identity for the config lock holder. Crashed lock documents are
     # automatically expired after a timeout period.
     worker_id = str(uuid4())
     config_lock = ConfigLockAdapter(
