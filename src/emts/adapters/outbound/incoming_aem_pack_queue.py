@@ -37,6 +37,31 @@ from emts.ports.outbound.incoming_aem_pack_queue import IncomingAEMPackQueuePort
 log = logging.getLogger(__name__)
 
 
+def _unprocessed_version_filter(aem_pack_id: UUID4, version: int) -> dict:
+    """Select the doc still stored at exactly ``version`` and not yet in a terminal state.
+
+    This single "current and unprocessed at this version" invariant is what
+    ``mark_processed`` and ``mark_as_failed`` enforce atomically and what
+    ``is_superseded_or_processed`` mirrors as a read; defining it once keeps the three
+    in lockstep when the condition gains another term.
+    """
+    return {
+        "_id": aem_pack_id,
+        VERSION_FIELD: version,
+        PROCESSED_AT_FIELD: None,
+    }
+
+
+def _is_set(field: str) -> dict:
+    """Aggregation expression that is True when ``field`` exists and is non-null.
+
+    ``$ifNull`` coerces a *missing* field to null so a fresh insert (where the field
+    does not yet exist) is not mistaken for a set value: ``$ne`` treats a missing field
+    as distinct from null and would otherwise report it as set.
+    """
+    return {"$ne": [{"$ifNull": [f"${field}", None]}, None]}
+
+
 class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
     """MongoDB adapter for the incoming AEMPack processing queue.
 
@@ -92,29 +117,10 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                             },
                             # Reprocessing is only needed when a newer version
                             # overwrites a doc that is already claimed or processed.
-                            # ``$ifNull`` coerces a *missing* field to null so a fresh
-                            # insert (where these fields do not yet exist) is not
-                            # mistaken for an in-flight claim: ``$ne`` treats a missing
-                            # field as distinct from null and would otherwise be true.
                             NEEDS_REPROCESSING_FIELD: {
                                 "$or": [
-                                    {
-                                        "$ne": [
-                                            {"$ifNull": [f"${CLAIMED_AT_FIELD}", None]},
-                                            None,
-                                        ]
-                                    },
-                                    {
-                                        "$ne": [
-                                            {
-                                                "$ifNull": [
-                                                    f"${PROCESSED_AT_FIELD}",
-                                                    None,
-                                                ]
-                                            },
-                                            None,
-                                        ]
-                                    },
+                                    _is_set(CLAIMED_AT_FIELD),
+                                    _is_set(PROCESSED_AT_FIELD),
                                 ]
                             },
                             PROCESSED_AT_FIELD: {
@@ -234,11 +240,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         ``needs_reprocessing`` flag, so the workers never livelock.
         """
         await self._collection.update_one(
-            filter={
-                "_id": aem_pack_id,
-                PROCESSED_AT_FIELD: None,
-                VERSION_FIELD: version,
-            },
+            filter=_unprocessed_version_filter(aem_pack_id, version),
             update=[{"$set": {CLAIMED_AT_FIELD: None, PROCESSED_AT_FIELD: "$$NOW"}}],
         )
 
@@ -247,8 +249,9 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
 
         Issued once by the config-lock holder: while it held the lock, every other
         instance was blocked in ``wait_for_lock_release``, so each in-flight claim aged
-        without making progress. Rewinding all claims by the hold duration keeps those
-        still-live packs from being reclaimed for involuntary idle time. A duration is
+        without making progress. Pushing every claim's ``claimed_at`` forward by the
+        hold duration rewinds the time already counted against the reclaim timeout, so
+        those still-live packs are not reclaimed for involuntary idle time. A duration is
         added to each server-written timestamp, which is immune to clock skew.
         Already-processed (terminal) and unclaimed packs are left untouched. No-op for
         a non-positive duration.
@@ -282,11 +285,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         """
         return (
             await self._collection.count_documents(
-                filter={
-                    "_id": aem_pack_id,
-                    VERSION_FIELD: version,
-                    PROCESSED_AT_FIELD: None,
-                },
+                filter=_unprocessed_version_filter(aem_pack_id, version),
                 limit=1,
             )
             == 0
@@ -352,16 +351,17 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         concurrent runs of the same version agree on the failure.
         """
         await self._collection.update_one(
-            filter={
-                "_id": aem_pack_id,
-                PROCESSED_AT_FIELD: None,
-                VERSION_FIELD: version,
-            },
-            update={
-                "$set": {
-                    FAILED_AT_FIELD: "$$NOW",
-                    CLAIMED_AT_FIELD: None,
-                    PROCESSED_AT_FIELD: "$$NOW",
+            filter=_unprocessed_version_filter(aem_pack_id, version),
+            # Pipeline update (not a plain ``$set`` document): ``$$NOW`` only resolves to
+            # the server clock inside an aggregation pipeline; in a plain update it would
+            # be written as the literal string "$$NOW". Mirrors ``mark_processed``.
+            update=[
+                {
+                    "$set": {
+                        FAILED_AT_FIELD: "$$NOW",
+                        CLAIMED_AT_FIELD: None,
+                        PROCESSED_AT_FIELD: "$$NOW",
+                    }
                 }
-            },
+            ],
         )

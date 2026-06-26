@@ -58,8 +58,9 @@ class IncomingAEMPackQueuePort(ABC):
 
         Called once by the instance holding the config lock: while the lock is held,
         every other instance is blocked in ``wait_for_lock_release`` and its claimed
-        packs age without making progress. Rewinding all claims by the hold duration
-        keeps that involuntary idle time from counting against the reclaim TTL.
+        packs age without making progress. Pushing every claim's ``claimed_at`` forward
+        by the hold duration rewinds the time already counted against the reclaim
+        timeout, so that involuntary idle time does not push live packs over the TTL.
         Already-processed (terminal) and unclaimed packs are left untouched. No-op for
         a non-positive duration.
         """
