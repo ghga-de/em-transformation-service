@@ -217,12 +217,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
             )
             return
 
-        # Discard before preparing or publishing anything if this run's results are
-        # stale: another instance already processed this pack (it was reclaimed as
-        # stale while still in flight here), or a newer version was queued mid-flight
-        # so the content we derived is outdated. Best-effort early-out only;
-        # mark_processed re-checks the same condition atomically, and the requeued
-        # needs_reprocessing flag drives the newer version to be reprocessed.
+        # Early abort for concurrent processors. This is best-effort only.
+        # Different workers can enter the subsequent block as long as the final state
+        # hasn't been committed.
         if await self._incoming_aem_pack_queue.is_superseded_or_processed(
             incoming_aem.id, incoming_aem.version
         ):
