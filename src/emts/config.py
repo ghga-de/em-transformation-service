@@ -55,18 +55,6 @@ class Config(
             " concurrently (all but one discard their result, wasting CPU and DB IO)."
         ),
     )
-    processing_max_attempts: int = Field(
-        default=3,
-        description=(
-            "How many times an AEMPack may be retried after an unexpected"
-            " (non-DataDerivationError) processing failure before it is parked as"
-            " failed. This bounds poison-pill packs whose processing deterministically"
-            " raises: instead of being reclaimed and re-crashing every claim_ttl_seconds"
-            " forever, the pack is marked failed once this many attempts are exhausted."
-            " Deterministic derivation failures are handled separately and do not consume"
-            " this budget."
-        ),
-    )
     config_lock_expiry_seconds: int = Field(
         default=120,
         description="TTL in seconds for the config lock document. MongoDB automatically removes stale locks after this duration.",

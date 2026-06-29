@@ -24,7 +24,6 @@ from pymongo.asynchronous.collection import AsyncCollection
 from pymongo.errors import DuplicateKeyError
 
 from emts.constants import (
-    ATTEMPTS_FIELD,
     CLAIMED_AT_FIELD,
     FAILED_AT_FIELD,
     NEEDS_REPROCESSING_FIELD,
@@ -169,9 +168,6 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                             # A newer version clears any prior failure so the pack is
                             # reprocessed instead of staying parked as failed.
                             FAILED_AT_FIELD: None,
-                            # New content earns a fresh attempt budget: a poison-pill
-                            # count from the previous version must not carry over.
-                            ATTEMPTS_FIELD: 0,
                         }
                     }
                 ],
@@ -401,29 +397,9 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 "$set": {
                     NEEDS_REPROCESSING_FIELD: True,
                     FAILED_AT_FIELD: None,
-                    ATTEMPTS_FIELD: 0,
                 }
             },
         )
-
-    async def increment_attempts(self, aem_pack_id: UUID4, version: int) -> int | None:
-        """Atomically increment and return the unexpected-failure counter for ``version``.
-
-        Version-guarded via ``_unprocessed_version_filter`` so a pack that was superseded
-        by a newer version or already driven to a terminal state mid-flight matches
-        nothing and yields ``None`` (signalling the caller the pack has moved on and no
-        retry bookkeeping applies). Otherwise the stored ``attempts`` is incremented and
-        the new value returned, letting the processing loop decide between freeing the
-        pack for another attempt and parking it as failed once the budget is exhausted.
-        """
-        doc = await self._collection.find_one_and_update(
-            filter=_unprocessed_version_filter(aem_pack_id, version),
-            update={"$inc": {ATTEMPTS_FIELD: 1}},
-            return_document=ReturnDocument.AFTER,
-        )
-        if doc is None:
-            return None
-        return doc.get(ATTEMPTS_FIELD, 0)
 
     async def mark_as_failed(self, aem_pack_id: UUID4, version: int) -> None:
         """Mark an AEMPack as failed when data derivation raises an exception.

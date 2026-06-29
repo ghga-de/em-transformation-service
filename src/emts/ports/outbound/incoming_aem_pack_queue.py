@@ -118,15 +118,6 @@ class IncomingAEMPackQueuePort(ABC):
         """
 
     @abstractmethod
-    async def increment_attempts(self, aem_pack_id: UUID4, version: int) -> int | None:
-        """Atomically increment and return the unexpected-failure counter for ``version``.
-
-        Version-guarded like ``mark_processed``: returns ``None`` when the pack was
-        superseded or already reached a terminal state (nothing to retry), otherwise the
-        new attempt count. Lets the processing loop bound retries of poison-pill packs.
-        """
-
-    @abstractmethod
     async def mark_as_failed(self, aem_pack_id: UUID4, version: int) -> None:
         """Mark an AEMPack as failed when data derivation raises an exception.
         It is marked as processed for the sake of state management to ensure

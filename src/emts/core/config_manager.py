@@ -66,11 +66,8 @@ class ConfigManager:
             )
             if config_has_changed:
                 await self._incoming_aem_pack_queue.mark_all_for_reprocessing()
-            # While this instance held the lock, every other instance was blocked in
-            # wait_for_lock_release, so their in-flight claims aged without making
-            # progress. Compensate all of them in one place by rewinding each claim by
-            # the hold duration, rather than having each processor measure its own wait.
-            # No-op when the hold was trivially short (e.g. config unchanged).
+            # Compensate for potentially waiting by extending the TTL of claimed AEMPacks
+            # by the actual wait  time
             await self._incoming_aem_pack_queue.extend_all_claims(
                 round(time.monotonic() - held_since)
             )
