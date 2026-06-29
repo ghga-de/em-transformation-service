@@ -108,6 +108,10 @@ class AEMPackRegistry(AEMPackRegistryPort):
         if stored:
             # Only emitted once the pack is actually accepted (a strictly newer
             # version); rejected republishes do not produce a status event.
+            # Best-effort: this emission is not atomic with the queue write above, so a
+            # crash in this window drops the QUEUED event and version dedup prevents its
+            # re-emission. Downstream consumers must not rely on QUEUED being delivered;
+            # the terminal PROCESSED/FAILED events are the authoritative signals.
             await self._status_event_dao.upsert(
                 AEMPackStatusEvent(
                     pid=aem_pack.pid,
@@ -125,9 +129,17 @@ class AEMPackRegistry(AEMPackRegistryPort):
             claimed = await self._incoming_aem_pack_queue.claim_next()
             if claimed:
                 start = time.monotonic()
-                await self._process_next_aem_pack(
-                    incoming_aem=claimed, correlation_id=claimed.correlation_id
-                )
+                try:
+                    await self._process_next_aem_pack(
+                        incoming_aem=claimed, correlation_id=claimed.correlation_id
+                    )
+                except Exception as error:
+                    # An unexpected (non-DataDerivationError) failure must not kill the
+                    # worker loop, and must not become a poison pill that re-crashes
+                    # every TTL. Isolate it here, bound the retries, and move on.
+                    # DataDerivationError is already handled inside _process_next_aem_pack.
+                    await self._park_or_retry_after_unexpected_failure(claimed, error)
+                    continue
                 # Empirical signal for tuning the claim TTL: handling time must stay
                 # well below it, otherwise live packs get reclaimed and reprocessed.
                 log.info(
@@ -142,6 +154,58 @@ class AEMPackRegistry(AEMPackRegistryPort):
                     self._config.processing_poll_pause,
                 )
                 await asyncio.sleep(self._config.processing_poll_pause)
+
+    async def _park_or_retry_after_unexpected_failure(
+        self, claimed: IncomingAEMPack, error: Exception
+    ) -> None:
+        """Bound retries of a pack whose processing raised an unexpected error.
+
+        Called from the processing loop's catch-all (so direct ``_process_next_aem_pack``
+        callers, e.g. tests, still observe the raw exception). Increments the pack's
+        attempt counter and either frees it for another try or — once
+        ``processing_max_attempts`` is reached — publishes a FAILED status event and
+        parks it as failed so it stops being reclaimed every TTL.
+        """
+        log.error(
+            "Unexpected error while processing AEMPack '%s' (version %d).",
+            claimed.id,
+            claimed.version,
+            exc_info=error,
+        )
+
+        count = await self._incoming_aem_pack_queue.increment_attempts(
+            claimed.id, claimed.version
+        )
+        if count is None:
+            # The pack was superseded or already reached a terminal state mid-flight;
+            # nothing to retry or park.
+            return
+
+        if count >= self._config.processing_max_attempts:
+            log.error(
+                "AEMPack '%s' (version %d) failed %d times; parking it as failed.",
+                claimed.id,
+                claimed.version,
+                count,
+            )
+            async with set_correlation_id(claimed.correlation_id):
+                await self._status_event_dao.upsert(
+                    AEMPackStatusEvent(
+                        pid=claimed.pid,
+                        model_name=claimed.model_name,
+                        version=claimed.version,
+                        status=AEMPackStatus.FAILED,
+                        error_type=type(error).__name__,
+                        error_message=str(error),
+                    )
+                )
+            await self._incoming_aem_pack_queue.mark_as_failed(
+                claimed.id, claimed.version
+            )
+        else:
+            # Below the cap: release the claim so the pack is retried (possibly after a
+            # transient fault has cleared).
+            await self._incoming_aem_pack_queue.free(claimed.id, claimed.version)
 
     async def _process_next_aem_pack(
         self, *, incoming_aem: IncomingAEMPack, correlation_id: UUID4

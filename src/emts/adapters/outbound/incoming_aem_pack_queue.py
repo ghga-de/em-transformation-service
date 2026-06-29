@@ -24,6 +24,7 @@ from pymongo.asynchronous.collection import AsyncCollection
 from pymongo.errors import DuplicateKeyError
 
 from emts.constants import (
+    ATTEMPTS_FIELD,
     CLAIMED_AT_FIELD,
     FAILED_AT_FIELD,
     NEEDS_REPROCESSING_FIELD,
@@ -81,6 +82,36 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         self._collection = collection
         self._claim_ttl_seconds = claim_ttl_seconds
 
+    async def ensure_indexes(self) -> None:
+        """Create the secondary indexes backing ``claim_next``'s three poll queries.
+
+        The collection grows without bound (processed docs are retained for ``queue()``'s
+        version dedup), so without these every poll from every instance is a growing
+        collection scan. ``create_index`` is idempotent, so this is safe to call on every
+        startup. No TTL is involved here (unlike ``config_lock``), so there is no
+        ``collMod`` reconciliation branch. The default ``_id`` index already covers
+        ``queue()``'s ``{_id, version}`` filter.
+        """
+        # Branches 1 (fresh) and 2 (stale reclaim): both filter on processed_at and
+        # claimed_at (branch 2 also sorts on claimed_at), gated by the tombstone.
+        await self._collection.create_index(
+            [
+                (PROCESSED_AT_FIELD, 1),
+                (CLAIMED_AT_FIELD, 1),
+                (TOMBSTONE_FIELD, 1),
+            ]
+        )
+        # Branch 3 (reprocess): selects processed docs flagged for reprocessing and
+        # sorts on claimed_at.
+        await self._collection.create_index(
+            [
+                (NEEDS_REPROCESSING_FIELD, 1),
+                (PROCESSED_AT_FIELD, 1),
+                (TOMBSTONE_FIELD, 1),
+                (CLAIMED_AT_FIELD, 1),
+            ]
+        )
+
     async def queue(self, aem_pack: VersionedAEMPack) -> bool:
         """Upsert an AEMPack into the queue if its version is newer than the stored one.
 
@@ -105,9 +136,14 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                     {
                         "$set": {
                             **doc,
-                            # Preserve an in-flight claim so the processing instance can
-                            # still complete and mark the doc as done; it is requeued via
-                            # needs_reprocessing.
+                            # Preserve an in-flight claim instead of clearing it: this
+                            # does NOT let the in-flight worker commit its result (its
+                            # mark_processed is version-guarded and now sees the newer
+                            # stored version, so it discards). It avoids handing the doc
+                            # to a second concurrent worker immediately; once the claim
+                            # ages past the TTL, claim_next's stale branch reclaims the
+                            # now-newer version. Reprocessing is driven by
+                            # needs_reprocessing below.
                             CLAIMED_AT_FIELD: {
                                 "$cond": {
                                     "if": f"${CLAIMED_AT_FIELD}",
@@ -133,6 +169,9 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                             # A newer version clears any prior failure so the pack is
                             # reprocessed instead of staying parked as failed.
                             FAILED_AT_FIELD: None,
+                            # New content earns a fresh attempt budget: a poison-pill
+                            # count from the previous version must not carry over.
+                            ATTEMPTS_FIELD: 0,
                         }
                     }
                 ],
@@ -191,7 +230,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 sort=[(CLAIMED_AT_FIELD, 1)],
                 return_document=ReturnDocument.AFTER,
             )
-            if doc is not None:
+            if doc:
                 log.warning(
                     "Reclaimed stale AEMPack %s (pid %s); its claim exceeded the %ds "
                     "TTL, so the previous processor likely crashed or stalled.",
@@ -353,12 +392,38 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
 
         Failed AEMPacks are included and their ``failed_at`` is cleared: a config
         change may be exactly what fixes the transformation that previously failed,
-        so they are retried fresh under the new config.
+        so they are retried fresh under the new config. ``attempts`` is reset for the
+        same reason — the new config earns a fresh retry budget.
         """
         await self._collection.update_many(
             filter={PROCESSED_AT_FIELD: {"$ne": None}, TOMBSTONE_FIELD: {"$ne": True}},
-            update={"$set": {NEEDS_REPROCESSING_FIELD: True, FAILED_AT_FIELD: None}},
+            update={
+                "$set": {
+                    NEEDS_REPROCESSING_FIELD: True,
+                    FAILED_AT_FIELD: None,
+                    ATTEMPTS_FIELD: 0,
+                }
+            },
         )
+
+    async def increment_attempts(self, aem_pack_id: UUID4, version: int) -> int | None:
+        """Atomically increment and return the unexpected-failure counter for ``version``.
+
+        Version-guarded via ``_unprocessed_version_filter`` so a pack that was superseded
+        by a newer version or already driven to a terminal state mid-flight matches
+        nothing and yields ``None`` (signalling the caller the pack has moved on and no
+        retry bookkeeping applies). Otherwise the stored ``attempts`` is incremented and
+        the new value returned, letting the processing loop decide between freeing the
+        pack for another attempt and parking it as failed once the budget is exhausted.
+        """
+        doc = await self._collection.find_one_and_update(
+            filter=_unprocessed_version_filter(aem_pack_id, version),
+            update={"$inc": {ATTEMPTS_FIELD: 1}},
+            return_document=ReturnDocument.AFTER,
+        )
+        if doc is None:
+            return None
+        return doc.get(ATTEMPTS_FIELD, 0)
 
     async def mark_as_failed(self, aem_pack_id: UUID4, version: int) -> None:
         """Mark an AEMPack as failed when data derivation raises an exception.

@@ -42,6 +42,15 @@ from tests.fixtures.joint import JointFixture
 pytestmark = pytest.mark.asyncio()
 
 
+class _StopLoop(BaseException):
+    """Sentinel used to break out of the otherwise-infinite processing loop.
+
+    Derives from ``BaseException`` (not ``Exception``) so that, when raised from inside
+    ``_process_next_aem_pack``, it escapes the loop's ``except Exception`` retry guard
+    instead of being treated as an unexpected per-pack failure and swallowed.
+    """
+
+
 async def test_queue_creates_correct_document(
     registry: AEMPackRegistry, joint_fixture: JointFixture
 ):
@@ -175,11 +184,11 @@ async def _assert_pack_claimed_during_processing(
 
     async def capture_and_stop(*, incoming_aem, correlation_id):
         claimed.append(incoming_aem)
-        raise RuntimeError("STOP, testing time!")
+        raise _StopLoop
 
     with (
         patch.object(registry, "_process_next_aem_pack", capture_and_stop),
-        pytest.raises(RuntimeError),
+        pytest.raises(_StopLoop),
     ):
         await registry.process_aem_packs()
 

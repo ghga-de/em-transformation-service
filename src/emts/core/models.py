@@ -335,6 +335,15 @@ class IncomingAEMPack(VersionedAEMPack):
         default=False,
         description="Set to True when a new version of this AEMPack arrives while it is being processed, signalling that reprocessing is required after the current run completes.",
     )
+    attempts: int = Field(
+        default=0,
+        description=(
+            "Number of unexpected (non-DataDerivationError) processing failures counted"
+            " against the currently stored content/version. Reset to 0 when a newer"
+            " version is queued or the pack is flagged for reprocessing. Once it reaches"
+            " processing_max_attempts the pack is parked as failed instead of retried."
+        ),
+    )
     model_config = ConfigDict(frozen=True)
 
 

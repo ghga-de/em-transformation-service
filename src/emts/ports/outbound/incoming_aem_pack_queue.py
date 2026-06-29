@@ -32,6 +32,14 @@ class IncomingAEMPackQueuePort(ABC):
     """
 
     @abstractmethod
+    async def ensure_indexes(self) -> None:
+        """Create the secondary indexes backing ``claim_next``'s poll queries.
+
+        Idempotent; intended to be called once at startup. Without these, every poll is
+        a scan of an unbounded, ever-growing collection.
+        """
+
+    @abstractmethod
     async def queue(self, aem_pack: VersionedAEMPack) -> bool:
         """Upsert an AEMPack into the queue.
 
@@ -107,6 +115,15 @@ class IncomingAEMPackQueuePort(ABC):
         included and their failed_at is cleared, since a config change may fix the
         transformation that failed. Intended to be called once after a config
         change, while the config lock is still held.
+        """
+
+    @abstractmethod
+    async def increment_attempts(self, aem_pack_id: UUID4, version: int) -> int | None:
+        """Atomically increment and return the unexpected-failure counter for ``version``.
+
+        Version-guarded like ``mark_processed``: returns ``None`` when the pack was
+        superseded or already reached a terminal state (nothing to retry), otherwise the
+        new attempt count. Lets the processing loop bound retries of poison-pill packs.
         """
 
     @abstractmethod

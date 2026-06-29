@@ -52,6 +52,7 @@ class ConfigManager:
         acquire the lock just wait for the holder to finish.
         """
         await self._config_lock.setup_index()
+        await self._incoming_aem_pack_queue.ensure_indexes()
         if not await self._config_lock.try_acquire_lock():
             await self._config_lock.wait_for_lock_release()
             log.info("Update lock released, loading persisted config.")
