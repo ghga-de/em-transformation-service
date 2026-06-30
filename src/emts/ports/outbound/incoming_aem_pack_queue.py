@@ -28,7 +28,7 @@ class IncomingAEMPackQueuePort(ABC):
     Claims are tracked with a ``claimed_at`` timestamp written by the MongoDB server
     clock. An AEMPack is normally processed by a single instance, but a claim older than
     ``claim_ttl_seconds`` is treated as stale and may be reclaimed by another instance.
-    Transient concurrent processing is therefore possible, but the first result is written
+    Transient concurrent processing is possible, but the first result is written
     and all other discarded.
     """
 
@@ -38,14 +38,23 @@ class IncomingAEMPackQueuePort(ABC):
 
     @abstractmethod
     async def queue(self, aem_pack: VersionedAEMPack) -> bool:
-        """Upsert an AEMPack into the queue.
+        """Upsert an AEMPack into the queue if its version is newer than the stored one.
 
-        Returns True if the pack was stored (a strictly newer version), False in all other cases.
+        The incoming version is compared against any document already stored with the
+        same id. The document is only (over)written when the incoming version is
+        strictly higher. Equal or lower versions are rejected and logged.
+        Accepting a newer version also resets ``failed_at``, so a previously failed pack
+        is reprocessed under the new version.
+
+        Returns True if the pack was stored, False if it was rejected.
         """
 
     @abstractmethod
     async def claim_next(self) -> IncomingAEMPack | None:
-        """Claim the next available AEMPack for processing."""
+        """Claim the next available AEMPack for processing.
+
+        Claims are (re)stamped with the server clock (``$$NOW``) to avoid clock skew.
+        """
 
     @abstractmethod
     async def mark_processed(self, aem_pack_id: UUID4, version: int) -> None:
@@ -53,15 +62,18 @@ class IncomingAEMPackQueuePort(ABC):
 
     @abstractmethod
     async def extend_all_claims(self, by_seconds: int) -> None:
-        """Extend the lifetime for all currently claimed AEMPacks."""
+        """Advance every in-flight ``claimed_at`` by ``by_seconds``.
+
+        Compensates for idle time while the config lock was held, so those claims
+        are not reclaimed for involuntary inactivity. Skips processed and unclaimed
+        docs. No-op for non-positive duration.
+        """
 
     @abstractmethod
     async def is_superseded_or_processed(
         self, aem_pack_id: UUID4, version: int
     ) -> bool:
-        """Check if the currently claimed AEMPack has been already processed or superseded
-        by a new version.
-        """
+        """Matches when the doc is already processed or superseded by a newer version."""
 
     @abstractmethod
     async def mark_for_deletion(self, aem_pack_id: UUID4) -> None:
@@ -73,26 +85,26 @@ class IncomingAEMPackQueuePort(ABC):
 
     @abstractmethod
     async def delete_marked(self, aem_pack_id: UUID4) -> None:
-        """Delete an AEMPack from the queue."""
+        """Delete an AEMPack marked for deletion from the queue."""
 
     @abstractmethod
     async def free(self, aem_pack_id: UUID4, version: int) -> None:
-        """Release this worker's in-flight claim without marking it processed."""
+        """Release a claimed AEMPack back to the queue.
+
+        Version-guarded, so it never frees an already processed or newer version of the AEMPack.
+        """
 
     @abstractmethod
     async def mark_all_for_reprocessing(self) -> None:
         """Flag all processed AEMPacks for reprocessing.
 
-        Sets needs_reprocessing=True on every non-tombstoned doc that has already
-        been processed, so claim_next will pick them up again. Failed packs are
-        included and their failed_at is cleared, since a config change may fix the
-        transformation that failed. Intended to be called once after a config
-        change, while the config lock is still held.
+        Failed AEMPacks are included and their ``failed_at`` is cleared: a config
+        change may be exactly what fixes the transformation that previously failed.
         """
 
     @abstractmethod
     async def mark_as_failed(self, aem_pack_id: UUID4, version: int) -> None:
-        """Mark an AEMPack as failed when data derivation raises an exception.
-        It is marked as processed for the sake of state management to ensure
-        that it is not picked up again for processing.
+        """Mark an AEMPack as failed, setting ``processed_at`` so it's not claimed again.
+
+        Version-guarded, so it never marks an already processed or newer version of the AEMPack.
         """

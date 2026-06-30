@@ -276,7 +276,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         )
 
     async def mark_for_deletion(self, aem_pack_id: UUID4) -> None:
-        """Mark the AEMPack for deletion."""
+        """Mark an AEMPack for deletion."""
         await self._collection.update_one(
             filter={"_id": aem_pack_id}, update={"$set": {TOMBSTONE_FIELD: True}}
         )
