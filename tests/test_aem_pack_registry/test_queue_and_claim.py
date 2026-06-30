@@ -65,8 +65,6 @@ async def test_queue_creates_correct_document(
     assert raw["annotation"] == {}
     assert raw["claimed_at"] is None
     assert raw["processed_at"] is None
-    # A fresh insert is never flagged for reprocessing (only an overwrite of an
-    # already claimed/processed doc is).
     assert raw["needs_reprocessing"] is False
     assert str(raw["correlation_id"]) == str(pack.correlation_id)
     assert DataPack.model_validate(raw["data"]) == TEST_DATAPACK
@@ -75,9 +73,8 @@ async def test_queue_creates_correct_document(
 async def test_successful_pack_is_not_reprocessed(
     registry: AEMPackRegistry, joint_fixture: JointFixture
 ):
-    """A pack queued fresh and processed once must not be picked up again. Regression
-    for needs_reprocessing being wrongly set on first insert, which made claim_next
-    reclaim every pack for a redundant second processing run.
+    """A freshly queued and processed AEMPack must not be picked up again. Regression
+    for needs_reprocessing being wrongly set on first insert.
     """
     pack = make_ingress_pack("IngressModel")
     await process_pack(registry, pack)
@@ -215,10 +212,8 @@ async def test_idle_path_logs_and_sleeps(
 async def test_superseded_version_discards_stale_results(
     joint_fixture: JointFixture,
 ):
-    """A claim processed after a strictly newer version was queued must NOT publish its
-    now-stale results, and must not reach the terminal state. The content it derived is
-    outdated, so it is discarded and the doc is left unprocessed for the newer version
-    to be reprocessed in its place.
+    """Ensure a claim processed after a strictly newer version was queued must NOT publish its
+    now-stale results, and must not reach the terminal state.
     """
     registry = await joint_fixture.seeded_registry(
         AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
@@ -238,7 +233,7 @@ async def test_superseded_version_discards_stale_results(
     )
     await queue_pack(registry, pack_v2)
 
-    # v2 overwrote the content; v1's claim is preserved and reprocessing is flagged.
+    # v2 overwrote the content. v1's claim is preserved and reprocessing is flagged.
     raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None
     assert raw["version"] == 2
@@ -251,8 +246,7 @@ async def test_superseded_version_discards_stale_results(
         correlation_id=unprocessed.correlation_id,
     )
 
-    # Nothing published, and the pack is not marked processed: v1's results were
-    # discarded. The claim is retained, so v2 is reprocessed once it ages out (stale).
+    # Assert nothing has been published for the stale V1
     assert await joint_fixture.derived_packs(pid) == []
     raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None
@@ -264,8 +258,9 @@ async def test_superseded_version_discards_stale_results(
 async def test_newer_version_reprocessed_after_stale_claim_discarded(
     joint_fixture: JointFixture,
 ):
-    """End-to-end: after a stale v1 claim is discarded, it is v2's content — not v1's —
-    that the next claim reprocesses and publishes. The superseded version never wins.
+    """
+    Ensure that after a stale v1 claim is discarded, v2 is processed and published and
+    the superseded version never wins.
     """
     registry = await joint_fixture.seeded_registry(
         AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
@@ -283,15 +278,15 @@ async def test_newer_version_reprocessed_after_stale_claim_discarded(
     )
     await queue_pack(registry, pack_v2)
 
-    # Stale v1 finishes and is discarded (verified in the previous test).
+    # Stale v1 is processed and is discarded
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
         correlation_id=unprocessed.correlation_id,
     )
     assert await joint_fixture.derived_packs(pid) == []
 
-    # v1's claim ages past the TTL, so the next claim reclaims the doc — now carrying
-    # v2's content — and processing it publishes v2's derived packs.
+    # v1's claim ages past the TTL, so the next claim reclaims the doc
+    # and processing it publishes v2's derived packs.
     await joint_fixture.incoming_aem_pack_collection.update_one(
         {"_id": aem_id},
         {"$set": {"claimed_at": datetime.now(UTC) - timedelta(seconds=600)}},
@@ -316,9 +311,9 @@ async def test_newer_version_reprocessed_after_stale_claim_discarded(
 async def test_mark_processed_rejects_superseded_version(
     registry: AEMPackRegistry, joint_fixture: JointFixture
 ):
-    """The atomic backstop to the best-effort pre-publish guard: even if a slow worker
-    slips past the guard, mark_processed must not reach the terminal state for a version
-    the store has already moved past.
+    """
+    Assert that even if a slow worker slips past the best effort guard, mark_processed
+    must not reach the terminal state for a version the registry has already moved past.
     """
     aem_id = uuid4()
     pid = str(uuid4())
@@ -331,7 +326,7 @@ async def test_mark_processed_rejects_superseded_version(
     )
     await queue_pack(registry, pack_v2)
 
-    # A slow v1 worker tries to commit after v2 superseded it: must be a no-op.
+    # A slow v1 worker tries to commit after v2 superseded it
     await registry._incoming_aem_pack_queue.mark_processed(pack_v1.id, pack_v1.version)
 
     raw = await joint_fixture.incoming_doc(aem_id)

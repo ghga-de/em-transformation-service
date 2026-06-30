@@ -75,8 +75,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
         workflows=config.workflows,
     )
 
-    # A config change flags already-processed packs for reprocessing; the same pack is
-    # then reclaimed and re-run under the new config.
+    # Simulates picking up a pack for reprocessing after a config change
     await registry._incoming_aem_pack_queue.mark_all_for_reprocessing()
     reclaimed = await registry._incoming_aem_pack_queue.claim_next()
     assert reclaimed is not None
@@ -151,8 +150,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         workflows=config.workflows,
     )
 
-    # A config change flags already-processed packs for reprocessing; the same pack is
-    # then reclaimed and re-run under the modified config.
+    # Simulates picking up a pack for reprocessing after a config change
     await registry._incoming_aem_pack_queue.mark_all_for_reprocessing()
     reclaimed = await registry._incoming_aem_pack_queue.claim_next()
     assert reclaimed is not None
