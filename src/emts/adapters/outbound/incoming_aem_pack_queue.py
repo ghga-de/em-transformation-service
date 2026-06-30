@@ -115,9 +115,9 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                     {
                         "$set": {
                             **doc,
-                            # Preserve in-flight claim. mark_processed's version guard
-                            # prevents the old worker from committing; claim_next
-                            # reclaims it after the TTL.
+                            # Preserve in-flight claim. The old worker will call free()
+                            # when it detects the supersession, releasing the claim.
+                            # mark_processed's version guard prevents it from committing.
                             CLAIMED_AT_FIELD: {
                                 "$cond": {
                                     "if": f"${CLAIMED_AT_FIELD}",

@@ -226,6 +226,10 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 incoming_aem.id,
                 incoming_aem.version,
             )
+            # Release the claim so a superseding version is picked up immediately
+            # rather than waiting for the TTL. No-op if the pack is already processed
+            # (processed_at != None), so this is safe for both sub-cases.
+            await self._incoming_aem_pack_queue.free(incoming_aem.id)
             return
 
         aem_packs_to_publish = await self._prune_derived_aem_packs_on_delete(
