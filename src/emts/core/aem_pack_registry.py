@@ -211,9 +211,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 + "Discarding changes and freeing for reprocessing with new config",
                 incoming_aem.id,
             )
-            await self._incoming_aem_pack_queue.free(
-                incoming_aem.id, incoming_aem.version
-            )
+            await self._incoming_aem_pack_queue.free(incoming_aem.id)
             return
 
         # Early abort for concurrent processors. This is best-effort only.

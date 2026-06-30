@@ -88,11 +88,8 @@ class IncomingAEMPackQueuePort(ABC):
         """Delete an AEMPack marked for deletion from the queue."""
 
     @abstractmethod
-    async def free(self, aem_pack_id: UUID4, version: int) -> None:
-        """Release a claimed AEMPack back to the queue.
-
-        Version-guarded, so it never frees an already processed or newer version of the AEMPack.
-        """
+    async def free(self, aem_pack_id: UUID4) -> None:
+        """Unconditionally release a claimed AEMPack back to the queue."""
 
     @abstractmethod
     async def mark_all_for_reprocessing(self) -> None:

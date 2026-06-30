@@ -299,19 +299,11 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 aem_pack_id,
             )
 
-    async def free(self, aem_pack_id: UUID4, version: int) -> None:
-        """Release a claimed AEMPacks back to the queue.
-
-        Version-guarded, so it never frees an already processed or never version of the AEMPack.
-        """
+    async def free(self, aem_pack_id: UUID4) -> None:
+        """Unconditionally release a claimed AEMPack back to the queue."""
         await self._collection.update_one(
-            filter=_unprocessed_version_filter(aem_pack_id, version),
-            update={
-                "$set": {
-                    CLAIMED_AT_FIELD: None,
-                    NEEDS_REPROCESSING_FIELD: False,
-                }
-            },
+            filter={"_id": aem_pack_id, PROCESSED_AT_FIELD: None},
+            update={"$set": {CLAIMED_AT_FIELD: None}},
         )
 
     async def mark_all_for_reprocessing(self) -> None:
