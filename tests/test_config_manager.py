@@ -94,8 +94,7 @@ async def test_lock_acquired_config_unchanged_does_not_reprocess():
 
     updater.resolve_and_persist.assert_awaited_once_with(CONFIG_PATH)
     queue.mark_all_for_reprocessing.assert_not_awaited()
-    # Claims are compensated regardless of whether the config changed: waiters were
-    # still frozen while the lock was held.
+    # Claims are compensated regardless of whether the config changed
     queue.extend_all_claims.assert_awaited_once()
     lock.release_lock.assert_awaited_once()
 

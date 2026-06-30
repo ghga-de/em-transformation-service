@@ -129,10 +129,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                     incoming_aem=claimed, correlation_id=claimed.correlation_id
                 )
                 log.info(
-                    "Finished handling AEMPack '%s' in %.1fs (claim TTL is %ds).",
+                    "Finished handling AEMPack '%s' in %.1fs.",
                     claimed.id,
                     time.monotonic() - start,
-                    self._config.claim_ttl_seconds,
                 )
             else:
                 log.info(
@@ -225,7 +224,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         ):
             log.info(
                 "AEMPack '%s' (version %d) was superseded by a newer version or already"
-                " processed by another instance; discarding stale derived results.",
+                " processed by another instance. Discarding stale derived results.",
                 incoming_aem.id,
                 incoming_aem.version,
             )

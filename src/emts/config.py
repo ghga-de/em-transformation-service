@@ -50,9 +50,7 @@ class Config(
         description=(
             "Seconds after which a claimed but unprocessed AEMPack is considered"
             " stale and may be reclaimed by another instance. Must be chosen well"
-            " above the worst-case processing time: too small a value lets up to"
-            " processing_time/claim_ttl_seconds instances reprocess the same pack"
-            " concurrently (all but one discard their result, wasting CPU and DB IO)."
+            " above the worst-case processing time."
         ),
     )
     config_lock_expiry_seconds: int = Field(

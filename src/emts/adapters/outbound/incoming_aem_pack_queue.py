@@ -38,13 +38,7 @@ log = logging.getLogger(__name__)
 
 
 def _unprocessed_version_filter(aem_pack_id: UUID4, version: int) -> dict:
-    """Select the doc still stored at exactly ``version`` and not yet in a terminal state.
-
-    This single "current and unprocessed at this version" invariant is what
-    ``mark_processed`` and ``mark_as_failed`` enforce atomically and what
-    ``is_superseded_or_processed`` mirrors as a read; defining it once keeps the three
-    in lockstep when the condition gains another term.
-    """
+    """Select a not yet processed doc at the given version."""
     return {
         "_id": aem_pack_id,
         VERSION_FIELD: version,
@@ -53,12 +47,7 @@ def _unprocessed_version_filter(aem_pack_id: UUID4, version: int) -> dict:
 
 
 def _is_set(field: str) -> dict:
-    """Aggregation expression that is True when ``field`` exists and is non-null.
-
-    ``$ifNull`` coerces a *missing* field to null so a fresh insert (where the field
-    does not yet exist) is not mistaken for a set value: ``$ne`` treats a missing field
-    as distinct from null and would otherwise report it as set.
-    """
+    """Aggregation expression that is True when field exists and is non-null."""
     return {"$ne": [{"$ifNull": [f"${field}", None]}, None]}
 
 
@@ -66,9 +55,9 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
     """MongoDB adapter for the incoming AEMPack processing queue.
 
     Claims are tracked with a ``claimed_at`` timestamp written by the MongoDB server
-    clock. A pack is normally processed by a single instance, but a claim older than
+    clock. An AEMPack is normally processed by a single instance, but a claim older than
     ``claim_ttl_seconds`` is treated as stale and may be reclaimed by another instance.
-    Transient concurrent processing is therefore possible, but the first result is written
+    Transient concurrent processing is possible, but the first result is written
     and all other discarded.
     """
 
@@ -81,18 +70,9 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         self._collection = collection
         self._claim_ttl_seconds = claim_ttl_seconds
 
-    async def ensure_indexes(self) -> None:
-        """Create the secondary indexes backing ``claim_next``'s three poll queries.
-
-        The collection grows without bound (processed docs are retained for ``queue()``'s
-        version dedup), so without these every poll from every instance is a growing
-        collection scan. ``create_index`` is idempotent, so this is safe to call on every
-        startup. No TTL is involved here (unlike ``config_lock``), so there is no
-        ``collMod`` reconciliation branch. The default ``_id`` index already covers
-        ``queue()``'s ``{_id, version}`` filter.
-        """
-        # Branches 1 (fresh) and 2 (stale reclaim): both filter on processed_at and
-        # claimed_at (branch 2 also sorts on claimed_at), gated by the tombstone.
+    async def create_claim_indexes(self) -> None:
+        """Create the secondary indexes backing claim queries."""
+        # Index for fresh claim and stale reclaim
         await self._collection.create_index(
             [
                 (PROCESSED_AT_FIELD, 1),
@@ -100,8 +80,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                 (TOMBSTONE_FIELD, 1),
             ]
         )
-        # Branch 3 (reprocess): selects processed docs flagged for reprocessing and
-        # sorts on claimed_at.
+        # Index for reprocessing
         await self._collection.create_index(
             [
                 (NEEDS_REPROCESSING_FIELD, 1),
@@ -116,8 +95,9 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
 
         The incoming version is compared against any document already stored with the
         same id. The document is only (over)written when the incoming version is
-        strictly higher. Equal or lower versions are rejected and logged. Accepting a newer version also resets
-        ``failed_at``, so a previously failed pack is reprocessed under the new version.
+        strictly higher. Equal or lower versions are rejected and logged.
+        Accepting a newer version also resets ``failed_at``, so a previously failed pack
+        is reprocessed under the new version.
 
         Returns True if the pack was stored, False if it was rejected.
         """
@@ -186,14 +166,14 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         """Claim the next available AEMPack for processing.
 
         Priority order:
-          1. a fresh, never-claimed pack;
-          2. a stale pack whose claim has exceeded the TTL (crashed/stalled instance);
-          3. an already-processed pack flagged for reprocessing.
+          1. a fresh, never-claimed pack
+          2. a stale pack whose claim has exceeded the TTL (crashed/stalled instance)
+          3. an already-processed pack flagged for reprocessing
 
         ``claimed_at`` is always (re)stamped with the MongoDB server clock (``$$NOW``)
         so reclaim decisions never depend on individual instance clocks.
         """
-        # 1. Fresh, never-claimed pack.
+        # Fresh, never-claimed pack
         doc = await self._collection.find_one_and_update(
             filter={
                 CLAIMED_AT_FIELD: None,
@@ -204,16 +184,14 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
             return_document=ReturnDocument.AFTER,
         )
 
-        # 2. Stale pack: claimed but never processed, with a claim older than the TTL.
-        #    Both the comparison baseline and the new timestamp come from the server
-        #    clock. NOTE: this is an application-level timeout, deliberately NOT a
-        #    MongoDB TTL index, which would *delete* the in-flight document.
+        # Stale pack: claimed but never processed, with a claim older than the TTL.
         if not doc:
             ttl_ms = self._claim_ttl_seconds * 1000
             doc = await self._collection.find_one_and_update(
                 filter={
                     PROCESSED_AT_FIELD: None,
                     TOMBSTONE_FIELD: {"$ne": True},
+                    # Filter out none valued first, so subtraction actually works
                     CLAIMED_AT_FIELD: {"$ne": None},
                     "$expr": {
                         "$lt": [
@@ -228,14 +206,13 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
             )
             if doc:
                 log.warning(
-                    "Reclaimed stale AEMPack %s (pid %s); its claim exceeded the %ds "
-                    "TTL, so the previous processor likely crashed or stalled.",
+                    "Reclaimed stale AEMPack %s (pid %s). The previous processor likely "
+                    "crashed or stalled.",
                     doc["_id"],
-                    doc.get("pid"),
-                    self._claim_ttl_seconds,
+                    doc["pid"],
                 )
 
-        # 3. Already-processed pack that received a newer version while in flight.
+        # Already-processed pack that received a newer version while in flight.
         if not doc:
             doc = await self._collection.find_one_and_update(
                 filter={
@@ -252,7 +229,6 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                         }
                     }
                 ],
-                sort=[(CLAIMED_AT_FIELD, 1)],
                 return_document=ReturnDocument.AFTER,
             )
 
@@ -263,17 +239,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         return IncomingAEMPack(**doc)
 
     async def mark_processed(self, aem_pack_id: UUID4, version: int) -> None:
-        """Mark an AEMPack as successfully processed.
-
-        Conditional on ``processed_at`` still being unset *and* the stored ``version``
-        still matching the one that was processed. This keeps the terminal state both
-        single-valued and current: when the same pack is processed concurrently (a
-        long-running pack reclaimed as stale while still alive) only the first worker to
-        reach this point wins, and a worker whose ``version`` was superseded by a newer
-        one queued mid-flight matches nothing and is silently discarded instead of
-        committing stale results. The discarded work is recovered via the requeued
-        ``needs_reprocessing`` flag, so the workers never livelock.
-        """
+        """Mark an AEMPack as successfully processed."""
         await self._collection.update_one(
             filter=_unprocessed_version_filter(aem_pack_id, version),
             # Clear needs_reprocessing as part of the terminal write. A newer version

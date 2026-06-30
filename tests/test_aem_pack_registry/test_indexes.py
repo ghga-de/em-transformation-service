@@ -38,8 +38,8 @@ async def test_ensure_indexes_creates_claim_indexes_and_is_idempotent(
     """
     queue = registry._incoming_aem_pack_queue
     # Idempotent: a second call must not raise.
-    await queue.ensure_indexes()
-    await queue.ensure_indexes()
+    await queue.create_claim_indexes()
+    await queue.create_claim_indexes()
 
     info = await joint_fixture.incoming_aem_pack_collection.index_information()
     key_sets = {tuple(tuple(part) for part in spec["key"]) for spec in info.values()}
