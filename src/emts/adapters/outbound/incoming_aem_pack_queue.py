@@ -115,14 +115,9 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                     {
                         "$set": {
                             **doc,
-                            # Preserve an in-flight claim instead of clearing it: this
-                            # does NOT let the in-flight worker commit its result (its
-                            # mark_processed is version-guarded and now sees the newer
-                            # stored version, so it discards). It avoids handing the doc
-                            # to a second concurrent worker immediately; once the claim
-                            # ages past the TTL, claim_next's stale branch reclaims the
-                            # now-newer version. Reprocessing is driven by
-                            # needs_reprocessing below.
+                            # Preserve in-flight claim. mark_processed's version guard
+                            # prevents the old worker from committing; claim_next
+                            # reclaims it after the TTL.
                             CLAIMED_AT_FIELD: {
                                 "$cond": {
                                     "if": f"${CLAIMED_AT_FIELD}",
@@ -130,8 +125,6 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                                     "else": None,
                                 }
                             },
-                            # Reprocessing is only needed when a newer version
-                            # overwrites a doc that is already claimed or processed.
                             NEEDS_REPROCESSING_FIELD: {
                                 "$or": [
                                     _is_set(CLAIMED_AT_FIELD),
@@ -165,13 +158,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
     async def claim_next(self) -> IncomingAEMPack | None:
         """Claim the next available AEMPack for processing.
 
-        Priority order:
-          1. a fresh, never-claimed pack
-          2. a stale pack whose claim has exceeded the TTL (crashed/stalled instance)
-          3. an already-processed pack flagged for reprocessing
-
-        ``claimed_at`` is always (re)stamped with the MongoDB server clock (``$$NOW``)
-        so reclaim decisions never depend on individual instance clocks.
+        Claims are (re)stamped with the server clock (``$$NOW``) to avoid clock skew.
         """
         # Fresh, never-claimed pack
         doc = await self._collection.find_one_and_update(
@@ -242,12 +229,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         """Mark an AEMPack as successfully processed."""
         await self._collection.update_one(
             filter=_unprocessed_version_filter(aem_pack_id, version),
-            # Clear needs_reprocessing as part of the terminal write. A newer version
-            # that superseded this pack while it was in flight sets needs_reprocessing
-            # on the doc (see queue()); reaching here means the version filter still
-            # matched, so nothing newer is pending and the flag is stale. Leaving it set
-            # would let claim_next's reprocess branch re-claim this now-terminal doc and
-            # redundantly re-derive and re-publish the same version.
+            # Version filter matched, so nothing newer is pending.
             update=[
                 {
                     "$set": {
@@ -260,16 +242,11 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         )
 
     async def extend_all_claims(self, by_seconds: int) -> None:
-        """Push every in-flight claim's ``claimed_at`` forward by ``by_seconds``.
+        """Advance every in-flight ``claimed_at`` by ``by_seconds``.
 
-        Issued once by the config-lock holder: while it held the lock, every other
-        instance was blocked in ``wait_for_lock_release``, so each in-flight claim aged
-        without making progress. Pushing every claim's ``claimed_at`` forward by the
-        hold duration rewinds the time already counted against the reclaim timeout, so
-        those still-live packs are not reclaimed for involuntary idle time. A duration is
-        added to each server-written timestamp, which is immune to clock skew.
-        Already-processed (terminal) and unclaimed packs are left untouched. No-op for
-        a non-positive duration.
+        Compensates for idle time while the config lock was held, so those claims
+        are not reclaimed for involuntary inactivity. Skips processed and unclaimed
+        docs. No-op for non-positive duration.
         """
         if by_seconds <= 0:
             return
@@ -289,15 +266,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
     async def is_superseded_or_processed(
         self, aem_pack_id: UUID4, version: int
     ) -> bool:
-        """Whether a derivation for ``version`` of this pack must be discarded.
-
-        True when the stored document is no longer an unprocessed pack at exactly
-        ``version``: it has either already reached a terminal state, or a newer version
-        arrived while ``version`` was being derived (so the stored content now differs
-        from what was processed). In both cases the derived results are stale and must
-        not be published. This mirrors, as a non-atomic early-out, the condition that
-        ``mark_processed`` enforces atomically.
-        """
+        """Matches when the doc is already processed or superseded by a newer version."""
         return (
             await self._collection.count_documents(
                 filter=_unprocessed_version_filter(aem_pack_id, version),
@@ -331,13 +300,9 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
             )
 
     async def free(self, aem_pack_id: UUID4, version: int) -> None:
-        """Release this worker's in-flight claim on ``version`` back to the queue.
+        """Release a claimed AEMPacks back to the queue.
 
-        Version-guarded and conditional on the pack still being unprocessed, so it only
-        releases the claim it was asked to free. If a newer version was queued
-        mid-flight (changing the stored version) or another instance already drove the
-        pack to a terminal state, this is a no-op instead of clobbering that newer state
-        or yanking an unrelated claim.
+        Version-guarded, so it never frees an already processed or never version of the AEMPack.
         """
         await self._collection.update_one(
             filter=_unprocessed_version_filter(aem_pack_id, version),
@@ -353,9 +318,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         """Flag all processed AEMPacks for reprocessing.
 
         Failed AEMPacks are included and their ``failed_at`` is cleared: a config
-        change may be exactly what fixes the transformation that previously failed,
-        so they are retried fresh under the new config. ``attempts`` is reset for the
-        same reason — the new config earns a fresh retry budget.
+        change may be exactly what fixes the transformation that previously failed.
         """
         await self._collection.update_many(
             filter={PROCESSED_AT_FIELD: {"$ne": None}, TOMBSTONE_FIELD: {"$ne": True}},
@@ -368,29 +331,18 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         )
 
     async def mark_as_failed(self, aem_pack_id: UUID4, version: int) -> None:
-        """Mark an AEMPack as failed when data derivation raises an exception.
+        """Mark an AEMPack as failed, setting ``processed_at`` so it's not claimed again.
 
-        It is marked as processed (``processed_at`` set) for the sake of state
-        management to ensure that it is not picked up again for processing. Conditional
-        on ``processed_at`` being unset *and* the stored ``version`` still matching,
-        mirroring ``mark_processed``: a concurrent worker that already reached a terminal
-        state, or a newer version queued mid-flight, makes this a no-op so a stale
-        failure never overwrites a current version. Derivation is deterministic, so
-        concurrent runs of the same version agree on the failure.
+        Version-guarded, so it never marks an already processed or never version of the AEMPack.
         """
         await self._collection.update_one(
             filter=_unprocessed_version_filter(aem_pack_id, version),
-            # Pipeline update (not a plain ``$set`` document): ``$$NOW`` only resolves to
-            # the server clock inside an aggregation pipeline; in a plain update it would
-            # be written as the literal string "$$NOW". Mirrors ``mark_processed``.
             update=[
                 {
                     "$set": {
                         FAILED_AT_FIELD: "$$NOW",
                         CLAIMED_AT_FIELD: None,
                         PROCESSED_AT_FIELD: "$$NOW",
-                        # Clear a stale needs_reprocessing for the same reason as
-                        # mark_processed: the terminal write owns the flag's reset.
                         NEEDS_REPROCESSING_FIELD: False,
                     }
                 }
