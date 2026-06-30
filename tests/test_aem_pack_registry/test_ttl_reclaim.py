@@ -44,7 +44,7 @@ def _ago(seconds: int) -> datetime:
 async def _set_claimed_at(
     joint_fixture: JointFixture, aem_id, seconds_ago: int
 ) -> None:
-    """Force a doc's claim to look ``seconds_ago`` old (processed_at left untouched)."""
+    """Force a doc's claim to look ``seconds_ago`` old."""
     await joint_fixture.incoming_aem_pack_collection.update_one(
         {"_id": aem_id}, {"$set": {CLAIMED_AT_FIELD: _ago(seconds_ago)}}
     )
@@ -55,7 +55,7 @@ async def test_stale_claim_is_reclaimed(
     joint_fixture: JointFixture,
     caplog: pytest.LogCaptureFixture,
 ):
-    """A claim older than the TTL is reclaimed and a warning is logged."""
+    """Ensure a claim older than the TTL is reclaimed and a warning is logged."""
     pack = make_ingress_pack("IngressModel")
     await queue_pack(registry, pack)
     # claim_ttl_seconds is 300 in the test config; 600s old is comfortably stale.
@@ -75,7 +75,7 @@ async def test_stale_claim_is_reclaimed(
 async def test_recent_claim_is_not_reclaimed(
     registry: AEMPackRegistry, joint_fixture: JointFixture
 ):
-    """A claim still within the TTL is left alone."""
+    """Ensure a claim still within the TTL is left alone."""
     pack = make_ingress_pack("IngressModel")
     await queue_pack(registry, pack)
     # Within the 300s TTL: not stale.
@@ -87,7 +87,7 @@ async def test_recent_claim_is_not_reclaimed(
 async def test_claim_priority_fresh_then_stale_then_reprocess(
     registry: AEMPackRegistry, joint_fixture: JointFixture
 ):
-    """claim_next prefers fresh packs, then stale (crashed) ones, then reprocessing."""
+    """Ensure claim_next prefers fresh packs, then stale ones, then those marked for reprocessing."""
     fresh = make_ingress_pack("IngressModel")
     stale = make_ingress_pack("IngressModel")
     reprocess = make_ingress_pack("IngressModel")
@@ -116,7 +116,7 @@ async def test_claim_priority_fresh_then_stale_then_reprocess(
 async def test_stale_reclaim_picks_oldest_claim_first(
     registry: AEMPackRegistry, joint_fixture: JointFixture
 ):
-    """Among stale packs, the one whose claim is oldest is reclaimed first."""
+    """Ensure that among stale packs, the oldest is reclaimed first."""
     older = make_ingress_pack("IngressModel")
     newer = make_ingress_pack("IngressModel")
     await queue_pack(registry, older)
@@ -132,9 +132,7 @@ async def test_stale_reclaim_picks_oldest_claim_first(
 async def test_mark_processed_is_single_winner(
     registry: AEMPackRegistry, joint_fixture: JointFixture
 ):
-    """Only the first mark_processed wins; a later one (a concurrent reclaimer that
-    also finished) is discarded, keeping the terminal state single-valued.
-    """
+    """Ensure only the first mark_processed wins and a concurrent reclaimer discards."""
     pack = make_ingress_pack("IngressModel")
     await queue_and_claim(registry=registry, pack=pack)
     queue = registry._incoming_aem_pack_queue
@@ -152,28 +150,10 @@ async def test_mark_processed_is_single_winner(
     assert second[PROCESSED_AT_FIELD] == first[PROCESSED_AT_FIELD]
 
 
-async def test_extend_all_claims_prevents_premature_reclaim(
-    registry: AEMPackRegistry, joint_fixture: JointFixture
-):
-    """Extending claims by the time spent blocked keeps still-live packs from being
-    reclaimed while they were only waiting (e.g. on the config lock).
-    """
-    pack = make_ingress_pack("IngressModel")
-    await queue_and_claim(registry=registry, pack=pack)
-    queue = registry._incoming_aem_pack_queue
-
-    # The claim would be stale (350s > 300s TTL) ...
-    await _set_claimed_at(joint_fixture, pack.id, 350)
-    # ... but compensating for 120s of blocked waiting pulls it back inside the TTL.
-    await queue.extend_all_claims(120)
-
-    assert await queue.claim_next() is None
-
-
 async def test_extend_all_claims_compensates_every_in_flight_claim(
     registry: AEMPackRegistry, joint_fixture: JointFixture
 ):
-    """A single call refreshes all in-flight claims, mirroring the lock-holder
+    """Ensure a single call refreshes all in-flight claims, mirroring the lock-holder
     compensating every instance frozen while it held the lock.
     """
     first = make_ingress_pack("IngressModel")
@@ -194,7 +174,7 @@ async def test_extend_all_claims_compensates_every_in_flight_claim(
 async def test_extend_all_claims_noop_on_processed_pack(
     registry: AEMPackRegistry, joint_fixture: JointFixture
 ):
-    """extend_all_claims never resurrects a terminal (processed) pack's claim."""
+    """Ensure extend_all_claims never resurrects a processed pack's claim."""
     pack = make_ingress_pack("IngressModel")
     await queue_and_claim(registry=registry, pack=pack)
     queue = registry._incoming_aem_pack_queue

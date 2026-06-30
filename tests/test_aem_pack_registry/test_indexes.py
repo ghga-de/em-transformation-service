@@ -33,11 +33,11 @@ async def test_ensure_indexes_creates_claim_indexes_and_is_idempotent(
     registry: AEMPackRegistry,
     joint_fixture: JointFixture,
 ):
-    """ensure_indexes creates the compound indexes covering the claim branches and is
-    safe to call repeatedly (it runs on every startup).
+    """
+    Ensure create_claim_indexes creates the compound indexes covering the claim branches
+    and is safe to call repeatedly.
     """
     queue = registry._incoming_aem_pack_queue
-    # Idempotent: a second call must not raise.
     await queue.create_claim_indexes()
     await queue.create_claim_indexes()
 
