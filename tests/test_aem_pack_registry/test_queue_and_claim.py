@@ -209,11 +209,13 @@ async def test_idle_path_logs_and_sleeps(
     assert any("No new AEM found" in record.message for record in caplog.records)
 
 
-async def test_superseded_version_discards_stale_results(
+async def test_initial_version_publishes_despite_supersession(
     joint_fixture: JointFixture,
 ):
-    """Ensure a claim processed after a strictly newer version was queued must NOT publish its
-    now-stale results, and must not reach the terminal state.
+    """An initial claim (no prior derived packs) publishes even when superseded by a newer
+    version — consumers receive at least one result without waiting for the TTL cycle.
+    The pack is not marked processed (mark_processed's version guard rejects the stale
+    version), so v2 will be picked up and will overwrite the initial results.
     """
     registry = await joint_fixture.seeded_registry(
         AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
@@ -246,13 +248,62 @@ async def test_superseded_version_discards_stale_results(
         correlation_id=unprocessed.correlation_id,
     )
 
-    # Assert nothing has been published for the stale V1
-    assert await joint_fixture.derived_packs(pid) == []
+    # Initial publish: v1's derived packs are published despite the supersession.
+    assert len(await joint_fixture.derived_packs(pid)) == 3
+    # mark_processed(v1) is rejected by the version guard — pack stays unprocessed for v2.
     raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None
     assert raw["processed_at"] is None
     assert raw["version"] == 2
     assert raw["needs_reprocessing"] is True
+
+
+async def test_non_initial_superseded_version_discards_stale_results(
+    joint_fixture: JointFixture,
+):
+    """A non-initial claim (prior derived packs exist) that is superseded must NOT publish
+    its stale results — it is freed so the newer version can be processed immediately.
+    """
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
+        publish_models={"DerivedModel1", "DerivedModel2", "DerivedModel3"},
+    )
+    aem_id = uuid4()
+    pid = str(uuid4())
+
+    # Process v1 to completion so derived packs exist (makes subsequent claims non-initial).
+    pack_v1 = make_ingress_pack(
+        model_name="IngressModel", aem_id=aem_id, pid=pid, version=1
+    )
+    await process_pack(registry=registry, pack=pack_v1)
+    assert len(await joint_fixture.derived_packs(pid)) == 3
+
+    # Claim v2 (via the reprocessing path — v1 is processed, needs_reprocessing=False,
+    # so queue v2 directly and claim it fresh).
+    pack_v2 = make_ingress_pack(
+        model_name="IngressModel", aem_id=aem_id, pid=pid, version=2
+    )
+    claimed_v2 = await queue_and_claim(registry=registry, pack=pack_v2)
+
+    # v3 arrives while v2 is in flight.
+    pack_v3 = make_ingress_pack(
+        model_name="IngressModel", aem_id=aem_id, pid=pid, version=3
+    )
+    await queue_pack(registry, pack_v3)
+
+    # Finish processing the now-stale v2.
+    await registry._process_next_aem_pack(
+        incoming_aem=claimed_v2,
+        correlation_id=claimed_v2.correlation_id,
+    )
+
+    # Derived packs unchanged from v1 — stale v2 results were discarded.
+    assert len(await joint_fixture.derived_packs(pid)) == 3
+    # Pack freed: claim cleared, ready for v3.
+    raw = await joint_fixture.incoming_doc(aem_id)
+    assert raw is not None
+    assert raw["claimed_at"] is None
+    assert raw["version"] == 3
 
 
 async def test_newer_version_reprocessed_after_stale_claim_discarded(
@@ -278,12 +329,12 @@ async def test_newer_version_reprocessed_after_stale_claim_discarded(
     )
     await queue_pack(registry, pack_v2)
 
-    # Stale v1 is processed and is discarded
+    # Stale v1 is processed; initial packs publish even when superseded.
     await registry._process_next_aem_pack(
         incoming_aem=unprocessed,
         correlation_id=unprocessed.correlation_id,
     )
-    assert await joint_fixture.derived_packs(pid) == []
+    assert len(await joint_fixture.derived_packs(pid)) == 3
 
     # v1's claim ages past the TTL, so the next claim reclaims the doc
     # and processing it publishes v2's derived packs.

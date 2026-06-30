@@ -181,11 +181,10 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
     )
 
 
-async def test_pack_freed_when_config_changes_mid_processing(
+async def test_initial_pack_proceeds_despite_config_change(
     joint_fixture: JointFixture,
-    caplog: pytest.LogCaptureFixture,
 ):
-    """Ensure an in-flight AEMPack is freed for reprocessing when the graph config changes."""
+    """Initial packs (no prior derived packs) publish through a mid-processing config change."""
     registry = await joint_fixture.seeded_registry(
         AEM_PACK_REGISTRY_CONFIGS["single_route"], publish_models={"DerivedModel1"}
     )
@@ -195,8 +194,55 @@ async def test_pack_freed_when_config_changes_mid_processing(
     ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
     claimed = await queue_and_claim(registry=registry, pack=ingress)
 
-    # Simulate a config change occurring mid-processing by bumping the version
-    # the versioner reports on its second call.
+    config_updater = registry._config_updater
+    assert isinstance(config_updater, ConfigUpdater)
+    await config_updater.update_config()
+    version = config_updater.known_version
+    with patch.object(
+        config_updater._versioner,
+        "get_version",
+        AsyncMock(side_effect=[version, version + 1]),
+    ):
+        await registry._process_next_aem_pack(
+            incoming_aem=claimed,
+            correlation_id=claimed.correlation_id,
+        )
+
+    # Derived pack must be published (initial publish takes priority over config freshness)
+    derived = await joint_fixture.derived_packs(pid)
+    assert len(derived) == 1
+
+    # Pack is marked processed, not freed
+    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert reclaimed is None
+
+
+async def test_pack_freed_when_config_changes_mid_reprocessing(
+    joint_fixture: JointFixture,
+    caplog: pytest.LogCaptureFixture,
+):
+    """Non-initial packs are freed for reprocessing when the graph config changes mid-flight."""
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["single_route"], publish_models={"DerivedModel1"}
+    )
+    aem_id = uuid4()
+    pid = str(uuid4())
+
+    # Process once so derived packs exist — this makes any subsequent claim non-initial.
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
+    first_claim = await queue_and_claim(registry=registry, pack=ingress)
+    await registry._process_next_aem_pack(
+        incoming_aem=first_claim,
+        correlation_id=first_claim.correlation_id,
+    )
+    assert len(await joint_fixture.derived_packs(pid)) == 1
+
+    # Simulate reprocessing triggered by a config change
+    await registry._incoming_aem_pack_queue.mark_all_for_reprocessing()
+    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert reclaimed is not None
+    assert reclaimed.id == aem_id
+
     config_updater = registry._config_updater
     assert isinstance(config_updater, ConfigUpdater)
     await config_updater.update_config()
@@ -210,18 +256,17 @@ async def test_pack_freed_when_config_changes_mid_processing(
         caplog.at_level(logging.INFO, logger="emts.core.aem_pack_registry"),
     ):
         await registry._process_next_aem_pack(
-            incoming_aem=claimed,
-            correlation_id=claimed.correlation_id,
+            incoming_aem=reclaimed,
+            correlation_id=reclaimed.correlation_id,
         )
 
-    # No derived packs should have been published
+    # No second publish; pack freed for reprocessing with the new config
     derived = await joint_fixture.derived_packs(pid)
-    assert len(derived) == 0
+    assert len(derived) == 1
 
-    # The pack must be available to claim again (freed, not marked processed)
-    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
-    assert reclaimed is not None
-    assert reclaimed.id == aem_id
+    re_reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert re_reclaimed is not None
+    assert re_reclaimed.id == aem_id
 
     assert any(
         "Graph config changed" in record.message and str(aem_id) in record.message

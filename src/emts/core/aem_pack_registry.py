@@ -150,6 +150,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 mapping={"pid": incoming_aem.pid}
             )
         }
+        # True when no derived packs exist yet: publish regardless of config changes or
+        # supersession so consumers receive at least one result without indefinite deferral.
+        is_initial = not dirty_map
         transformed_map: dict[str, AEMPack] = {incoming_aem.model_name: incoming_aem}
 
         await self._config_lock.wait_for_lock_release()
@@ -205,10 +208,10 @@ class AEMPackRegistry(AEMPackRegistryPort):
         await self._config_updater.update_config()
         version_after = self._config_updater.known_version
 
-        if version_after != version_before:
+        if version_after != version_before and not is_initial:
             log.info(
-                "Graph config changed while processing AEMPack '%s'.\n"
-                + "Discarding changes and freeing for reprocessing with new config",
+                "Graph config changed while processing AEMPack '%s'."
+                " Discarding changes and freeing for reprocessing with new config.",
                 incoming_aem.id,
             )
             await self._incoming_aem_pack_queue.free(incoming_aem.id)
@@ -217,8 +220,11 @@ class AEMPackRegistry(AEMPackRegistryPort):
         # Early abort for concurrent processors. This is best-effort only.
         # Different workers can enter the subsequent block as long as the final state
         # hasn't been committed.
-        if await self._incoming_aem_pack_queue.is_superseded_or_processed(
-            incoming_aem.id, incoming_aem.version
+        if (
+            await self._incoming_aem_pack_queue.is_superseded_or_processed(
+                incoming_aem.id, incoming_aem.version
+            )
+            and not is_initial
         ):
             log.info(
                 "AEMPack '%s' (version %d) was superseded by a newer version or already"
@@ -227,8 +233,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 incoming_aem.version,
             )
             # Release the claim so a superseding version is picked up immediately
-            # rather than waiting for the TTL. No-op if the pack is already processed
-            # (processed_at != None), so this is safe for both sub-cases.
+            # rather than waiting for the TTL.
             await self._incoming_aem_pack_queue.free(incoming_aem.id)
             return
 
