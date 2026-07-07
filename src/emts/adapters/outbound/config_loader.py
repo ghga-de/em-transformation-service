@@ -45,8 +45,7 @@ class ConfigLoaderAdapter(ConfigLoaderPort):
     def _read_yaml(self, config_path: Path) -> dict[str, Any]:
         """Read a new config from file and return it as a dict."""
         with config_path.open("r") as config_file:
-            new_config = safe_load(config_file)
-        return new_config
+            return safe_load(config_file)
 
     def _load_config(self, config: dict[str, Any]) -> RawConfig:
         """Load and return a config dict. This step takes care of the SchemaPack spec validation."""
@@ -70,8 +69,7 @@ class ConfigLoaderAdapter(ConfigLoaderPort):
         """Load a config from a yaml file."""
         log.info("Fetching new config from file.")
         config_dict = self._read_yaml(config_path)
-        raw_config = self._load_config(config_dict)
-        return raw_config
+        return self._load_config(config_dict)
 
     async def load_config_from_db(self) -> PersistedConfig:
         """Fetch config fields from persistence layer and sort them by name."""
