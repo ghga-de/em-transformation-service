@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 
 async def consume_events(run_forever: bool = True):
     """Run the event consumer."""
-    config = Config()  # type: ignore[call-arg]
+    config = Config()
     configure_logging(config=config)
 
     async with prepare_config_manager(config=config) as config_manager:
@@ -43,7 +43,7 @@ async def consume_events(run_forever: bool = True):
 
 async def process_aem_packs():
     """Run processing on incoming annotated experimental metadata that has been stored in the database."""
-    config = Config()  # type: ignore[call-arg]
+    config = Config()
     configure_logging(config=config)
 
     async with prepare_config_manager(config=config) as config_manager:
