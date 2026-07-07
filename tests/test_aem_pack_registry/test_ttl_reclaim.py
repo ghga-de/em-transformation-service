@@ -17,7 +17,6 @@
 guarantee that replaces worker-id-based reclamation.
 """
 
-import logging
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -32,8 +31,6 @@ from tests.fixtures.aem_pack import make_ingress_pack, queue_and_claim, queue_pa
 from tests.fixtures.joint import JointFixture
 
 pytestmark = pytest.mark.asyncio()
-
-QUEUE_LOGGER = "emts.adapters.outbound.incoming_aem_pack_queue"
 
 
 def _ago(seconds: int) -> datetime:
@@ -53,20 +50,17 @@ async def _set_claimed_at(
 async def test_stale_claim_is_reclaimed(
     registry: AEMPackRegistry,
     joint_fixture: JointFixture,
-    caplog: pytest.LogCaptureFixture,
 ):
-    """Ensure a claim older than the TTL is reclaimed and a warning is logged."""
+    """Ensure a claim older than the TTL is reclaimed."""
     pack = make_ingress_pack("IngressModel")
     await queue_pack(registry, pack)
     # claim_ttl_seconds is 300 in the test config; 600s old is comfortably stale.
     await _set_claimed_at(joint_fixture, pack.id, 600)
 
-    with caplog.at_level(logging.WARNING, logger=QUEUE_LOGGER):
-        reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
 
     assert reclaimed is not None
     assert reclaimed.id == pack.id
-    assert any("Reclaimed stale AEMPack" in r.message for r in caplog.records)
 
     # The claim timestamp was refreshed, so an immediate re-poll does not reclaim again.
     assert await registry._incoming_aem_pack_queue.claim_next() is None

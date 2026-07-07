@@ -44,13 +44,13 @@ async def test_ensure_indexes_creates_claim_indexes_and_is_idempotent(
     info = await joint_fixture.incoming_aem_pack_collection.index_information()
     key_sets = {tuple(tuple(part) for part in spec["key"]) for spec in info.values()}
 
-    # Branches 1 (fresh) and 2 (stale reclaim).
+    # Claim query (fresh and stale claims alike).
     assert (
         (PROCESSED_AT_FIELD, 1),
         (CLAIMED_AT_FIELD, 1),
         (TOMBSTONE_FIELD, 1),
     ) in key_sets
-    # Branch 3 (reprocess).
+    # Reprocess query.
     assert (
         (NEEDS_REPROCESSING_FIELD, 1),
         (PROCESSED_AT_FIELD, 1),

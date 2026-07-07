@@ -72,7 +72,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
 
     async def create_claim_indexes(self) -> None:
         """Create the secondary indexes backing claim queries."""
-        # Index for fresh claim and stale reclaim
+        # Index for the claim query (fresh and stale claims alike)
         await self._collection.create_index(
             [
                 (PROCESSED_AT_FIELD, 1),
@@ -159,45 +159,31 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         """Claim the next available AEMPack for processing.
 
         Claims are (re)stamped with the server clock (``$$NOW``) to avoid clock skew.
+        Unclaimed packs and stale claims are matched by a single query: ascending
+        order on ``claimed_at`` sorts null (never claimed) before any timestamp, so
+        fresh packs are claimed first, then stale claims are reclaimed oldest-first.
         """
-        # Fresh, never-claimed pack
+        ttl_ms = self._claim_ttl_seconds * 1000
         doc = await self._collection.find_one_and_update(
             filter={
-                CLAIMED_AT_FIELD: None,
                 PROCESSED_AT_FIELD: None,
                 TOMBSTONE_FIELD: {"$ne": True},
+                "$or": [
+                    {CLAIMED_AT_FIELD: None},
+                    {
+                        "$expr": {
+                            "$lt": [
+                                f"${CLAIMED_AT_FIELD}",
+                                {"$subtract": ["$$NOW", ttl_ms]},
+                            ]
+                        }
+                    },
+                ],
             },
             update=[{"$set": {CLAIMED_AT_FIELD: "$$NOW"}}],
+            sort=[(CLAIMED_AT_FIELD, 1)],
             return_document=ReturnDocument.AFTER,
         )
-
-        # Stale pack: claimed but never processed, with a claim older than the TTL.
-        if not doc:
-            ttl_ms = self._claim_ttl_seconds * 1000
-            doc = await self._collection.find_one_and_update(
-                filter={
-                    PROCESSED_AT_FIELD: None,
-                    TOMBSTONE_FIELD: {"$ne": True},
-                    # Filter out none valued first, so subtraction actually works
-                    CLAIMED_AT_FIELD: {"$ne": None},
-                    "$expr": {
-                        "$lt": [
-                            f"${CLAIMED_AT_FIELD}",
-                            {"$subtract": ["$$NOW", ttl_ms]},
-                        ]
-                    },
-                },
-                update=[{"$set": {CLAIMED_AT_FIELD: "$$NOW"}}],
-                sort=[(CLAIMED_AT_FIELD, 1)],
-                return_document=ReturnDocument.AFTER,
-            )
-            if doc:
-                log.warning(
-                    "Reclaimed stale AEMPack %s (pid %s). The previous processor likely "
-                    "crashed or stalled.",
-                    doc["_id"],
-                    doc["pid"],
-                )
 
         # Already-processed pack that received a newer version while in flight.
         if not doc:
