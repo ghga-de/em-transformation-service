@@ -46,11 +46,6 @@ def _unprocessed_version_filter(aem_pack_id: UUID4, version: int) -> dict:
     }
 
 
-def _is_set(field: str) -> dict:
-    """Aggregation expression that is True when field exists and is non-null."""
-    return {"$ne": [{"$ifNull": [f"${field}", None]}, None]}
-
-
 class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
     """MongoDB adapter for the incoming AEMPack processing queue.
 
@@ -127,8 +122,8 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                             },
                             NEEDS_REPROCESSING_FIELD: {
                                 "$or": [
-                                    _is_set(CLAIMED_AT_FIELD),
-                                    _is_set(PROCESSED_AT_FIELD),
+                                    {"$ne": [f"${CLAIMED_AT_FIELD}", None]},
+                                    {"$ne": [f"${PROCESSED_AT_FIELD}", None]},
                                 ]
                             },
                             PROCESSED_AT_FIELD: {
