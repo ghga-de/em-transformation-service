@@ -208,7 +208,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
         await self._config_updater.update_config()
         version_after = self._config_updater.known_version
 
-        if version_after != version_before and not is_initial:
+        if version_after != version_before:
             log.info(
                 "Graph config changed while processing AEMPack '%s'."
                 " Discarding changes and freeing for reprocessing with new config.",
