@@ -281,7 +281,7 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
             )
 
     async def free(self, aem_pack_id: UUID4) -> None:
-        """Unconditionally release a claimed AEMPack back to the queue."""
+        """Release an AEMPack back to the queue without marking it processed."""
         await self._collection.update_one(
             filter={"_id": aem_pack_id, PROCESSED_AT_FIELD: None},
             update={"$set": {CLAIMED_AT_FIELD: None}},
