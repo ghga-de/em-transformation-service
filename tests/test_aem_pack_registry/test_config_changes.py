@@ -86,7 +86,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
     assert isinstance(config_updater, ConfigUpdater)
     config_updater._current_config = new_config
     caplog.clear()
-    with caplog.at_level(logging.WARNING, logger="emts.core.aem_pack_registry"):
+    with caplog.at_level(logging.INFO, logger="emts.core.aem_pack_registry"):
         await registry._process_next_aem_pack(
             incoming_aem=reclaimed,
             correlation_id=reclaimed.correlation_id,
@@ -100,7 +100,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
         "DerivedModel2",
     }
 
-    # "no longer exists" warning logged for removed model
+    # "no longer exists" message logged for removed model
     assert any(
         "no longer exists in the config" in record.message
         and str(deleted_pack_id) in record.message
@@ -159,7 +159,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
     assert isinstance(config_updater, ConfigUpdater)
     config_updater._current_config = new_config
     caplog.clear()
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.INFO):
         await registry._process_next_aem_pack(
             incoming_aem=reclaimed,
             correlation_id=reclaimed.correlation_id,
@@ -173,7 +173,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         "DerivedModel2",
     }
 
-    # Correct warning logged (not the "no longer exists" variant)
+    # Correct message logged (not the "no longer exists" variant)
     assert any(
         "no longer reachable from its previous original ID" in record.message
         and str(orphaned_pack.id) in record.message
