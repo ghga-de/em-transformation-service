@@ -16,6 +16,9 @@
 """Service-wide constants."""
 
 INCOMING_AEM_PACK_COLLECTION = "incoming_aem_packs"
+MODELS_COLLECTION = "models"
+ROUTES_COLLECTION = "routes"
+WORKFLOWS_COLLECTION = "workflows"
 CONFIG_LOCK_COLLECTION = "config_locks"
 CONFIG_LOCK_ID = "config_update_lock"
 CONFIG_VERSION_COLLECTION = "config_version"

@@ -47,6 +47,9 @@ from emts.constants import (
     CONFIG_LOCK_COLLECTION,
     CONFIG_VERSION_COLLECTION,
     INCOMING_AEM_PACK_COLLECTION,
+    MODELS_COLLECTION,
+    ROUTES_COLLECTION,
+    WORKFLOWS_COLLECTION,
 )
 from emts.core.aem_pack_registry import AEMPackRegistry
 from emts.core.config_manager import ConfigManager
@@ -105,9 +108,9 @@ async def _prepare_base_wiring(
         model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
     )
     writer = ConfigWriterAdapter(
-        model_dao=model_dao,
-        route_dao=route_dao,
-        workflow_dao=workflow_dao,
+        models_collection=db[MODELS_COLLECTION],
+        routes_collection=db[ROUTES_COLLECTION],
+        workflows_collection=db[WORKFLOWS_COLLECTION],
         config_versioner=versioner,
     )
     config_updater = ConfigUpdater(

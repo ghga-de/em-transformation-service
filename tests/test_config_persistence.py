@@ -54,10 +54,9 @@ def _assert_same_config(a: PersistedConfig, b: PersistedConfig) -> None:
     )
 
 
-@pytest.fixture
-def persisted_config(joint_fixture: JointFixture) -> PersistedConfig:
+def _resolve_config(loader: ConfigLoaderAdapter, config_path: Path) -> PersistedConfig:
     """Produce a fully resolved PersistedConfig through the real pipeline."""
-    raw_config = joint_fixture.loader.load_config_from_file(BASIC_CONFIG_PATH)
+    raw_config = loader.load_config_from_file(config_path)
     validated_config = validate(raw_config)
     derived_models = derive_models(validated_config)
     return PersistedConfig(
@@ -65,6 +64,13 @@ def persisted_config(joint_fixture: JointFixture) -> PersistedConfig:
         routes=validated_config.routes,
         workflows=validated_config.workflows,
     )
+
+
+@pytest.fixture
+def persisted_config(joint_fixture: JointFixture) -> PersistedConfig:
+    """Produce a fully resolved PersistedConfig through the real pipeline."""
+    assert isinstance(joint_fixture.loader, ConfigLoaderAdapter)
+    return _resolve_config(joint_fixture.loader, BASIC_CONFIG_PATH)
 
 
 @pytest.mark.asyncio()
@@ -129,8 +135,8 @@ async def test_write_config_round_trip(
     persisted_config: PersistedConfig,
     write_twice: bool,
 ):
-    """Ensure write_config upserts entities and the round-trip preserves them. Calling
-    twice with the same config must not raise (upsert semantics).
+    """Ensure write_config persists entities and the round-trip preserves them. Calling
+    twice with the same config must not raise (drop-then-insert replaces cleanly).
     """
     await joint_fixture.writer.write_config(persisted_config)
     if write_twice:
@@ -142,3 +148,34 @@ async def test_write_config_round_trip(
     stored_by_name = {m.name: m for m in stored_config.models}
     for model in persisted_config.models:
         assert is_equal_schemapack(model.schema_, stored_by_name[model.name].schema_)
+
+
+@pytest.mark.asyncio()
+async def test_write_config_drops_removed_entities(
+    joint_fixture: JointFixture,
+    persisted_config: PersistedConfig,
+):
+    """A subsequent write with fewer entities must drop those no longer present,
+    rather than leaving stale entities behind.
+    """
+    # Extend the config with one stale entity per collection to later drop.
+    extended_config = PersistedConfig(
+        models=[
+            *persisted_config.models,
+            persisted_config.models[0].model_copy(update={"name": "stale_model"}),
+        ],
+        routes=[
+            *persisted_config.routes,
+            persisted_config.routes[0].model_copy(update={"name": "stale_route"}),
+        ],
+        workflows=[
+            *persisted_config.workflows,
+            persisted_config.workflows[0].model_copy(update={"name": "stale_workflow"}),
+        ],
+    )
+    await joint_fixture.writer.write_config(extended_config)
+
+    await joint_fixture.writer.write_config(persisted_config)
+
+    stored_config = await joint_fixture.loader.load_config_from_db()
+    _assert_same_config(stored_config, persisted_config)
