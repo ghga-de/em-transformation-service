@@ -105,3 +105,49 @@ async def test_published_aem_packs_deleted_after_processing(
 
     assert len(await joint_fixture.derived_packs(pack.pid)) == 0
     assert await joint_fixture.incoming_doc(aem_id) is None
+
+
+@pytest.mark.parametrize("hard_delete", [False, True], ids=["soft", "hard"])
+async def test_deleted_pack_mid_reprocessing_pruned_without_processed_event(
+    joint_fixture: JointFixture,
+    hard_delete: bool,
+):
+    """Ensure a non-initial pack deleted mid-processing has its derived packs pruned and
+    emits no PROCESSED event. Soft- and hard-deleted docs must behave identically.
+    """
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["single_route"], publish_models={"DerivedModel1"}
+    )
+    aem_id = uuid4()
+    pid = str(uuid4())
+
+    # Process once so a derived pack exists — this makes the reclaim non-initial.
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
+    await process_pack(registry, ingress)
+    assert len(await joint_fixture.derived_packs(pid)) == 1
+
+    # Reclaim for reprocessing, then delete it before processing completes.
+    await registry._incoming_aem_pack_queue.mark_all_for_reprocessing()
+    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert reclaimed is not None
+    assert reclaimed.id == aem_id
+
+    # Delete only the incoming doc (not its descendants) so the loop is what prunes them.
+    await registry._soft_delete_aem_pack(aem_id)
+    if hard_delete:
+        await registry._hard_delete_aem_pack(aem_id)
+
+    async with joint_fixture.kafka.record_events(
+        in_topic=joint_fixture.config.aem_pack_processing_status_topic
+    ) as recorder:
+        await registry._process_next_aem_pack(
+            incoming_aem=reclaimed,
+            correlation_id=reclaimed.correlation_id,
+        )
+
+    # No PROCESSED event for a pack that is being deleted.
+    assert all(
+        event.payload["status"] != "processed" for event in recorder.recorded_events
+    )
+    # Derived packs pruned in-loop.
+    assert len(await joint_fixture.derived_packs(pid)) == 0

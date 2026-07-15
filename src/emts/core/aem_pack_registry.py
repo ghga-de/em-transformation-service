@@ -208,6 +208,20 @@ class AEMPackRegistry(AEMPackRegistryPort):
         await self._config_updater.update_config()
         version_after = self._config_updater.known_version
 
+        if await self._incoming_aem_pack_queue.is_marked_or_deleted(incoming_aem.id):
+            log.info(
+                "AEMPack '%s' is marked for deletion or already deleted;"
+                " pruning derived packs and skipping publication.",
+                incoming_aem.id,
+            )
+            async with set_correlation_id(correlation_id):
+                async for pack in self._aem_pack_dao.find_all(
+                    mapping={"pid": incoming_aem.pid}
+                ):
+                    await self._aem_pack_dao.delete(pack.id)
+            await self._incoming_aem_pack_queue.free(incoming_aem.id)
+            return
+
         if version_after != version_before:
             log.info(
                 "Graph config changed while processing AEMPack '%s'."
@@ -237,13 +251,6 @@ class AEMPackRegistry(AEMPackRegistryPort):
             await self._incoming_aem_pack_queue.free(incoming_aem.id)
             return
 
-        aem_packs_to_publish = await self._prune_derived_aem_packs_on_delete(
-            incoming_aem_id=incoming_aem.id,
-            pid=incoming_aem.pid,
-            aem_packs_to_publish=aem_packs_to_publish,
-            dirty_map=dirty_map,
-        )
-
         async with set_correlation_id(correlation_id):
             if dirty_map:
                 # Check if there are corresponding models remaining or if they have been removed from the config.
@@ -254,11 +261,11 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 models_by_name = {model.name: model for model in config.models}
                 for model_name, aem_pack_id in dirty_map.items():
                     if models_by_name.get(model_name):
-                        log.warning(
+                        log.info(
                             f"Derived AEMPack with id {aem_pack_id} is no longer reachable from its previous original ID. Removing."
                         )
                     else:
-                        log.warning(
+                        log.info(
                             f"Model with name {model_name} no longer exists in the config, previously derived AEMPack with id {aem_pack_id} is no longer valid. Removing."
                         )
                     await self._aem_pack_dao.delete(aem_pack_id)
@@ -281,41 +288,6 @@ class AEMPackRegistry(AEMPackRegistryPort):
         await self._incoming_aem_pack_queue.mark_processed(
             incoming_aem.id, incoming_aem.version
         )
-
-    async def _prune_derived_aem_packs_on_delete(
-        self,
-        incoming_aem_id: UUID4,
-        pid: str,
-        aem_packs_to_publish: list[AEMPack],
-        dirty_map: dict[str, UUID4],
-    ) -> list[AEMPack]:
-        """Prune derived AEMPacks when the original AEMPack is marked for deletion.
-        This handles the case where an original AEMPack is marked for deletion after
-        it was claimed for processing but before the processing is completed.
-        Mutates dirty_map in place to include all existing derived AEMPacks for deletion.
-        """
-        if not aem_packs_to_publish:
-            return aem_packs_to_publish
-
-        if not await self._incoming_aem_pack_queue.is_marked_or_deleted(
-            incoming_aem_id
-        ):
-            return aem_packs_to_publish
-
-        log.warning(
-            f"Original AEMPack with id {incoming_aem_id} is marked for deletion. Pruning derived AEMPacks."
-        )
-
-        # Mark only packs that already exist in the DAO for deletion.
-        # Newly-derived packs (never upserted) are simply dropped.
-        dirty_map.update(
-            {
-                pack.model_name: pack.id
-                async for pack in self._aem_pack_dao.find_all(mapping={"pid": pid})
-            }
-        )
-
-        return []
 
     def _traverse_graph(
         self,
