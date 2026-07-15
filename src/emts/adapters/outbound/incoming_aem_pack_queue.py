@@ -85,6 +85,14 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
             ]
         )
 
+    async def get(self, aem_pack_id: UUID4) -> IncomingAEMPack | None:
+        """Return the queued AEMPack with the given id, or None if it is not present."""
+        doc = await self._collection.find_one({"_id": aem_pack_id})
+        if doc is None:
+            return None
+        doc["id"] = doc.pop("_id")
+        return IncomingAEMPack(**doc)
+
     async def queue(self, aem_pack: VersionedAEMPack) -> bool:
         """Upsert an AEMPack into the queue if its version is newer than the stored one.
 

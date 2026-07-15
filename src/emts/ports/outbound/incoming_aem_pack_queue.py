@@ -37,6 +37,10 @@ class IncomingAEMPackQueuePort(ABC):
         """Create the secondary indexes backing claim queries."""
 
     @abstractmethod
+    async def get(self, aem_pack_id: UUID4) -> IncomingAEMPack | None:
+        """Return the queued AEMPack with the given id, or None if it is not present."""
+
+    @abstractmethod
     async def queue(self, aem_pack: VersionedAEMPack) -> bool:
         """Upsert an AEMPack into the queue if its version is newer than the stored one.
 

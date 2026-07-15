@@ -438,13 +438,21 @@ class AEMPackRegistry(AEMPackRegistryPort):
         This also signals to any ongoing processing that derived AEMPacks should not be published.
         Then hard-deletes the incoming AEMPack along with all its descendants, if any.
         """
+        # Read the incoming pack up front, it is no longer retrievable once the pack is
+        # hard-deleted below.
+        incoming_aem = await self._incoming_aem_pack_queue.get(incoming_aem_id)
+
+        # Nothing was queued under this id, so there are no descendants to prune.
+        if incoming_aem is None:
+            return
+
         # clean up the queue
         await self._soft_delete_aem_pack(incoming_aem_id)
         await self._hard_delete_aem_pack(incoming_aem_id)
 
         # clean up the aem_packs derived from the deleted one
         async for aem_pack in self._aem_pack_dao.find_all(
-            mapping={"pid": str(incoming_aem_id)}
+            mapping={"pid": incoming_aem.pid}
         ):
             await self._aem_pack_dao.delete(aem_pack.id)
 

@@ -94,8 +94,9 @@ async def test_published_aem_packs_deleted_after_processing(
     )
     aem_id = uuid4()
 
-    # pid=str(aem_id) ensures delete_aem_packs can find derived packs via str(incoming_aem_id)
-    pack = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=str(aem_id))
+    pack = make_ingress_pack(
+        model_name="IngressModel", aem_id=aem_id, pid="ingress-pid-abc"
+    )
     claimed = await process_pack(registry, pack)
     assert len(await joint_fixture.derived_packs(pack.pid)) == 1
 
