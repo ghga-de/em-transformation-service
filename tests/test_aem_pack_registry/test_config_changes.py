@@ -181,10 +181,12 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
     )
 
 
-async def test_initial_pack_proceeds_despite_config_change(
+async def test_initial_pack_freed_when_config_changes(
     joint_fixture: JointFixture,
 ):
-    """Initial packs (no prior derived packs) publish through a mid-processing config change."""
+    """Ensure initial packs (no prior derived packs) are freed for reprocessing, not published,
+    when the graph config changes mid-processing.
+    """
     registry = await joint_fixture.seeded_registry(
         AEM_PACK_REGISTRY_CONFIGS["single_route"], publish_models={"DerivedModel1"}
     )
@@ -208,13 +210,14 @@ async def test_initial_pack_proceeds_despite_config_change(
             correlation_id=claimed.correlation_id,
         )
 
-    # Derived pack must be published (initial publish takes priority over config freshness)
+    # Nothing published: the mid-processing config change discards the derived result.
     derived = await joint_fixture.derived_packs(pid)
-    assert len(derived) == 1
+    assert len(derived) == 0
 
-    # Pack is marked processed, not freed
+    # Pack is freed (not marked processed), so it can be claimed again for reprocessing.
     reclaimed = await registry._incoming_aem_pack_queue.claim_next()
-    assert reclaimed is None
+    assert reclaimed is not None
+    assert reclaimed.id == aem_id
 
 
 async def test_pack_freed_when_config_changes_mid_reprocessing(

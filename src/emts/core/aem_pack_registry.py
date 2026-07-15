@@ -150,8 +150,8 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 mapping={"pid": incoming_aem.pid}
             )
         }
-        # True when no derived packs exist yet: publish regardless of config changes or
-        # supersession so consumers receive at least one result without indefinite deferral.
+        # True when no derived packs exist yet: publish regardless of supersession,
+        # so consumers receive the first pack asap.
         is_initial = not dirty_map
         transformed_map: dict[str, AEMPack] = {incoming_aem.model_name: incoming_aem}
 

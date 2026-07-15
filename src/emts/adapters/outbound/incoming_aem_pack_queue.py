@@ -128,10 +128,12 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                                     "else": None,
                                 }
                             },
+                            # Missing and null values should evaluate to false when
+                            # comparing using $gt null
                             NEEDS_REPROCESSING_FIELD: {
                                 "$or": [
-                                    {"$ne": [f"${CLAIMED_AT_FIELD}", None]},
-                                    {"$ne": [f"${PROCESSED_AT_FIELD}", None]},
+                                    {"$gt": [f"${CLAIMED_AT_FIELD}", None]},
+                                    {"$gt": [f"${PROCESSED_AT_FIELD}", None]},
                                 ]
                             },
                             PROCESSED_AT_FIELD: {
