@@ -24,7 +24,7 @@ from emts.adapters.outbound.config_loader import ConfigLoaderAdapter
 from emts.core.config_comparison import compare_configs
 from emts.core.config_validation import validate
 from emts.core.model_derivation import derive_models
-from emts.core.models import Model, ModelBase, PersistedConfig, RawConfig
+from emts.core.models import Model, ModelBase, PersistedConfig, ValidatedConfig
 from tests.fixtures.examples import MOCK_SCHEMA, VALID_CONFIGS
 from tests.fixtures.joint import JointFixture
 
@@ -89,12 +89,12 @@ async def test_load_and_compare(
     joint_fixture: JointFixture,
 ):
     """Ensure loading from YAML and comparing against the persisted state returns the
-    expected RawConfig (changed) or PersistedConfig (unchanged) variant.
+    expected ValidatedConfig (changed) or PersistedConfig (unchanged) variant.
     """
     loader = joint_fixture.loader
 
-    first_raw = loader.load_config_from_file(old_config_path)
-    seed = compare_configs(first_raw, await loader.load_config_from_db())
+    first_validated = validate(loader.load_config_from_file(old_config_path))
+    seed = compare_configs(first_validated, await loader.load_config_from_db())
 
     await joint_fixture.insert_config(
         PersistedConfig(
@@ -107,25 +107,25 @@ async def test_load_and_compare(
         )
     )
 
-    second_raw = loader.load_config_from_file(new_config_path)
-    result = compare_configs(second_raw, await loader.load_config_from_db())
-    assert isinstance(result, RawConfig if changed else PersistedConfig)
+    second_validated = validate(loader.load_config_from_file(new_config_path))
+    result = compare_configs(second_validated, await loader.load_config_from_db())
+    assert isinstance(result, ValidatedConfig if changed else PersistedConfig)
 
 
 def test_compare_is_order_insensitive(loader: ConfigLoaderAdapter):
     """Ensure list ordering does not affect config comparison outcome."""
-    raw_config = loader.load_config_from_file(BASIC_CONFIG_PATH)
+    validated_config = validate(loader.load_config_from_file(BASIC_CONFIG_PATH))
     persisted_models = [
         _model_with_mocked_schema(rm, order)
-        for order, rm in enumerate(raw_config.models)
+        for order, rm in enumerate(validated_config.models)
     ]
 
     reordered = PersistedConfig(
         models=list(reversed(persisted_models)),
-        routes=list(reversed(raw_config.routes)),
-        workflows=list(reversed(raw_config.workflows)),
+        routes=list(reversed(validated_config.routes)),
+        workflows=list(reversed(validated_config.workflows)),
     )
-    assert isinstance(compare_configs(raw_config, reordered), PersistedConfig)
+    assert isinstance(compare_configs(validated_config, reordered), PersistedConfig)
 
 
 @pytest.mark.asyncio()

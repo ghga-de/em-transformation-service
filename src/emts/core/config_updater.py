@@ -91,9 +91,9 @@ class ConfigUpdater:
         """Load, resolve, and persist the transformation config.
 
         - Loads the raw config from disk and the persisted one from the database.
-        - Compares them; if equal, leaves the DB untouched.
-        - If they differ, validates the raw config, prunes unproductive subgraphs,
-          derives output schemas, and persists the result (bumping the version).
+        - Validates the raw config and prunes unproductive subgraphs, then compares
+          the pruned result against the persisted config.
+        - If they differ, derives output schemas and persists the result (bumping the version).
         - If validation of a new config fails, falls back to the persisted config
           (without rewriting it). If no valid persisted config exists, raises
           ConfigUpdaterError and stops the service.
@@ -120,10 +120,6 @@ class ConfigUpdater:
             True, if the persisted config is outdated and has been replaced with a new one
             False in all other cases
         """
-        result = compare_configs(raw_config, persisted_config)
-        if not isinstance(result, RawConfig):
-            return False
-
         try:
             validated = validate(raw_config)
             pruned = prune_unproductive_subgraphs(validated)
@@ -144,6 +140,10 @@ class ConfigUpdater:
             log.warning(
                 "New config failed to validate, using existing, persisted config instead."
             )
+            return False
+
+        result = compare_configs(pruned, persisted_config)
+        if isinstance(result, PersistedConfig):
             return False
 
         try:

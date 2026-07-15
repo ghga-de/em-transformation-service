@@ -25,6 +25,7 @@ from emts.core import config_updater as config_updater_module
 from emts.core.config_pruning import prune_unproductive_subgraphs
 from emts.core.config_updater import ConfigUpdater, ConfigUpdaterError
 from emts.core.config_validation import ConfigValidationError
+from emts.core.model_derivation import derive_models
 from emts.core.models import Model, PersistedConfig, RawConfig, ValidatedConfig
 from emts.ports.outbound.config_loader import ConfigLoaderPort
 from emts.ports.outbound.config_version import ConfigVersionerPort
@@ -243,18 +244,27 @@ async def test_resolve_and_persist(
 
     loader.load_config_from_file.assert_called_once()
     loader.load_config_from_db.assert_awaited_once()
-    compare_configs.assert_called_once_with(raw_config, persisted)
+    # Validation/pruning now runs before the comparison.
+    validate.assert_called_once_with(raw_config)
 
-    if compare_returns_raw and not validation_raises:
-        validate.assert_called_once_with(raw_config)
+    if validation_raises:
+        # Validation fails before the comparison; fall back without comparing or
+        # touching the DB.
+        compare_configs.assert_not_called()
+        derive_models.assert_not_called()
+        writer.write_config.assert_not_awaited()
+    elif compare_returns_raw:
+        # Changed: the pruned config is compared, then derived and written.
+        compare_configs.assert_called_once_with(validated_config, persisted)
         derive_models.assert_called_once()
         writer.write_config.assert_awaited_once()
         written = writer.write_config.await_args.args[0]
         assert isinstance(written, PersistedConfig)
         assert written.models == derived_models
     else:
-        # validation_fallback and unchanged_config both leave the DB alone:
-        # write_config would bump the version and trigger spurious reprocessing.
+        # Unchanged: compared against the persisted config, but the DB is left alone.
+        # A write would bump the version and trigger spurious reprocessing.
+        compare_configs.assert_called_once_with(validated_config, persisted)
         derive_models.assert_not_called()
         writer.write_config.assert_not_awaited()
 
@@ -308,4 +318,41 @@ async def test_resolve_and_persist_stops_when_no_persisted_config(
 
     with pytest.raises(ConfigUpdaterError, match="no previous valid config"):
         await updater.resolve_and_persist(Path("/fake/config.yaml"))
+    writer.write_config.assert_not_awaited()
+
+
+@pytest.mark.asyncio()
+async def test_unproductive_subgraph_is_not_a_change(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A config that differs from the persisted one only by an unproductive subgraph
+    (pruned before persistence) must resolve as unchanged: no rewrite, no reprocessing.
+    """
+    case = PRUNING_CASES["bifurcating_subgraph"]
+
+    # What such a config resolves to once pruned and derived — i.e. what is persisted
+    # (the persisted config is always stored in pruned form).
+    pruned = prune_unproductive_subgraphs(load_pruning_config(case))
+    persisted = PersistedConfig(
+        models=derive_models(pruned),
+        routes=pruned.routes,
+        workflows=pruned.workflows,
+    )
+
+    # Stand in for parsing the raw file: it still carries the unproductive subgraph
+    # (unpruned). prune and compare run for real inside resolve_and_persist.
+    monkeypatch.setattr(
+        config_updater_module,
+        "validate",
+        MagicMock(return_value=load_pruning_config(case)),
+    )
+
+    updater, _, writer = _make_updater(
+        raw_config=load_raw_config(VALID_CONFIGS["basic_config"]),
+        persisted_config=persisted,
+    )
+
+    changed = await updater.resolve_and_persist(Path("/fake/config.yaml"))
+
+    assert changed is False
     writer.write_config.assert_not_awaited()

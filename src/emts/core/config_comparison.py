@@ -21,7 +21,7 @@ from schemapack import is_equal_schemapack
 
 from emts.core.models import (
     PersistedConfig,
-    RawConfig,
+    ValidatedConfig,
 )
 
 log = logging.getLogger(__name__)
@@ -32,19 +32,19 @@ class ComparisonMismatchError(RuntimeError):
 
 
 def compare_configs(
-    raw_config: RawConfig, persisted_config: PersistedConfig
-) -> PersistedConfig | RawConfig:
-    """Compare new config with the persisted one.
+    new_config: ValidatedConfig, persisted_config: PersistedConfig
+) -> PersistedConfig | ValidatedConfig:
+    """Compare a new, pruned config with the persisted one.
 
     Returns:
-        RawConfig: when the configs differ, containing the new models, routes, and workflows.
+        ValidatedConfig: when the configs differ, containing the new models, routes, and workflows.
         PersistedConfig: when the configs are equal, containing the persisted models, routes, and workflows.
     """
-    sorted_raw = raw_config.model_copy(
+    sorted_new = new_config.model_copy(
         update={
-            "models": sorted(raw_config.models, key=lambda m: m.name),
-            "routes": sorted(raw_config.routes, key=lambda r: r.name),
-            "workflows": sorted(raw_config.workflows, key=lambda w: w.name),
+            "models": sorted(new_config.models, key=lambda m: m.name),
+            "routes": sorted(new_config.routes, key=lambda r: r.name),
+            "workflows": sorted(new_config.workflows, key=lambda w: w.name),
         }
     )
     sorted_persisted = persisted_config.model_copy(
@@ -56,27 +56,27 @@ def compare_configs(
     )
     try:
         log.info("Comparing models.")
-        _compare_models(raw=sorted_raw, persisted=sorted_persisted)
+        _compare_models(new=sorted_new, persisted=sorted_persisted)
         log.info("Comparing routes.")
-        _compare_routes(raw=sorted_raw, persisted=sorted_persisted)
+        _compare_routes(new=sorted_new, persisted=sorted_persisted)
         log.info("Comparing workflows.")
-        _compare_workflows(raw=sorted_raw, persisted=sorted_persisted)
+        _compare_workflows(new=sorted_new, persisted=sorted_persisted)
     except ComparisonMismatchError as error:
         log.info(
             f"Changes detected between configs, using new config.\nDetails:{error}"
         )
-        return sorted_raw
+        return sorted_new
 
     log.info("No changes detected between configs, continuing with old config.")
     return sorted_persisted
 
 
-def _compare_models(*, raw: RawConfig, persisted: PersistedConfig) -> None:
-    new = raw.models
-    old = persisted.models
-    if len(new) != len(old):
+def _compare_models(*, new: ValidatedConfig, persisted: PersistedConfig) -> None:
+    new_models = new.models
+    old_models = persisted.models
+    if len(new_models) != len(old_models):
         raise ComparisonMismatchError("Different amount of model configs.")
-    for new_model, old_model in zip(new, old, strict=True):
+    for new_model, old_model in zip(new_models, old_models, strict=True):
         # compare model attributes except the schemapacks
         if (
             new_model.name != old_model.name
@@ -100,21 +100,21 @@ def _compare_models(*, raw: RawConfig, persisted: PersistedConfig) -> None:
             )
 
 
-def _compare_routes(*, raw: RawConfig, persisted: PersistedConfig) -> None:
-    new = raw.routes
-    old = persisted.routes
-    if len(new) != len(old):
+def _compare_routes(*, new: ValidatedConfig, persisted: PersistedConfig) -> None:
+    new_routes = new.routes
+    old_routes = persisted.routes
+    if len(new_routes) != len(old_routes):
         raise ComparisonMismatchError("Different amount of routes.")
-    for n, o in zip(new, old, strict=True):
+    for n, o in zip(new_routes, old_routes, strict=True):
         if n != o:
             raise ComparisonMismatchError(f"Mismatching route: {n.name}.")
 
 
-def _compare_workflows(*, raw: RawConfig, persisted: PersistedConfig) -> None:
-    new = raw.workflows
-    old = persisted.workflows
-    if len(new) != len(old):
+def _compare_workflows(*, new: ValidatedConfig, persisted: PersistedConfig) -> None:
+    new_workflows = new.workflows
+    old_workflows = persisted.workflows
+    if len(new_workflows) != len(old_workflows):
         raise ComparisonMismatchError("Different amount of workflows.")
-    for n, o in zip(new, old, strict=True):
+    for n, o in zip(new_workflows, old_workflows, strict=True):
         if n != o:
             raise ComparisonMismatchError(f"Mismatching workflow: {n.name}.")
