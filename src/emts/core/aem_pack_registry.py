@@ -105,6 +105,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
             raise
 
         stored = await self._incoming_aem_pack_queue.queue(aem_pack)
+        # If the service crashes here, the next block isn't executed on restart
+        # If outbox behavior changes to inspect the payload and only publishes if the
+        # payload changes, we could make this unconditional without it being potentially noisy
         if stored:
             # Only emitted once the pack is actually accepted (a strictly newer
             # version); rejected republishes do not produce a status event.
@@ -210,15 +213,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
         if await self._incoming_aem_pack_queue.is_marked_or_deleted(incoming_aem.id):
             log.info(
-                "AEMPack '%s' is marked for deletion or already deleted;"
-                " pruning derived packs and skipping publication.",
+                "AEMPack '%s' is marked for deletion or already deleted",
                 incoming_aem.id,
             )
-            async with set_correlation_id(correlation_id):
-                async for pack in self._aem_pack_dao.find_all(
-                    mapping={"pid": incoming_aem.pid}
-                ):
-                    await self._aem_pack_dao.delete(pack.id)
             await self._incoming_aem_pack_queue.free(incoming_aem.id)
             return
 
