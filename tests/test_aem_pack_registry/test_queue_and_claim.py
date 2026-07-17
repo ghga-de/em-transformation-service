@@ -214,8 +214,8 @@ async def test_initial_version_publishes_despite_supersession(
 ):
     """An initial claim (no prior derived packs) publishes even when superseded by a newer
     version — consumers receive at least one result without waiting for the TTL cycle.
-    The pack is not marked processed (mark_processed's version guard rejects the stale
-    version), so v2 will be picked up and will overwrite the initial results.
+    mark_processed sees the newer version and flags needs_reprocessing rather than
+    committing the stale v1 as terminal, so v2 is picked up and overwrites the results.
     """
     registry = await joint_fixture.seeded_registry(
         AEM_PACK_REGISTRY_CONFIGS["chained_routes"],
@@ -250,10 +250,11 @@ async def test_initial_version_publishes_despite_supersession(
 
     # Initial publish: v1's derived packs are published despite the supersession.
     assert len(await joint_fixture.derived_packs(pid)) == 3
-    # mark_processed(v1) is rejected by the version guard — pack stays unprocessed for v2.
+    # mark_processed(v1) stamps processed_at but flags needs_reprocessing for the newer
+    # version, so v2 is re-claimed and overwrites the initial results.
     raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None
-    assert raw["processed_at"] is None
+    assert raw["processed_at"] is not None
     assert raw["version"] == 2
     assert raw["needs_reprocessing"] is True
 
@@ -359,12 +360,13 @@ async def test_newer_version_reprocessed_after_stale_claim_discarded(
     assert raw["version"] == 2
 
 
-async def test_mark_processed_rejects_superseded_version(
+async def test_mark_processed_flags_superseded_version_for_reprocessing(
     registry: AEMPackRegistry, joint_fixture: JointFixture
 ):
     """
-    Assert that even if a slow worker slips past the best effort guard, mark_processed
-    must not reach the terminal state for a version the registry has already moved past.
+    Assert that when a slow worker slips past the best effort guard, mark_processed does
+    not commit its stale results as the terminal state: it releases the claim but flags
+    needs_reprocessing so the version the registry has moved to is picked up again.
     """
     aem_id = uuid4()
     pid = str(uuid4())
@@ -382,8 +384,9 @@ async def test_mark_processed_rejects_superseded_version(
 
     raw = await joint_fixture.incoming_doc(aem_id)
     assert raw is not None
-    assert raw["processed_at"] is None
     assert raw["version"] == 2
+    assert raw["claimed_at"] is None
+    assert raw["needs_reprocessing"] is True
 
 
 async def test_queue_rejects_marked_for_deletion(registry: AEMPackRegistry):

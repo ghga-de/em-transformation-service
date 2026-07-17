@@ -118,9 +118,8 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
                     {
                         "$set": {
                             **doc,
-                            # Preserve in-flight claim. The old worker will call free()
-                            # when it detects the supersession, releasing the claim.
-                            # mark_processed's version guard prevents it from committing.
+                            # Preserve in-flight claim. The old worker releases it on
+                            # completion or frees it on supersession.
                             CLAIMED_AT_FIELD: {
                                 "$cond": {
                                     "if": f"${CLAIMED_AT_FIELD}",
@@ -217,16 +216,20 @@ class IncomingAEMPackQueue(IncomingAEMPackQueuePort):
         return IncomingAEMPack(**doc)
 
     async def mark_processed(self, aem_pack_id: UUID4, version: int) -> None:
-        """Mark an AEMPack as successfully processed."""
+        """Mark an AEMPack as successfully processed.
+
+        If a newer version arrived in the meantime, it is additionally marked for reprocessing.
+        """
         await self._collection.update_one(
-            filter=_unprocessed_version_filter(aem_pack_id, version),
-            # Version filter matched, so nothing newer is pending.
+            filter={"_id": aem_pack_id, PROCESSED_AT_FIELD: None},
             update=[
                 {
                     "$set": {
                         CLAIMED_AT_FIELD: None,
                         PROCESSED_AT_FIELD: "$$NOW",
-                        NEEDS_REPROCESSING_FIELD: False,
+                        NEEDS_REPROCESSING_FIELD: {
+                            "$gt": [f"${VERSION_FIELD}", version]
+                        },
                     }
                 }
             ],
