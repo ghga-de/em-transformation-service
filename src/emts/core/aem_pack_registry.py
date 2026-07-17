@@ -211,14 +211,6 @@ class AEMPackRegistry(AEMPackRegistryPort):
         await self._config_updater.update_config()
         version_after = self._config_updater.known_version
 
-        if await self._incoming_aem_pack_queue.is_marked_or_deleted(incoming_aem.id):
-            log.info(
-                "AEMPack '%s' is marked for deletion or already deleted",
-                incoming_aem.id,
-            )
-            await self._incoming_aem_pack_queue.free(incoming_aem.id)
-            return
-
         if version_after != version_before:
             log.info(
                 "Graph config changed while processing AEMPack '%s'."
@@ -266,6 +258,16 @@ class AEMPackRegistry(AEMPackRegistryPort):
                             f"Model with name {model_name} no longer exists in the config, previously derived AEMPack with id {aem_pack_id} is no longer valid. Removing."
                         )
                     await self._aem_pack_dao.delete(aem_pack_id)
+
+            if await self._incoming_aem_pack_queue.is_marked_or_deleted(
+                incoming_aem.id
+            ):
+                log.info(
+                    "AEMPack '%s' is marked for deletion or already deleted.",
+                    incoming_aem.id,
+                )
+                await self._incoming_aem_pack_queue.free(incoming_aem.id)
+                return
 
             for aem_pack in aem_packs_to_publish:
                 log.info("Upserting derived AEMPack %s.", aem_pack.id)
