@@ -107,13 +107,16 @@ async def test_published_aem_packs_deleted_after_processing(
     assert await joint_fixture.incoming_doc(aem_id) is None
 
 
-@pytest.mark.parametrize("hard_delete", [False, True], ids=["soft", "hard"])
-async def test_deleted_pack_mid_reprocessing_pruned_without_processed_event(
+async def test_deletion_racing_reprocessing_leaves_no_orphans_or_processed_event(
     joint_fixture: JointFixture,
-    hard_delete: bool,
 ):
-    """Ensure a non-initial pack deleted mid-processing has its derived packs pruned and
-    emits no PROCESSED event. Soft- and hard-deleted docs must behave identically.
+    """A deletion racing an in-flight reprocessing must leave no orphaned derived packs
+    and emit no PROCESSED event.
+
+    Pruning of descendants is the deletion event handler's responsibility
+    (delete_aem_pack_and_descendants), not the processing loop's. The loop's only job on
+    a deletion is to detect it and refrain from republishing, so the pruned descendants
+    stay gone.
     """
     registry = await joint_fixture.seeded_registry(
         AEM_PACK_REGISTRY_CONFIGS["single_route"], publish_models={"DerivedModel1"}
@@ -126,17 +129,19 @@ async def test_deleted_pack_mid_reprocessing_pruned_without_processed_event(
     await process_pack(registry, ingress)
     assert len(await joint_fixture.derived_packs(pid)) == 1
 
-    # Reclaim for reprocessing, then delete it before processing completes.
+    # Reclaim for reprocessing: the worker now holds the claim and is in flight.
     await registry._incoming_aem_pack_queue.mark_all_for_reprocessing()
     reclaimed = await registry._incoming_aem_pack_queue.claim_next()
     assert reclaimed is not None
     assert reclaimed.id == aem_id
 
-    # Delete only the incoming doc (not its descendants) so the loop is what prunes them.
-    await registry._soft_delete_aem_pack(aem_id)
-    if hard_delete:
-        await registry._hard_delete_aem_pack(aem_id)
+    # The deletion event lands mid-flight and takes the real path: it prunes the
+    # descendants and removes the incoming doc.
+    async with set_correlation_id(reclaimed.correlation_id):
+        await registry.delete_aem_pack_and_descendants(incoming_aem_id=aem_id)
+    assert len(await joint_fixture.derived_packs(pid)) == 0
 
+    # The in-flight worker finishes: it must observe the deletion and not republish.
     async with joint_fixture.kafka.record_events(
         in_topic=joint_fixture.config.aem_pack_processing_status_topic
     ) as recorder:
@@ -145,9 +150,8 @@ async def test_deleted_pack_mid_reprocessing_pruned_without_processed_event(
             correlation_id=reclaimed.correlation_id,
         )
 
-    # No PROCESSED event for a pack that is being deleted.
+    # No PROCESSED event, and no derived packs were resurrected.
     assert all(
         event.payload["status"] != "processed" for event in recorder.recorded_events
     )
-    # Derived packs pruned in-loop.
     assert len(await joint_fixture.derived_packs(pid)) == 0
