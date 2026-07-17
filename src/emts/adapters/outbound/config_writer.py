@@ -17,43 +17,67 @@
 
 import logging
 
+from pydantic import BaseModel
+from pymongo.asynchronous.collection import AsyncCollection
+
 from emts.core.models import PersistedConfig
 from emts.ports.outbound.config_version import ConfigVersionerPort
 from emts.ports.outbound.config_writer import ConfigWriterPort
-from emts.ports.outbound.dao import ModelDao, RouteDao, WorkflowDao
 
 log = logging.getLogger(__name__)
 
 
+def _to_document(entity: BaseModel) -> dict:
+    """Convert a config entity into a MongoDB document.
+
+    Mirrors the storage format of the hexkit DAOs (``id_field="name"``) so the
+    config loader can keep reading these documents back through its DAOs: the
+    ``name`` field becomes the document ``_id``.
+    """
+    document = entity.model_dump()
+    document["_id"] = document.pop("name")
+    return document
+
+
 class ConfigWriterAdapter(ConfigWriterPort):
-    """Adapter for upserting transformation config entities to the database."""
+    """Adapter for replacing transformation config entities in the database."""
 
     def __init__(
         self,
         *,
-        model_dao: ModelDao,
-        route_dao: RouteDao,
-        workflow_dao: WorkflowDao,
+        models_collection: AsyncCollection,
+        routes_collection: AsyncCollection,
+        workflows_collection: AsyncCollection,
         config_versioner: ConfigVersionerPort,
     ):
-        self._model_dao = model_dao
-        self._route_dao = route_dao
-        self._workflow_dao = workflow_dao
+        self._models_collection = models_collection
+        self._routes_collection = routes_collection
+        self._workflows_collection = workflows_collection
         self._config_versioner = config_versioner
 
     async def write_config(self, config: PersistedConfig) -> None:
-        """Upsert all models, routes, and workflows from the given config.
+        """Replace all models, routes, and workflows with the given config.
+
+        Drops every existing entity across all three collections before inserting
+        the new ones, so entities absent from the new config do not linger.
 
         Args:
             config: The resolved configuration containing derived models, routes,
                 and workflows to persist.
         """
+        log.info("Removing old config from DB ...")
+        await self._models_collection.delete_many({})
+        await self._routes_collection.delete_many({})
+        await self._workflows_collection.delete_many({})
         log.info("Persisting transformation configuration to the database.")
-        for model in config.models:
-            await self._model_dao.upsert(model)
-        for route in config.routes:
-            await self._route_dao.upsert(route)
-        for workflow in config.workflows:
-            await self._workflow_dao.upsert(workflow)
+        await self._models_collection.insert_many(
+            _to_document(model) for model in config.models
+        )
+        await self._routes_collection.insert_many(
+            _to_document(route) for route in config.routes
+        )
+        await self._workflows_collection.insert_many(
+            _to_document(workflow) for workflow in config.workflows
+        )
         await self._config_versioner.increment_version()
         log.info("Transformation configuration persisted successfully.")

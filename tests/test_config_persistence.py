@@ -24,7 +24,7 @@ from emts.adapters.outbound.config_loader import ConfigLoaderAdapter
 from emts.core.config_comparison import compare_configs
 from emts.core.config_validation import validate
 from emts.core.model_derivation import derive_models
-from emts.core.models import Model, ModelBase, PersistedConfig, RawConfig
+from emts.core.models import Model, ModelBase, PersistedConfig, ValidatedConfig
 from tests.fixtures.examples import MOCK_SCHEMA, VALID_CONFIGS
 from tests.fixtures.joint import JointFixture
 
@@ -54,10 +54,9 @@ def _assert_same_config(a: PersistedConfig, b: PersistedConfig) -> None:
     )
 
 
-@pytest.fixture
-def persisted_config(joint_fixture: JointFixture) -> PersistedConfig:
+def _resolve_config(loader: ConfigLoaderAdapter, config_path: Path) -> PersistedConfig:
     """Produce a fully resolved PersistedConfig through the real pipeline."""
-    raw_config = joint_fixture.loader.load_config_from_file(BASIC_CONFIG_PATH)
+    raw_config = loader.load_config_from_file(config_path)
     validated_config = validate(raw_config)
     derived_models = derive_models(validated_config)
     return PersistedConfig(
@@ -65,6 +64,13 @@ def persisted_config(joint_fixture: JointFixture) -> PersistedConfig:
         routes=validated_config.routes,
         workflows=validated_config.workflows,
     )
+
+
+@pytest.fixture
+def persisted_config(joint_fixture: JointFixture) -> PersistedConfig:
+    """Produce a fully resolved PersistedConfig through the real pipeline."""
+    assert isinstance(joint_fixture.loader, ConfigLoaderAdapter)
+    return _resolve_config(joint_fixture.loader, BASIC_CONFIG_PATH)
 
 
 @pytest.mark.asyncio()
@@ -83,12 +89,12 @@ async def test_load_and_compare(
     joint_fixture: JointFixture,
 ):
     """Ensure loading from YAML and comparing against the persisted state returns the
-    expected RawConfig (changed) or PersistedConfig (unchanged) variant.
+    expected ValidatedConfig (changed) or PersistedConfig (unchanged) variant.
     """
     loader = joint_fixture.loader
 
-    first_raw = loader.load_config_from_file(old_config_path)
-    seed = compare_configs(first_raw, await loader.load_config_from_db())
+    first_validated = validate(loader.load_config_from_file(old_config_path))
+    seed = compare_configs(first_validated, await loader.load_config_from_db())
 
     await joint_fixture.insert_config(
         PersistedConfig(
@@ -101,25 +107,25 @@ async def test_load_and_compare(
         )
     )
 
-    second_raw = loader.load_config_from_file(new_config_path)
-    result = compare_configs(second_raw, await loader.load_config_from_db())
-    assert isinstance(result, RawConfig if changed else PersistedConfig)
+    second_validated = validate(loader.load_config_from_file(new_config_path))
+    result = compare_configs(second_validated, await loader.load_config_from_db())
+    assert isinstance(result, ValidatedConfig if changed else PersistedConfig)
 
 
 def test_compare_is_order_insensitive(loader: ConfigLoaderAdapter):
     """Ensure list ordering does not affect config comparison outcome."""
-    raw_config = loader.load_config_from_file(BASIC_CONFIG_PATH)
+    validated_config = validate(loader.load_config_from_file(BASIC_CONFIG_PATH))
     persisted_models = [
         _model_with_mocked_schema(rm, order)
-        for order, rm in enumerate(raw_config.models)
+        for order, rm in enumerate(validated_config.models)
     ]
 
     reordered = PersistedConfig(
         models=list(reversed(persisted_models)),
-        routes=list(reversed(raw_config.routes)),
-        workflows=list(reversed(raw_config.workflows)),
+        routes=list(reversed(validated_config.routes)),
+        workflows=list(reversed(validated_config.workflows)),
     )
-    assert isinstance(compare_configs(raw_config, reordered), PersistedConfig)
+    assert isinstance(compare_configs(validated_config, reordered), PersistedConfig)
 
 
 @pytest.mark.asyncio()
@@ -129,8 +135,8 @@ async def test_write_config_round_trip(
     persisted_config: PersistedConfig,
     write_twice: bool,
 ):
-    """Ensure write_config upserts entities and the round-trip preserves them. Calling
-    twice with the same config must not raise (upsert semantics).
+    """Ensure write_config persists entities and the round-trip preserves them. Calling
+    twice with the same config must not raise (drop-then-insert replaces cleanly).
     """
     await joint_fixture.writer.write_config(persisted_config)
     if write_twice:
@@ -142,3 +148,34 @@ async def test_write_config_round_trip(
     stored_by_name = {m.name: m for m in stored_config.models}
     for model in persisted_config.models:
         assert is_equal_schemapack(model.schema_, stored_by_name[model.name].schema_)
+
+
+@pytest.mark.asyncio()
+async def test_write_config_drops_removed_entities(
+    joint_fixture: JointFixture,
+    persisted_config: PersistedConfig,
+):
+    """A subsequent write with fewer entities must drop those no longer present,
+    rather than leaving stale entities behind.
+    """
+    # Extend the config with one stale entity per collection to later drop.
+    extended_config = PersistedConfig(
+        models=[
+            *persisted_config.models,
+            persisted_config.models[0].model_copy(update={"name": "stale_model"}),
+        ],
+        routes=[
+            *persisted_config.routes,
+            persisted_config.routes[0].model_copy(update={"name": "stale_route"}),
+        ],
+        workflows=[
+            *persisted_config.workflows,
+            persisted_config.workflows[0].model_copy(update={"name": "stale_workflow"}),
+        ],
+    )
+    await joint_fixture.writer.write_config(extended_config)
+
+    await joint_fixture.writer.write_config(persisted_config)
+
+    stored_config = await joint_fixture.loader.load_config_from_db()
+    _assert_same_config(stored_config, persisted_config)

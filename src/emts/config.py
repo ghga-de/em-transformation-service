@@ -45,9 +45,13 @@ class Config(
         default=60,
         description="Seconds to sleep when no unprocessed AEMPacks are found.",
     )
-    worker_id: str = Field(
-        default=...,
-        description="Unique identifier for a service instance used specifically for the reclamation logic.",
+    claim_ttl_seconds: int = Field(
+        default=300,
+        description=(
+            "Seconds after which a claimed but unprocessed AEMPack is considered"
+            " stale and may be reclaimed by another instance. Must be chosen well"
+            " above the worst-case processing time."
+        ),
     )
     config_lock_expiry_seconds: int = Field(
         default=120,

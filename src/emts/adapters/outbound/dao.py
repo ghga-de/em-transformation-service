@@ -21,6 +21,11 @@ from hexkit.providers.mongodb import MongoDbIndex
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
+from emts.constants import (
+    MODELS_COLLECTION,
+    ROUTES_COLLECTION,
+    WORKFLOWS_COLLECTION,
+)
 from emts.core import models
 from emts.core.models import AEMPack, AEMPackStatusEvent
 from emts.ports.outbound.dao import (
@@ -34,21 +39,21 @@ from emts.ports.outbound.dao import (
 async def get_persisted_model_dao(*, dao_factory: DaoFactoryProtocol) -> ModelDao:
     """Setup the Persisted Model DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
-        name="models", dto_model=models.Model, id_field="name"
+        name=MODELS_COLLECTION, dto_model=models.Model, id_field="name"
     )
 
 
 async def get_workflow_dao(*, dao_factory: DaoFactoryProtocol) -> WorkflowDao:
     """Setup the Workflow DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
-        name="workflows", dto_model=models.Workflow, id_field="name"
+        name=WORKFLOWS_COLLECTION, dto_model=models.Workflow, id_field="name"
     )
 
 
 async def get_route_dao(*, dao_factory: DaoFactoryProtocol) -> RouteDao:
     """Setup the Route DAO using the specified provider of the DaoFactoryProtocol."""
     return await dao_factory.get_dao(
-        name="routes", dto_model=models.Route, id_field="name"
+        name=ROUTES_COLLECTION, dto_model=models.Route, id_field="name"
     )
 
 

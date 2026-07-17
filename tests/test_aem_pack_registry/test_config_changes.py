@@ -75,22 +75,21 @@ async def test_unreachable_pack_deleted_after_route_removal(
         workflows=config.workflows,
     )
 
-    # Re-process same ingress
-    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
-    unprocessed = await queue_and_claim(
-        registry=registry,
-        pack=ingress,
-    )
+    # Simulates picking up a pack for reprocessing after a config change
+    await registry._incoming_aem_pack_queue.mark_all_for_reprocessing()
+    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert reclaimed is not None
+    assert reclaimed.id == aem_id
     # Inject the modified config directly — update_config won't overwrite it
     # because the DB version hasn't changed.
     config_updater = registry._config_updater
     assert isinstance(config_updater, ConfigUpdater)
     config_updater._current_config = new_config
     caplog.clear()
-    with caplog.at_level(logging.WARNING, logger="emts.core.aem_pack_registry"):
+    with caplog.at_level(logging.INFO, logger="emts.core.aem_pack_registry"):
         await registry._process_next_aem_pack(
-            incoming_aem=unprocessed,
-            correlation_id=unprocessed.correlation_id,
+            incoming_aem=reclaimed,
+            correlation_id=reclaimed.correlation_id,
         )
 
     # DerivedModel3 deleted (unreachable), DerivedModel1 and DerivedModel2 remain
@@ -101,7 +100,7 @@ async def test_unreachable_pack_deleted_after_route_removal(
         "DerivedModel2",
     }
 
-    # "no longer exists" warning logged for removed model
+    # "no longer exists" message logged for removed model
     assert any(
         "no longer exists in the config" in record.message
         and str(deleted_pack_id) in record.message
@@ -151,20 +150,19 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         workflows=config.workflows,
     )
 
-    # Re-process same ingress with modified config
-    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
-    unprocessed = await queue_and_claim(
-        registry=registry,
-        pack=ingress,
-    )
+    # Simulates picking up a pack for reprocessing after a config change
+    await registry._incoming_aem_pack_queue.mark_all_for_reprocessing()
+    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert reclaimed is not None
+    assert reclaimed.id == aem_id
     config_updater = registry._config_updater
     assert isinstance(config_updater, ConfigUpdater)
     config_updater._current_config = new_config
     caplog.clear()
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.INFO):
         await registry._process_next_aem_pack(
-            incoming_aem=unprocessed,
-            correlation_id=unprocessed.correlation_id,
+            incoming_aem=reclaimed,
+            correlation_id=reclaimed.correlation_id,
         )
 
     # DerivedModel3 pack deleted, DerivedModel1 and DerivedModel2 remain
@@ -175,7 +173,7 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
         "DerivedModel2",
     }
 
-    # Correct warning logged (not the "no longer exists" variant)
+    # Correct message logged (not the "no longer exists" variant)
     assert any(
         "no longer reachable from its previous original ID" in record.message
         and str(orphaned_pack.id) in record.message
@@ -183,11 +181,12 @@ async def test_orphaned_pack_cleaned_up_when_model_still_exists(
     )
 
 
-async def test_pack_freed_when_config_changes_mid_processing(
+async def test_initial_pack_freed_when_config_changes(
     joint_fixture: JointFixture,
-    caplog: pytest.LogCaptureFixture,
 ):
-    """Ensure an in-flight AEMPack is freed for reprocessing when the graph config changes."""
+    """Ensure initial packs (no prior derived packs) are freed for reprocessing, not published,
+    when the graph config changes mid-processing.
+    """
     registry = await joint_fixture.seeded_registry(
         AEM_PACK_REGISTRY_CONFIGS["single_route"], publish_models={"DerivedModel1"}
     )
@@ -197,8 +196,56 @@ async def test_pack_freed_when_config_changes_mid_processing(
     ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
     claimed = await queue_and_claim(registry=registry, pack=ingress)
 
-    # Simulate a config change occurring mid-processing by bumping the version
-    # the versioner reports on its second call.
+    config_updater = registry._config_updater
+    assert isinstance(config_updater, ConfigUpdater)
+    await config_updater.update_config()
+    version = config_updater.known_version
+    with patch.object(
+        config_updater._versioner,
+        "get_version",
+        AsyncMock(side_effect=[version, version + 1]),
+    ):
+        await registry._process_next_aem_pack(
+            incoming_aem=claimed,
+            correlation_id=claimed.correlation_id,
+        )
+
+    # Nothing published: the mid-processing config change discards the derived result.
+    derived = await joint_fixture.derived_packs(pid)
+    assert len(derived) == 0
+
+    # Pack is freed (not marked processed), so it can be claimed again for reprocessing.
+    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert reclaimed is not None
+    assert reclaimed.id == aem_id
+
+
+async def test_pack_freed_when_config_changes_mid_reprocessing(
+    joint_fixture: JointFixture,
+    caplog: pytest.LogCaptureFixture,
+):
+    """Non-initial packs are freed for reprocessing when the graph config changes mid-flight."""
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["single_route"], publish_models={"DerivedModel1"}
+    )
+    aem_id = uuid4()
+    pid = str(uuid4())
+
+    # Process once so derived packs exist — this makes any subsequent claim non-initial.
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
+    first_claim = await queue_and_claim(registry=registry, pack=ingress)
+    await registry._process_next_aem_pack(
+        incoming_aem=first_claim,
+        correlation_id=first_claim.correlation_id,
+    )
+    assert len(await joint_fixture.derived_packs(pid)) == 1
+
+    # Simulate reprocessing triggered by a config change
+    await registry._incoming_aem_pack_queue.mark_all_for_reprocessing()
+    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert reclaimed is not None
+    assert reclaimed.id == aem_id
+
     config_updater = registry._config_updater
     assert isinstance(config_updater, ConfigUpdater)
     await config_updater.update_config()
@@ -212,18 +259,17 @@ async def test_pack_freed_when_config_changes_mid_processing(
         caplog.at_level(logging.INFO, logger="emts.core.aem_pack_registry"),
     ):
         await registry._process_next_aem_pack(
-            incoming_aem=claimed,
-            correlation_id=claimed.correlation_id,
+            incoming_aem=reclaimed,
+            correlation_id=reclaimed.correlation_id,
         )
 
-    # No derived packs should have been published
+    # No second publish; pack freed for reprocessing with the new config
     derived = await joint_fixture.derived_packs(pid)
-    assert len(derived) == 0
+    assert len(derived) == 1
 
-    # The pack must be available to claim again (freed, not marked processed)
-    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
-    assert reclaimed is not None
-    assert reclaimed.id == aem_id
+    re_reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert re_reclaimed is not None
+    assert re_reclaimed.id == aem_id
 
     assert any(
         "Graph config changed" in record.message and str(aem_id) in record.message

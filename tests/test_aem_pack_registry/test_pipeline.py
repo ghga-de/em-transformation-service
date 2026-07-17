@@ -50,7 +50,7 @@ async def test_chained_routes(joint_fixture: JointFixture):
     raw = await joint_fixture.incoming_doc(ingress.id)
     assert raw is not None
     assert raw["processed_at"] is not None
-    assert raw["processor"] is None
+    assert raw["claimed_at"] is None
 
 
 async def test_forking_graph(joint_fixture: JointFixture):
@@ -100,7 +100,7 @@ async def test_bottleneck(joint_fixture: JointFixture, ingress_name: str):
     raw = await joint_fixture.incoming_doc(ingress.id)
     assert raw is not None
     assert raw["processed_at"] is not None
-    assert raw["processor"] is None
+    assert raw["claimed_at"] is None
 
 
 async def test_multiple_independent_ingress_packs(joint_fixture: JointFixture):

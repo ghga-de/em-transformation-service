@@ -54,6 +54,7 @@ def _make_manager(
 
     incoming_aem_pack_queue = MagicMock(spec=IncomingAEMPackQueuePort)
     incoming_aem_pack_queue.mark_all_for_reprocessing = AsyncMock()
+    incoming_aem_pack_queue.extend_all_claims = AsyncMock()
 
     manager = ConfigManager(
         input_config_path=CONFIG_PATH,
@@ -77,6 +78,7 @@ async def test_lock_acquired_config_changed_marks_for_reprocessing():
     lock.try_acquire_lock.assert_awaited_once()
     updater.resolve_and_persist.assert_awaited_once_with(CONFIG_PATH)
     queue.mark_all_for_reprocessing.assert_awaited_once()
+    queue.extend_all_claims.assert_awaited_once()
     lock.release_lock.assert_awaited_once()
     lock.wait_for_lock_release.assert_not_awaited()
 
@@ -92,6 +94,8 @@ async def test_lock_acquired_config_unchanged_does_not_reprocess():
 
     updater.resolve_and_persist.assert_awaited_once_with(CONFIG_PATH)
     queue.mark_all_for_reprocessing.assert_not_awaited()
+    # Claims are compensated regardless of whether the config changed
+    queue.extend_all_claims.assert_awaited_once()
     lock.release_lock.assert_awaited_once()
 
 
@@ -107,6 +111,7 @@ async def test_lock_not_acquired_waits_for_release():
     lock.wait_for_lock_release.assert_awaited_once()
     updater.resolve_and_persist.assert_not_awaited()
     queue.mark_all_for_reprocessing.assert_not_awaited()
+    queue.extend_all_claims.assert_not_awaited()
     lock.release_lock.assert_not_awaited()
 
 
@@ -123,4 +128,5 @@ async def test_resolve_failure_releases_lock_and_propagates():
 
     updater.resolve_and_persist.assert_awaited_once_with(CONFIG_PATH)
     queue.mark_all_for_reprocessing.assert_not_awaited()
+    queue.extend_all_claims.assert_not_awaited()
     lock.release_lock.assert_awaited_once()

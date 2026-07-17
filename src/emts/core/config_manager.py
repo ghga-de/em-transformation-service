@@ -16,6 +16,7 @@
 """Startup-time orchestrator for the config update."""
 
 import logging
+import time
 from pathlib import Path
 
 from emts.core.config_updater import ConfigUpdater
@@ -51,6 +52,7 @@ class ConfigManager:
         acquire the lock just wait for the holder to finish.
         """
         await self._config_lock.setup_index()
+        await self._incoming_aem_pack_queue.create_claim_indexes()
         if not await self._config_lock.try_acquire_lock():
             await self._config_lock.wait_for_lock_release()
             log.info("Update lock released, loading persisted config.")
@@ -58,11 +60,17 @@ class ConfigManager:
 
         try:
             log.info("Lock acquired, starting config update.")
+            held_since = time.monotonic()
             config_has_changed = await self._config_updater.resolve_and_persist(
                 self._input_config_path
             )
             if config_has_changed:
                 await self._incoming_aem_pack_queue.mark_all_for_reprocessing()
+            # Compensate for potentially waiting by extending the TTL of claimed AEMPacks
+            # by the actual wait time
+            await self._incoming_aem_pack_queue.extend_all_claims(
+                round(time.monotonic() - held_since)
+            )
             log.info("Config validation/update finished.")
         finally:
             # On failure, the lock is simply freed and updating can be retried

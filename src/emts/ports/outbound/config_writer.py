@@ -25,7 +25,7 @@ class ConfigWriterPort(ABC):
 
     @abstractmethod
     async def write_config(self, config: PersistedConfig) -> None:
-        """Upsert all models, routes, and workflows from the given config.
+        """Replace all models, routes, and workflows with the given config.
 
         Args:
             config: The resolved configuration containing derived models, routes,

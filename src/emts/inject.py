@@ -18,6 +18,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from uuid import uuid4
 
 from hexkit.providers.akafka import (
     ComboTranslator,
@@ -46,6 +47,9 @@ from emts.constants import (
     CONFIG_LOCK_COLLECTION,
     CONFIG_VERSION_COLLECTION,
     INCOMING_AEM_PACK_COLLECTION,
+    MODELS_COLLECTION,
+    ROUTES_COLLECTION,
+    WORKFLOWS_COLLECTION,
 )
 from emts.core.aem_pack_registry import AEMPackRegistry
 from emts.core.config_manager import ConfigManager
@@ -104,9 +108,9 @@ async def _prepare_base_wiring(
         model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
     )
     writer = ConfigWriterAdapter(
-        model_dao=model_dao,
-        route_dao=route_dao,
-        workflow_dao=workflow_dao,
+        models_collection=db[MODELS_COLLECTION],
+        routes_collection=db[ROUTES_COLLECTION],
+        workflows_collection=db[WORKFLOWS_COLLECTION],
         config_versioner=versioner,
     )
     config_updater = ConfigUpdater(
@@ -114,15 +118,19 @@ async def _prepare_base_wiring(
         versioner=versioner,
         writer=writer,
     )
+    # Non-persistent identity for the config lock holder. Crashed lock documents are
+    # automatically expired after a timeout period.
+    worker_id = str(uuid4())
     config_lock = ConfigLockAdapter(
         collection=db[CONFIG_LOCK_COLLECTION],
-        worker_id=config.worker_id,
+        worker_id=worker_id,
         lock_expiry_seconds=config.config_lock_expiry_seconds,
         poll_interval=config.config_lock_poll_interval,
         timeout=config.config_lock_timeout,
     )
     incoming_aem_pack_queue = IncomingAEMPackQueue(
-        collection=db[INCOMING_AEM_PACK_COLLECTION], worker_id=config.worker_id
+        collection=db[INCOMING_AEM_PACK_COLLECTION],
+        claim_ttl_seconds=config.claim_ttl_seconds,
     )
     yield _BaseWiring(
         config_updater=config_updater,

@@ -94,8 +94,9 @@ async def test_published_aem_packs_deleted_after_processing(
     )
     aem_id = uuid4()
 
-    # pid=str(aem_id) ensures delete_aem_packs can find derived packs via str(incoming_aem_id)
-    pack = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=str(aem_id))
+    pack = make_ingress_pack(
+        model_name="IngressModel", aem_id=aem_id, pid="ingress-pid-abc"
+    )
     claimed = await process_pack(registry, pack)
     assert len(await joint_fixture.derived_packs(pack.pid)) == 1
 
@@ -104,3 +105,53 @@ async def test_published_aem_packs_deleted_after_processing(
 
     assert len(await joint_fixture.derived_packs(pack.pid)) == 0
     assert await joint_fixture.incoming_doc(aem_id) is None
+
+
+async def test_deletion_racing_reprocessing_leaves_no_orphans_or_processed_event(
+    joint_fixture: JointFixture,
+):
+    """A deletion racing an in-flight reprocessing must leave no orphaned derived packs
+    and emit no PROCESSED event.
+
+    Pruning of descendants is the deletion event handler's responsibility
+    (delete_aem_pack_and_descendants), not the processing loop's. The loop's only job on
+    a deletion is to detect it and refrain from republishing, so the pruned descendants
+    stay gone.
+    """
+    registry = await joint_fixture.seeded_registry(
+        AEM_PACK_REGISTRY_CONFIGS["single_route"], publish_models={"DerivedModel1"}
+    )
+    aem_id = uuid4()
+    pid = str(uuid4())
+
+    # Process once so a derived pack exists — this makes the reclaim non-initial.
+    ingress = make_ingress_pack(model_name="IngressModel", aem_id=aem_id, pid=pid)
+    await process_pack(registry, ingress)
+    assert len(await joint_fixture.derived_packs(pid)) == 1
+
+    # Reclaim for reprocessing: the worker now holds the claim and is in flight.
+    await registry._incoming_aem_pack_queue.mark_all_for_reprocessing()
+    reclaimed = await registry._incoming_aem_pack_queue.claim_next()
+    assert reclaimed is not None
+    assert reclaimed.id == aem_id
+
+    # The deletion event lands mid-flight and takes the real path: it prunes the
+    # descendants and removes the incoming doc.
+    async with set_correlation_id(reclaimed.correlation_id):
+        await registry.delete_aem_pack_and_descendants(incoming_aem_id=aem_id)
+    assert len(await joint_fixture.derived_packs(pid)) == 0
+
+    # The in-flight worker finishes: it must observe the deletion and not republish.
+    async with joint_fixture.kafka.record_events(
+        in_topic=joint_fixture.config.aem_pack_processing_status_topic
+    ) as recorder:
+        await registry._process_next_aem_pack(
+            incoming_aem=reclaimed,
+            correlation_id=reclaimed.correlation_id,
+        )
+
+    # No PROCESSED event, and no derived packs were resurrected.
+    assert all(
+        event.payload["status"] != "processed" for event in recorder.recorded_events
+    )
+    assert len(await joint_fixture.derived_packs(pid)) == 0

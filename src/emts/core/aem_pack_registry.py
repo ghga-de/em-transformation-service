@@ -17,6 +17,7 @@
 
 import asyncio
 import logging
+import time
 from typing import Any
 from uuid import uuid4
 
@@ -104,10 +105,13 @@ class AEMPackRegistry(AEMPackRegistryPort):
             raise
 
         stored = await self._incoming_aem_pack_queue.queue(aem_pack)
+        # If the service crashes here, the next block isn't executed on restart
+        # If outbox behavior changes to inspect the payload and only publishes if the
+        # payload changes, we could make this unconditional without it being potentially noisy
         if stored:
             # Only emitted once the pack is actually accepted (a strictly newer
             # version); rejected republishes do not produce a status event.
-            await self._status_event_dao.insert(
+            await self._status_event_dao.upsert(
                 AEMPackStatusEvent(
                     pid=aem_pack.pid,
                     model_name=aem_pack.model_name,
@@ -123,8 +127,14 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
             claimed = await self._incoming_aem_pack_queue.claim_next()
             if claimed:
+                start = time.monotonic()
                 await self._process_next_aem_pack(
                     incoming_aem=claimed, correlation_id=claimed.correlation_id
+                )
+                log.info(
+                    "Finished handling AEMPack '%s' in %.1fs.",
+                    claimed.id,
+                    time.monotonic() - start,
                 )
             else:
                 log.info(
@@ -143,6 +153,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 mapping={"pid": incoming_aem.pid}
             )
         }
+        # True when no derived packs exist yet: publish regardless of supersession,
+        # so consumers receive the first pack asap.
+        is_initial = not dirty_map
         transformed_map: dict[str, AEMPack] = {incoming_aem.model_name: incoming_aem}
 
         await self._config_lock.wait_for_lock_release()
@@ -178,7 +191,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
             # Publish before updating queue state: a crash after publishing only causes
             # a reprocess that republishes (at-least-once), never a lost failure event.
             async with set_correlation_id(correlation_id):
-                await self._status_event_dao.insert(
+                await self._status_event_dao.upsert(
                     AEMPackStatusEvent(
                         pid=error.pid,
                         model_name=error.model_name,
@@ -189,7 +202,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                         error_message=error_message,
                     )
                 )
-            await self._incoming_aem_pack_queue.mark_as_failed(incoming_aem.id)
+            await self._incoming_aem_pack_queue.mark_as_failed(
+                incoming_aem.id, incoming_aem.version
+            )
             return
 
         await self._config_lock.wait_for_lock_release()
@@ -198,19 +213,32 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
         if version_after != version_before:
             log.info(
-                "Graph config changed while processing AEMPack '%s'.\n"
-                + "Discarding changes and freeing for reprocessing with new config",
+                "Graph config changed while processing AEMPack '%s'."
+                " Discarding changes and freeing for reprocessing with new config.",
                 incoming_aem.id,
             )
             await self._incoming_aem_pack_queue.free(incoming_aem.id)
             return
 
-        aem_packs_to_publish = await self._prune_derived_aem_packs_on_delete(
-            incoming_aem_id=incoming_aem.id,
-            pid=incoming_aem.pid,
-            aem_packs_to_publish=aem_packs_to_publish,
-            dirty_map=dirty_map,
-        )
+        # Early abort for concurrent processors. This is best-effort only.
+        # Different workers can enter the subsequent block as long as the final state
+        # hasn't been committed.
+        if (
+            await self._incoming_aem_pack_queue.is_superseded_or_processed(
+                incoming_aem.id, incoming_aem.version
+            )
+            and not is_initial
+        ):
+            log.info(
+                "AEMPack '%s' (version %d) was superseded by a newer version or already"
+                " processed by another instance. Discarding stale derived results.",
+                incoming_aem.id,
+                incoming_aem.version,
+            )
+            # Release the claim so a superseding version is picked up immediately
+            # rather than waiting for the TTL.
+            await self._incoming_aem_pack_queue.free(incoming_aem.id)
+            return
 
         async with set_correlation_id(correlation_id):
             if dirty_map:
@@ -222,14 +250,24 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 models_by_name = {model.name: model for model in config.models}
                 for model_name, aem_pack_id in dirty_map.items():
                     if models_by_name.get(model_name):
-                        log.warning(
+                        log.info(
                             f"Derived AEMPack with id {aem_pack_id} is no longer reachable from its previous original ID. Removing."
                         )
                     else:
-                        log.warning(
+                        log.info(
                             f"Model with name {model_name} no longer exists in the config, previously derived AEMPack with id {aem_pack_id} is no longer valid. Removing."
                         )
                     await self._aem_pack_dao.delete(aem_pack_id)
+
+            if await self._incoming_aem_pack_queue.is_marked_or_deleted(
+                incoming_aem.id
+            ):
+                log.info(
+                    "AEMPack '%s' is marked for deletion or already deleted.",
+                    incoming_aem.id,
+                )
+                await self._incoming_aem_pack_queue.free(incoming_aem.id)
+                return
 
             for aem_pack in aem_packs_to_publish:
                 log.info("Upserting derived AEMPack %s.", aem_pack.id)
@@ -237,7 +275,7 @@ class AEMPackRegistry(AEMPackRegistryPort):
 
             # Published before marking processed: a crash after publishing only causes
             # a reprocess that republishes (at-least-once), never a lost status event.
-            await self._status_event_dao.insert(
+            await self._status_event_dao.upsert(
                 AEMPackStatusEvent(
                     pid=incoming_aem.pid,
                     model_name=incoming_aem.model_name,
@@ -246,42 +284,9 @@ class AEMPackRegistry(AEMPackRegistryPort):
                 )
             )
 
-        await self._incoming_aem_pack_queue.mark_processed(incoming_aem.id)
-
-    async def _prune_derived_aem_packs_on_delete(
-        self,
-        incoming_aem_id: UUID4,
-        pid: str,
-        aem_packs_to_publish: list[AEMPack],
-        dirty_map: dict[str, UUID4],
-    ) -> list[AEMPack]:
-        """Prune derived AEMPacks when the original AEMPack is marked for deletion.
-        This handles the case where an original AEMPack is marked for deletion after
-        it was claimed for processing but before the processing is completed.
-        Mutates dirty_map in place to include all existing derived AEMPacks for deletion.
-        """
-        if not aem_packs_to_publish:
-            return aem_packs_to_publish
-
-        if not await self._incoming_aem_pack_queue.is_marked_or_deleted(
-            incoming_aem_id
-        ):
-            return aem_packs_to_publish
-
-        log.warning(
-            f"Original AEMPack with id {incoming_aem_id} is marked for deletion. Pruning derived AEMPacks."
+        await self._incoming_aem_pack_queue.mark_processed(
+            incoming_aem.id, incoming_aem.version
         )
-
-        # Mark only packs that already exist in the DAO for deletion.
-        # Newly-derived packs (never upserted) are simply dropped.
-        dirty_map.update(
-            {
-                pack.model_name: pack.id
-                async for pack in self._aem_pack_dao.find_all(mapping={"pid": pid})
-            }
-        )
-
-        return []
 
     def _traverse_graph(
         self,
@@ -404,13 +409,21 @@ class AEMPackRegistry(AEMPackRegistryPort):
         This also signals to any ongoing processing that derived AEMPacks should not be published.
         Then hard-deletes the incoming AEMPack along with all its descendants, if any.
         """
+        # Read the incoming pack up front, it is no longer retrievable once the pack is
+        # hard-deleted below.
+        incoming_aem = await self._incoming_aem_pack_queue.get(incoming_aem_id)
+
+        # Nothing was queued under this id, so there are no descendants to prune.
+        if incoming_aem is None:
+            return
+
         # clean up the queue
         await self._soft_delete_aem_pack(incoming_aem_id)
         await self._hard_delete_aem_pack(incoming_aem_id)
 
         # clean up the aem_packs derived from the deleted one
         async for aem_pack in self._aem_pack_dao.find_all(
-            mapping={"pid": str(incoming_aem_id)}
+            mapping={"pid": incoming_aem.pid}
         ):
             await self._aem_pack_dao.delete(aem_pack.id)
 
