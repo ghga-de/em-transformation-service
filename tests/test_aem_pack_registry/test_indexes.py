@@ -41,7 +41,7 @@ async def test_ensure_indexes_creates_claim_indexes_and_is_idempotent(
     await queue.create_claim_indexes()
     await queue.create_claim_indexes()
 
-    info = await joint_fixture.incoming_aem_pack_collection.index_information()
+    info = await joint_fixture.incoming_aem_packs.index_information()
     key_sets = {tuple(tuple(part) for part in spec["key"]) for spec in info.values()}
 
     # Claim query (fresh and stale claims alike).

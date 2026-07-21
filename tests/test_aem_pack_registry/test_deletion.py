@@ -38,7 +38,7 @@ async def test_mark_for_deletion_sets_tombstone(
 
     await registry._soft_delete_aem_pack(pack.id)
 
-    raw = await joint_fixture.incoming_aem_pack_collection.find_one(
+    raw = await joint_fixture.incoming_aem_packs.find_one(
         {"_id": pack.id, TOMBSTONE_FIELD: True}
     )
     assert raw is not None

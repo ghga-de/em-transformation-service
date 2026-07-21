@@ -106,9 +106,7 @@ async def test_double_queue_before_processing_stays_claimable(
     assert raw["processed_at"] is None
     assert raw["annotation"] == {}
 
-    count = await joint_fixture.incoming_aem_pack_collection.count_documents(
-        {"_id": aem_id}
-    )
+    count = await joint_fixture.incoming_aem_packs.count_documents({"_id": aem_id})
     assert count == 1
 
 
@@ -339,7 +337,7 @@ async def test_newer_version_reprocessed_after_stale_claim_discarded(
 
     # v1's claim ages past the TTL, so the next claim reclaims the doc
     # and processing it publishes v2's derived packs.
-    await joint_fixture.incoming_aem_pack_collection.update_one(
+    await joint_fixture.incoming_aem_packs.update_one(
         {"_id": aem_id},
         {"$set": {"claimed_at": datetime.now(UTC) - timedelta(seconds=600)}},
     )

@@ -45,14 +45,14 @@ class ConfigWriterAdapter(ConfigWriterPort):
     def __init__(
         self,
         *,
-        models_collection: AsyncCollection,
-        routes_collection: AsyncCollection,
-        workflows_collection: AsyncCollection,
+        models: AsyncCollection,
+        routes: AsyncCollection,
+        workflows: AsyncCollection,
         config_versioner: ConfigVersionerPort,
     ):
-        self._models_collection = models_collection
-        self._routes_collection = routes_collection
-        self._workflows_collection = workflows_collection
+        self._models = models
+        self._routes = routes
+        self._workflows = workflows
         self._config_versioner = config_versioner
 
     async def write_config(self, config: PersistedConfig) -> None:
@@ -66,17 +66,13 @@ class ConfigWriterAdapter(ConfigWriterPort):
                 and workflows to persist.
         """
         log.info("Removing old config from DB ...")
-        await self._models_collection.delete_many({})
-        await self._routes_collection.delete_many({})
-        await self._workflows_collection.delete_many({})
+        await self._models.delete_many({})
+        await self._routes.delete_many({})
+        await self._workflows.delete_many({})
         log.info("Persisting transformation configuration to the database.")
-        await self._models_collection.insert_many(
-            _to_document(model) for model in config.models
-        )
-        await self._routes_collection.insert_many(
-            _to_document(route) for route in config.routes
-        )
-        await self._workflows_collection.insert_many(
+        await self._models.insert_many(_to_document(model) for model in config.models)
+        await self._routes.insert_many(_to_document(route) for route in config.routes)
+        await self._workflows.insert_many(
             _to_document(workflow) for workflow in config.workflows
         )
         await self._config_versioner.increment_version()
