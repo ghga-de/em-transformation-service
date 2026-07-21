@@ -42,7 +42,7 @@ async def _set_claimed_at(
     joint_fixture: JointFixture, aem_id, seconds_ago: int
 ) -> None:
     """Force a doc's claim to look ``seconds_ago`` old."""
-    await joint_fixture.incoming_aem_pack_collection.update_one(
+    await joint_fixture.incoming_aem_packs.update_one(
         {"_id": aem_id}, {"$set": {CLAIMED_AT_FIELD: _ago(seconds_ago)}}
     )
 
@@ -88,7 +88,7 @@ async def test_claim_priority_fresh_then_stale_then_reprocess(
     for pack in (fresh, stale, reprocess):
         await queue_pack(registry, pack)
 
-    coll = joint_fixture.incoming_aem_pack_collection
+    coll = joint_fixture.incoming_aem_packs
     await coll.update_one({"_id": stale.id}, {"$set": {CLAIMED_AT_FIELD: _ago(600)}})
     await coll.update_one(
         {"_id": reprocess.id},

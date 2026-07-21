@@ -108,9 +108,9 @@ async def _prepare_base_wiring(
         model_dao=model_dao, route_dao=route_dao, workflow_dao=workflow_dao
     )
     writer = ConfigWriterAdapter(
-        models_collection=db[MODELS_COLLECTION],
-        routes_collection=db[ROUTES_COLLECTION],
-        workflows_collection=db[WORKFLOWS_COLLECTION],
+        models=db[MODELS_COLLECTION],
+        routes=db[ROUTES_COLLECTION],
+        workflows=db[WORKFLOWS_COLLECTION],
         config_versioner=versioner,
     )
     config_updater = ConfigUpdater(

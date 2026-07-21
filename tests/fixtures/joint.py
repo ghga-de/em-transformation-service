@@ -71,7 +71,7 @@ class JointFixture:
     aem_pack_registry: AEMPackRegistry
     config: Config
     daos: DAOs
-    incoming_aem_pack_collection: AsyncCollection
+    incoming_aem_packs: AsyncCollection
     kafka: KafkaFixture
     loader: ConfigLoaderPort
     writer: ConfigWriterPort
@@ -111,7 +111,7 @@ class JointFixture:
 
     async def incoming_doc(self, aem_id: UUID) -> dict[str, Any] | None:
         """Raw incoming-AEMPack document by id, or None if absent."""
-        return await self.incoming_aem_pack_collection.find_one({"_id": aem_id})
+        return await self.incoming_aem_packs.find_one({"_id": aem_id})
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -135,7 +135,7 @@ async def joint_fixture(
                 route_dao=wiring.route_dao,
                 workflow_dao=wiring.workflow_dao,
             ),
-            incoming_aem_pack_collection=wiring.mongo_client[config.db_name][
+            incoming_aem_packs=wiring.mongo_client[config.db_name][
                 INCOMING_AEM_PACK_COLLECTION
             ],
             kafka=kafka,
