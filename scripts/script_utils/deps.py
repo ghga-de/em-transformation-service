@@ -1,4 +1,4 @@
-# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -71,5 +71,4 @@ def get_modified_pyproject(pyproject_toml_path: Path) -> dict[str, Any]:
     with open(pyproject_toml_path, "rb") as pyproject_toml:
         pyproject = tomllib.load(pyproject_toml)
 
-    modified_pyproject = remove_self_dependencies(pyproject)
-    return modified_pyproject
+    return remove_self_dependencies(pyproject)

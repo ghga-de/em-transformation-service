@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,11 +33,7 @@ LOCK_FILE_PATH = REPO_ROOT_DIR / "lock" / "requirements-dev.txt"
 
 def make_dependency_dict(requirements: list[Requirement]) -> dict[str, str]:
     """Accept a list of Requirement objects and convert to dict"""
-    processed = {
-        req.name: str(req.specifier).removeprefix("==") for req in requirements
-    }
-
-    return processed
+    return {req.name: str(req.specifier).removeprefix("==") for req in requirements}
 
 
 def get_repl_value(match, dependencies: dict[str, str], outdated_hooks: list[str]):

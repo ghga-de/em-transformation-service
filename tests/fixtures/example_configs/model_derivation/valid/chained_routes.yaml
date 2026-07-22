@@ -1,0 +1,69 @@
+# Chained routes: IngressModel(ingress) → DerivedModel1 → DerivedModel2 via preserve_content.
+#
+# Graph:
+#     IngressModel → DerivedModel1 → DerivedModel2
+
+models:
+  - name: IngressModel
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: &file_content {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: DerivedModel1
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
+
+  - name: DerivedModel2
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 2
+    schema_: null
+
+workflows:
+  - name: preserve_content
+    description: Passes content schema through unchanged
+    workflow:
+      operations:
+        - name: transform_content
+          description: Identity transformation
+          args:
+            class_name: File
+            content_schema: *file_content
+            embedding_profile: {}
+            content_template_yaml: |
+              {% for key in content_property_names %}
+                {{ key }}: {{ original[key] }}
+              {% endfor %}
+
+# Routes listed in reverse order to verify that topological sorting works
+routes:
+  - input_model_name: DerivedModel1
+    workflow_name: preserve_content
+    output_model_name: DerivedModel2
+
+  - input_model_name: IngressModel
+    workflow_name: preserve_content
+    output_model_name: DerivedModel1

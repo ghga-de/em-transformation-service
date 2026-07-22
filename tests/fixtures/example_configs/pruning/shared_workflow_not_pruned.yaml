@@ -1,0 +1,66 @@
+# A workflow referenced by both a pruned and a surviving route in different subgraphs is kept.
+#
+# Subgraph 1:
+#     UnpublishedSource --[shared_workflow]--> PublishedDerived
+#
+# Subgraph 2:
+#     PublishedSource --[shared_workflow]--> UnpublishedLeaf
+
+config:
+  models:
+    - name: UnpublishedSource
+      order: 0
+      publish: false
+      is_ingress: true
+      version: null
+      schema_: &item_schema
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+    - name: PublishedDerived
+      order: 1
+      publish: true
+      is_ingress: false
+      version: null
+      schema_: null
+    - name: PublishedSource
+      order: 2
+      publish: true
+      is_ingress: true
+      version: null
+      schema_: *item_schema
+    - name: UnpublishedLeaf
+      order: 3
+      publish: false
+      is_ingress: false
+      version: null
+      schema_: null
+  routes:
+    - input_model_name: UnpublishedSource
+      workflow_name: shared_workflow
+      output_model_name: PublishedDerived
+    - input_model_name: PublishedSource
+      workflow_name: shared_workflow
+      output_model_name: UnpublishedLeaf
+  workflows:
+    - name: shared_workflow
+      description: Passes content schema through unchanged
+      workflow:
+        operations:
+          - name: transform_content
+            description: Identity transformation
+            args:
+              class_name: Item
+              content_schema:
+                type: object
+                additionalProperties: false
+              embedding_profile: {}
+              content_template_yaml: |
+                {% for key in content_property_names %}
+                  {{ key }}: {{ original[key] }}
+                {% endfor %}

@@ -1,0 +1,44 @@
+# Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# for the German Human Genome-Phenome Archive (GHGA)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Shared pytest fixtures."""
+
+from unittest.mock import MagicMock
+
+import pytest
+from hexkit.providers.akafka.testutils import (  # noqa: F401
+    kafka_container_fixture,
+    kafka_fixture,
+)
+from hexkit.providers.mongodb.testutils import (  # noqa: F401
+    mongodb_container_fixture,
+    mongodb_fixture,
+)
+
+from emts.adapters.outbound.config_loader import ConfigLoaderAdapter
+from tests.fixtures.aem_pack import (
+    aem_pack_config,  # noqa: F401
+    mock_registry,  # noqa: F401
+)
+from tests.fixtures.joint import joint_fixture  # noqa: F401
+from tests.fixtures.mongo import mongo_collection  # noqa: F401
+
+
+@pytest.fixture
+def loader() -> ConfigLoaderAdapter:
+    """Lightweight loader for tests that only call load_config_from_file."""
+    return ConfigLoaderAdapter(
+        model_dao=MagicMock(), route_dao=MagicMock(), workflow_dao=MagicMock()
+    )

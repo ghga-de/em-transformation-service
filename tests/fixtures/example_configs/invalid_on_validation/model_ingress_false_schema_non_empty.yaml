@@ -1,0 +1,74 @@
+# Invalid: a non-ingress model defines a schema_ (only ingress models may define one).
+
+models:
+  - name: ingress_model
+    description: Ingress model
+    is_ingress: true
+    version: "1.0.0"
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        TestClass:
+          id:
+            propertyName: id
+          content:
+            $schema: "https://json-schema.org/draft/2020-12/schema"
+            additionalProperties: true
+            description: "Matching any object."
+            type: object
+    publish: false
+
+  - name: derived_model_with_schema
+    description: Non-ingress model that wrongly defines a schema_
+    is_ingress: false # <-
+    version: "2.0.0"
+    schema_: # <-
+      schemapack: "4.0.0"
+      classes:
+        OtherClass:
+          id:
+            propertyName: id
+          content:
+            $schema: "https://json-schema.org/draft/2020-12/schema"
+            additionalProperties: true
+            description: "Matching any object."
+            type: object
+    publish: false
+
+  - name: derived_model
+    description: Non-ingress model with publish true
+    is_ingress: false
+    version: "3.0.0"
+    schema_: null
+    publish: true
+
+
+workflows:
+  - name: duplicate_test_class
+    description: Duplicate TestClass
+    workflow:
+      operations:
+        - name: duplicate_class
+          description: Duplicate TestClass
+          args:
+            source_class_name: TestClass
+            target_class_name: TestClassCopy
+  - name: duplicate_other_class
+    description: Duplicate OtherClass
+    workflow:
+      operations:
+        - name: duplicate_class
+          description: Duplicate OtherClass
+          args:
+            source_class_name: OtherClass
+            target_class_name: OtherClassCopy
+
+routes:
+  - input_model_name: ingress_model
+    workflow_name: duplicate_test_class
+    output_model_name: derived_model_with_schema
+
+
+  - input_model_name: derived_model_with_schema
+    workflow_name: duplicate_other_class
+    output_model_name: derived_model

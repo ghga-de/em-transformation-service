@@ -1,0 +1,143 @@
+# Long chain: IngressModel → DerivedModel1 → DerivedModel2 → DerivedModel3 → DerivedModel4 → DerivedModel5
+#
+# Each route uses a different transformation type:
+#   IngressModel→DerivedModel1: rename_id_property (alias → file_id)
+#   DerivedModel1→DerivedModel2: duplicate_class (File → FileBackup)
+#   DerivedModel2→DerivedModel3: replace_resource_ids (File) — schema unchanged
+#   DerivedModel3→DerivedModel4: delete_class (FileBackup)
+#   DerivedModel4→DerivedModel5: transform_content (identity)
+
+models:
+  - name: IngressModel
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: &file_content {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: DerivedModel1
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
+
+  - name: DerivedModel2
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 2
+    schema_: null
+
+  - name: DerivedModel3
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 3
+    schema_: null
+
+  - name: DerivedModel4
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 4
+    schema_: null
+
+  - name: DerivedModel5
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 5
+    schema_: null
+
+workflows:
+  - name: rename_to_file_id
+    description: Renames the File id property from alias to file_id
+    workflow:
+      operations:
+        - name: rename_id_property
+          description: Rename id from alias to file_id
+          args:
+            class_name: File
+            id_property_name: file_id
+
+  - name: add_backup_class
+    description: Duplicates the File class as FileBackup
+    workflow:
+      operations:
+        - name: duplicate_class
+          description: Duplicate File as FileBackup
+          args:
+            source_class_name: File
+            target_class_name: FileBackup
+
+  - name: replace_file_ids
+    description: Replaces resource IDs for the File class
+    workflow:
+      operations:
+        - name: replace_resource_ids
+          description: Replace resource IDs
+          args:
+            class_name: File
+
+  - name: remove_backup_class
+    description: Deletes the FileBackup class
+    workflow:
+      operations:
+        - name: delete_class
+          description: Delete the FileBackup class
+          args:
+            class_name: FileBackup
+
+  - name: preserve_content
+    description: Passes content schema through unchanged
+    workflow:
+      operations:
+        - name: transform_content
+          description: Identity transformation
+          args:
+            class_name: File
+            content_schema: *file_content
+            embedding_profile: {}
+            content_template_yaml: |
+              {% for key in content_property_names %}
+                {{ key }}: {{ original[key] }}
+              {% endfor %}
+
+routes:
+  - input_model_name: IngressModel
+    workflow_name: rename_to_file_id
+    output_model_name: DerivedModel1
+
+  - input_model_name: DerivedModel1
+    workflow_name: add_backup_class
+    output_model_name: DerivedModel2
+
+  - input_model_name: DerivedModel2
+    workflow_name: replace_file_ids
+    output_model_name: DerivedModel3
+
+  - input_model_name: DerivedModel3
+    workflow_name: remove_backup_class
+    output_model_name: DerivedModel4
+
+  - input_model_name: DerivedModel4
+    workflow_name: preserve_content
+    output_model_name: DerivedModel5

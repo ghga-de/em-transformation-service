@@ -1,0 +1,90 @@
+# Two sources converge on a bottleneck that fans out to three outputs; only
+# UnpublishedLeaf and its route are pruned. UnpublishedSource survives as an
+# ingress model.
+#
+# Graph:
+#     UnpublishedSource --[workflow]--> Bottleneck
+#     PublishedSource   --[workflow]--> Bottleneck
+#                                        Bottleneck --[workflow]--> PublishedDerived1
+#                                        Bottleneck --[workflow]--> PublishedDerived2
+#                                        Bottleneck --[workflow]--> UnpublishedLeaf
+
+config:
+  models:
+    - name: UnpublishedSource
+      order: 0
+      publish: false
+      is_ingress: true
+      version: null
+      schema_: &item_schema
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+    - name: PublishedSource
+      order: 1
+      publish: true
+      is_ingress: true
+      version: null
+      schema_: *item_schema
+    - name: Bottleneck
+      order: 2
+      publish: true
+      is_ingress: false
+      version: null
+      schema_: null
+    - name: PublishedDerived1
+      order: 3
+      publish: true
+      is_ingress: false
+      version: null
+      schema_: null
+    - name: PublishedDerived2
+      order: 4
+      publish: true
+      is_ingress: false
+      version: null
+      schema_: null
+    - name: UnpublishedLeaf
+      order: 5
+      publish: false
+      is_ingress: false
+      version: null
+      schema_: null
+  routes:
+    - input_model_name: UnpublishedSource
+      workflow_name: workflow
+      output_model_name: Bottleneck
+    - input_model_name: PublishedSource
+      workflow_name: workflow
+      output_model_name: Bottleneck
+    - input_model_name: Bottleneck
+      workflow_name: workflow
+      output_model_name: PublishedDerived1
+    - input_model_name: Bottleneck
+      workflow_name: workflow
+      output_model_name: PublishedDerived2
+    - input_model_name: Bottleneck
+      workflow_name: workflow
+      output_model_name: UnpublishedLeaf
+  workflows:
+    - name: workflow
+      description: Passes content schema through unchanged
+      workflow:
+        operations:
+          - name: transform_content
+            description: Identity transformation
+            args:
+              class_name: Item
+              content_schema:
+                type: object
+                additionalProperties: false
+              embedding_profile: {}
+              content_template_yaml: |
+                {% for key in content_property_names %}
+                  {{ key }}: {{ original[key] }}
+                {% endfor %}

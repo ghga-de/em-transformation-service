@@ -1,0 +1,69 @@
+# Three sources converge on a published output; nothing is pruned — the unpublished
+# sources are ingress models (is_ingress=True) and are never pruned.
+#
+# Graph:
+#     UnpublishedSource1 --[workflow]--> PublishedDerived
+#     UnpublishedSource2 --[workflow]--> PublishedDerived
+#     PublishedSource    --[workflow]--> PublishedDerived
+
+config:
+  models:
+    - name: UnpublishedSource1
+      order: 0
+      publish: false
+      is_ingress: true
+      version: null
+      schema_: &item_schema
+        schemapack: "4.0.0"
+        classes:
+          Item:
+            id:
+              propertyName: id
+            content:
+              type: object
+              additionalProperties: false
+    - name: UnpublishedSource2
+      order: 1
+      publish: false
+      is_ingress: true
+      version: null
+      schema_: *item_schema
+    - name: PublishedSource
+      order: 2
+      publish: true
+      is_ingress: true
+      version: null
+      schema_: *item_schema
+    - name: PublishedDerived
+      order: 3
+      publish: true
+      is_ingress: false
+      version: null
+      schema_: null
+  routes:
+    - input_model_name: UnpublishedSource1
+      workflow_name: workflow
+      output_model_name: PublishedDerived
+    - input_model_name: UnpublishedSource2
+      workflow_name: workflow
+      output_model_name: PublishedDerived
+    - input_model_name: PublishedSource
+      workflow_name: workflow
+      output_model_name: PublishedDerived
+  workflows:
+    - name: workflow
+      description: Passes content schema through unchanged
+      workflow:
+        operations:
+          - name: transform_content
+            description: Identity transformation
+            args:
+              class_name: Item
+              content_schema:
+                type: object
+                additionalProperties: false
+              embedding_profile: {}
+              content_template_yaml: |
+                {% for key in content_property_names %}
+                  {{ key }}: {{ original[key] }}
+                {% endfor %}

@@ -1,0 +1,85 @@
+# OrphanModel1 and OrphanModel2 are orphans; neither is reachable from any ingress model.
+# IngressModel2 has a route to DerivedModel1, so routes is non-empty and passes validation.
+#
+# Graph:
+#     IngressModel1
+#     IngressModel2 → DerivedModel1
+#     OrphanModel1   (no incoming route)
+#     OrphanModel2   (no incoming route)
+#
+# The first orphaned derived model encountered during _update_models raises because
+# no schema could be derived.
+
+models:
+  - name: OrphanModel1
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: -1
+    schema_: null
+
+  - name: OrphanModel2
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: -1
+    schema_: null
+
+  - name: IngressModel1
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: -1
+    schema_: &file_schema
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: &file_content {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "checksum": {"type": "string"},
+              "filename": {"type": "string"},
+              "format": {"type": "string"},
+              "size": {"type": "integer"}
+            },
+            "required": ["filename", "format", "checksum", "size"],
+            "type": "object"
+          }
+
+  - name: IngressModel2
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_: *file_schema
+
+  - name: DerivedModel1
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
+
+workflows:
+  - name: identity_workflow
+    description: Passes schema through unchanged
+    workflow:
+      operations:
+        - name: transform_content
+          description: Identity transform for testing
+          args:
+            class_name: File
+            content_schema: *file_content
+            embedding_profile: {}
+            content_template_yaml: |
+              {% for key in content_property_names %}
+                {{ key }}: {{ original[key] }}
+              {% endfor %}
+
+routes:
+  - input_model_name: IngressModel2
+    workflow_name: identity_workflow
+    output_model_name: DerivedModel1

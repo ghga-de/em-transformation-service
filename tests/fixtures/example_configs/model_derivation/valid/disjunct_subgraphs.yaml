@@ -1,0 +1,169 @@
+# Disjunct subgraphs: two independent subgraphs plus one isolated ingress.
+#
+# Subgraph 1:
+#     IngressModel1 → DerivedModel1 → DerivedModel2 → DerivedModel3 → DerivedModel4
+#                                                   → DerivedModel5 → DerivedModel6
+#
+# Subgraph 2:
+#     IngressModel2 → DerivedModel7 → DerivedModel8
+#
+# Isolated:
+#     IngressModel3
+#
+# Uses rename_id_property, duplicate_class, delete_class, and replace_resource_ids.
+
+models:
+  - name: IngressModel1
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 3
+    schema_: &file_schema
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: ../../_schemas/file_content.json
+
+  - name: IngressModel2
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_: *file_schema
+
+  - name: IngressModel3
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: -1
+    schema_: *file_schema
+
+  - name: DerivedModel1
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 4
+    schema_: null
+
+  - name: DerivedModel2
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 5
+    schema_: null
+
+  - name: DerivedModel3
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 8
+    schema_: null
+
+  - name: DerivedModel4
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 9
+    schema_: null
+
+  - name: DerivedModel5
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 6
+    schema_: null
+
+  - name: DerivedModel6
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 7
+    schema_: null
+
+  - name: DerivedModel7
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
+
+  - name: DerivedModel8
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 2
+    schema_: null
+
+workflows:
+  - name: rename_to_file_id
+    description: Renames the File id property from alias to file_id
+    workflow:
+      operations:
+        - name: rename_id_property
+          description: Rename id from alias to file_id
+          args:
+            class_name: File
+            id_property_name: file_id
+
+  - name: add_backup_class
+    description: Duplicates the File class as FileBackup
+    workflow:
+      operations:
+        - name: duplicate_class
+          description: Duplicate File as FileBackup
+          args:
+            source_class_name: File
+            target_class_name: FileBackup
+
+  - name: remove_backup_class
+    description: Deletes the FileBackup class
+    workflow:
+      operations:
+        - name: delete_class
+          description: Delete the FileBackup class
+          args:
+            class_name: FileBackup
+
+  - name: replace_file_ids
+    description: Replaces resource IDs for the File class
+    workflow:
+      operations:
+        - name: replace_resource_ids
+          description: Replace resource IDs
+          args:
+            class_name: File
+
+routes:
+  - input_model_name: IngressModel1
+    workflow_name: rename_to_file_id
+    output_model_name: DerivedModel1
+
+  - input_model_name: DerivedModel1
+    workflow_name: add_backup_class
+    output_model_name: DerivedModel2
+
+  - input_model_name: DerivedModel2
+    workflow_name: remove_backup_class
+    output_model_name: DerivedModel3
+
+  - input_model_name: DerivedModel3
+    workflow_name: replace_file_ids
+    output_model_name: DerivedModel4
+
+  - input_model_name: DerivedModel2
+    workflow_name: replace_file_ids
+    output_model_name: DerivedModel5
+
+  - input_model_name: DerivedModel5
+    workflow_name: remove_backup_class
+    output_model_name: DerivedModel6
+
+  - input_model_name: IngressModel2
+    workflow_name: replace_file_ids
+    output_model_name: DerivedModel7
+
+  - input_model_name: DerivedModel7
+    workflow_name: rename_to_file_id
+    output_model_name: DerivedModel8

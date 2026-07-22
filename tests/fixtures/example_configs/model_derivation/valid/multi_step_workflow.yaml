@@ -1,0 +1,48 @@
+# Two-step workflow: a single route whose workflow chains two operations.
+#
+# Graph:
+#     IngressModel → DerivedModel1
+#
+# Step 1: rename_id_property (alias → file_id)
+# Step 2: replace_resource_ids (File)
+
+models:
+  - name: IngressModel
+    is_ingress: true
+    version: "1.0.0"
+    publish: false
+    order: 0
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        File:
+          id:
+            propertyName: alias
+          content: ../../_schemas/file_content.json
+
+  - name: DerivedModel1
+    is_ingress: false
+    version: "1.0.0"
+    publish: false
+    order: 1
+    schema_: null
+
+workflows:
+  - name: rename_then_replace
+    description: Two-step workflow that renames an id property then replaces resource IDs
+    workflow:
+      operations:
+        - name: rename_id_property
+          description: Rename id from alias to file_id
+          args:
+            class_name: File
+            id_property_name: file_id
+        - name: replace_resource_ids
+          description: Replace resource IDs
+          args:
+            class_name: File
+
+routes:
+  - input_model_name: IngressModel
+    workflow_name: rename_then_replace
+    output_model_name: DerivedModel1

@@ -1,0 +1,11 @@
+service_name: emts
+service_instance_id: "1"
+kafka_servers: ["kafka:9092"]
+mongo_dsn: "mongodb://mongodb:27017"
+db_name: "dev"
+kafka_enable_dlq: True
+processing_configuration_path: tests/fixtures/example_configs/valid/basic_config.yaml
+original_aem_pack_topic: original-aempacks
+derived_aem_pack_topic: derived-aempacks
+aem_pack_processing_status_topic: aempack-processing-events
+claim_ttl_seconds: 300

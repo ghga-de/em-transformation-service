@@ -1,0 +1,37 @@
+# Invalid: Workflow contains unknown transformation
+models:
+  - name: ingress_model
+    description: Ingress model
+    is_ingress: true
+    version: "1.0.0"
+    schema_:
+      schemapack: "4.0.0"
+      classes:
+        TestClass:
+          id:
+            propertyName: id
+          content:
+            type: object
+    publish: true
+
+  - name: output_model
+    description: Output model
+    is_ingress: false
+    version: "1.0.0"
+    schema_: null
+    publish: false
+
+workflows:
+  - name: workflow_unknown_transformation
+    description: Workflow with unknown transformation
+    workflow:
+      operations:
+        - name: unknown_transformation
+          description: Unknown transformation operation
+          args: {}
+
+routes:
+  - name: "ingress_model:workflow_unknown_transformation:output_model"
+    input_model_name: ingress_model
+    workflow_name: workflow_unknown_transformation
+    output_model_name: output_model
